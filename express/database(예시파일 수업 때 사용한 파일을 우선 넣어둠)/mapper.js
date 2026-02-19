@@ -2,15 +2,16 @@
 const mariadb = require("mariadb");
 // DB에서 실행할 SQL문을 별도 파일로 작성
 const sqlList = require("./sqlList.js");
+require('dotenv').config({path:'../../dbConfig.env'})
 // ConnectionPool 생성
 const connectionPool = mariadb.createPool({
   // DB에 접속하는 정보
-  host: "localhost",
-  port: 3306,
-  user: "dev01",
-  password: "dev01",
-  database: "dev",
-  connectionLimit: 10,
+  host:process.env.host,
+  port:process.env.port,
+  user:process.env.user,
+  password:process.env.password,
+  database:process.env.database,
+  connectionLimit: 5,
   // Object의 필드정보(Entiry)를 Query문에 있는 '?'에 자동변환 설정
   permitSetMultiParamEntries: true,
   // DML(insert, update, delete)를 실행할 경우
