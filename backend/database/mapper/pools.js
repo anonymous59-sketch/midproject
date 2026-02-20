@@ -1,16 +1,15 @@
 // MariaDB에 접속할 모듈
 const mariadb = require("mariadb");
-// DB에서 실행할 SQL문을 별도 파일로 작성
-const sqlList = require("./sqlList.js");
+require('dotenv').config({path:'../dbConfig.env'})
 // ConnectionPool 생성
 const connectionPool = mariadb.createPool({
-  // DB에 접속하는 정보
-  host: "localhost",
-  port: 3306,
-  user: "dev01",
-  password: "dev01",
-  database: "dev",
-  connectionLimit: 10,
+  // DB에 접속하는 정보 app.js랑 같은 경로에 dbConfig.env가 있어야함. git으로 공유가 안되는 파일이니까 없으면 조장, 부조장에게 요청
+  host:process.env.host,
+  port:process.env.port,
+  user:process.env.user,
+  password:process.env.password,
+  database:process.env.database,
+  connectionLimit: 5,
   // Object의 필드정보(Entiry)를 Query문에 있는 '?'에 자동변환 설정
   permitSetMultiParamEntries: true,
   // DML(insert, update, delete)를 실행할 경우
@@ -29,25 +28,5 @@ const connectionPool = mariadb.createPool({
   },
 });
 
-// db에 sql문 보내고 데이터 받아오는 함수
-const query = async (alias, values) => {
-  // values = SQL문 안에 선언한 '?' param을 대체할 값
-  let conn = null;
-  try {
-    conn = await connectionPool.getConnection();
-    let executeSql = sqlList[alias];
-    let result = await conn.query(executeSql, values);
-    return result;
-  } catch (err) {
-    console.log(`==========SQL ERR ==========`);
-    console.error(err);
-  } finally {
-    if (conn) {
-      conn.release();
-    }
-  }
-};
-
-module.exports = {
-  query,
-};
+// mapper.js 파일로 넘김
+module.exports = connectionPool;
