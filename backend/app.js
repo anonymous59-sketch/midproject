@@ -9,8 +9,8 @@ app.get("/", (req, res) => {
   res.send("Welcome!");
 });
 
-
-// app.use("/", );
+const Router = require("./router/router.js"); // 모든 라우터가 모여있는 파일이 router.js
+app.use("/", Router);
 
 // 서버 실행
 const port = 3000;
