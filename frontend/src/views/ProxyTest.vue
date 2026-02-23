@@ -35,7 +35,7 @@ async function testPswSurvey() {
   surveyResult.value = null;
   try {
     const res = await axios.get("/api/survey");
-    surveyResult.value = Array.isArray(res.data) ? res.data : res.data;
+    surveyResult.value = Array.isArray(res.data) ? res.data : [res.data];
   } catch (e) {
     surveyError.value = e.message || String(e);
     if (e.response) {
@@ -67,7 +67,8 @@ onMounted(() => {
           <div class="card-header pb-0">
             <h5>1. 기본 프록시 테스트</h5>
             <p class="text-sm text-muted mb-0">
-              <code>/api</code> → <code>http://localhost:3000</code> (GET /api/hello)
+              <code>/api</code> → <code>http://localhost:3000</code> (GET
+              /api/hello)
             </p>
           </div>
           <div class="card-body">
@@ -84,16 +85,28 @@ onMounted(() => {
             </div>
             <div v-else-if="result" class="alert alert-success mb-0">
               <strong>프록시 정상 동작</strong>
-              <pre class="mb-0 mt-2 text-dark">{{ JSON.stringify(result, null, 2) }}</pre>
+              <pre class="mb-0 mt-2 text-dark">{{
+                JSON.stringify(result, null, 2)
+              }}</pre>
             </div>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header pb-0">
-            <h5>2. psw_survey 테스트 (테스트를 위해 더미데이터가 존재하는 main_code의 값을 가져옴)</h5>
+            <h5>2. psw_survey 테스트</h5>
             <p class="text-sm text-muted mb-0">
-              router (<code>psw_survey_router</code>) → service (<code>psw_survey_service</code>) → database (<code>psw_survey_sql</code>), GET <code>/api/survey</code>
+              콘솔창에 fetch('/api/(주소)') .then(res => res.json())
+              .then(console.log) .catch(console.error); 를 입력해서 데이터 잘 넘어가는지 테스트 해볼 수 있음
+            </p>
+            <p class="text-sm text-muted mb-0">
+              주의: 콘솔창에서는 axios가 아닌 fetch로 테스트를 해 볼 수 있고 컴포넌트에서 데이터 통신을 할 경우에는 axios로 하는게 더 좋을듯
+              axios 모듈은 설치되어있으니 import 하기
+            </p>
+            <p class="text-sm text-muted mb-0">
+              router (<code>psw_survey_router</code>) → service
+              (<code>psw_survey_service</code>) → database
+              (<code>psw_survey_sql</code>), GET <code>/api/survey</code>
             </p>
           </div>
           <div class="card-body">
@@ -104,16 +117,23 @@ onMounted(() => {
             >
               {{ surveyLoading ? "요청 중..." : "설문 목록 조회 테스트" }}
             </button>
-            <div v-if="surveyLoading" class="text-muted">설문 목록 요청 중...</div>
+            <div v-if="surveyLoading" class="text-muted">
+              설문 목록 요청 중...
+            </div>
             <div v-else-if="surveyError" class="alert alert-danger mb-0">
               <strong>실패:</strong> {{ surveyError }}
               <div class="mt-2 small">
                 DB 연결 및 <code>survey</code> 테이블 존재 여부를 확인하세요.
               </div>
             </div>
-            <div v-else-if="surveyResult !== null" class="alert alert-success mb-0">
+            <div
+              v-else-if="surveyResult !== null"
+              class="alert alert-success mb-0"
+            >
               <strong>설문 목록 조회 성공</strong>
-              <pre class="mb-0 mt-2 text-dark">{{ JSON.stringify(surveyResult, null, 2) }}</pre>
+              <pre class="mb-0 mt-2 text-dark">{{
+                JSON.stringify(surveyResult, null, 2)
+              }}</pre>
             </div>
           </div>
         </div>
