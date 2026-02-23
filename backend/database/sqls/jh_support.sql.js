@@ -13,7 +13,7 @@ const qry = {
   INNER JOIN disability_person d
   ON s.mc_pn = d.disability_code
   WHERE s.sup_code = ?`,
-
+  //
   // 지원신청(sup_code)에 대한 계획 조회
   supportPlanBySupCode: `
     SELECT 
