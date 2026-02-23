@@ -1,222 +1,239 @@
+<!-- src/views/Dashboard.vue -->
 <script setup>
-import MiniStatisticsCard from "@/examples/Cards/MiniStatisticsCard.vue";
-import GradientLineChart from "@/examples/Charts/GradientLineChart.vue";
-import Carousel from "./components/Carousel.vue";
-import CategoriesList from "./components/CategoriesList.vue";
+import { ref, computed } from "vue";
 
-import US from "@/assets/img/icons/flags/US.png";
-import DE from "@/assets/img/icons/flags/DE.png";
-import GB from "@/assets/img/icons/flags/GB.png";
-import BR from "@/assets/img/icons/flags/BR.png";
+/**
+ * (임시) 화면 확인용 더미 데이터
+ * 나중에 API 붙이면 여기만 교체하면 됨
+ */
+const keyword = ref("");
+const status = ref("all"); // all | inReview | interview | passed
+const dateFrom = ref("");
+const dateTo = ref("");
 
-const sales = {
-  us: {
-    country: "United States",
-    sales: 2500,
-    value: "$230,900",
-    bounce: "29.9%",
-    flag: US,
+const applicants = ref([
+  {
+    id: 101,
+    name: "홍길동",
+    phone: "010-1234-5678",
+    appliedAt: "2026-02-20",
+    status: "inReview",
   },
-  germany: {
-    country: "Germany",
-    sales: "3.900",
-    value: "$440,000",
-    bounce: "40.22%",
-    flag: DE,
+  {
+    id: 102,
+    name: "김영희",
+    phone: "010-2222-3333",
+    appliedAt: "2026-02-19",
+    status: "interview",
   },
-  britain: {
-    country: "Great Britain",
-    sales: "1.400",
-    value: "$190,700",
-    bounce: "23.44%",
-    flag: GB,
+  {
+    id: 103,
+    name: "박철수",
+    phone: "010-9999-8888",
+    appliedAt: "2026-02-18",
+    status: "passed",
   },
-  brasil: {
-    country: "Brasil",
-    sales: "562",
-    value: "$143,960",
-    bounce: "32.14%",
-    flag: BR,
-  },
+]);
+
+const statusLabel = (s) => {
+  if (s === "inReview") return "서류검토";
+  if (s === "interview") return "면접";
+  if (s === "passed") return "최종합격";
+  return "전체";
+};
+
+const filteredApplicants = computed(() => {
+  const k = keyword.value.trim();
+  return applicants.value.filter((a) => {
+    const matchKeyword =
+      !k ||
+      a.name.includes(k) ||
+      a.phone.includes(k) ||
+      String(a.id).includes(k);
+
+    const matchStatus = status.value === "all" || a.status === status.value;
+
+    const matchFrom = !dateFrom.value || a.appliedAt >= dateFrom.value;
+    const matchTo = !dateTo.value || a.appliedAt <= dateTo.value;
+
+    return matchKeyword && matchStatus && matchFrom && matchTo;
+  });
+});
+
+const resetFilters = () => {
+  keyword.value = "";
+  status.value = "all";
+  dateFrom.value = "";
+  dateTo.value = "";
 };
 </script>
+
 <template>
   <div class="py-4 container-fluid">
+    <!-- 상단 헤더 영역 (view-008 메인화면 레이아웃 개요) -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <h5 class="mb-1">지원자 관리</h5>
+            <p class="text-sm text-secondary mb-0">
+              지원자 리스트를 조회하고 상태를 관리합니다.
+            </p>
+          </div>
+
+          <!-- (선택) 우측 상단 액션 버튼 -->
+          <div class="d-flex gap-2">
+            <button
+              class="btn btn-sm btn-outline-secondary mb-0"
+              @click="resetFilters"
+            >
+              필터 초기화
+            </button>
+            <button class="btn btn-sm btn-primary mb-0">신규 등록</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 본문 2컬럼 레이아웃: 좌 필터 / 우 리스트 (view-009, view-010) -->
     <div class="row">
-      <div class="col-lg-12">
-        <div class="row">
-          <div class="col-lg-3 col-md-6 col-12">
-            <mini-statistics-card
-              title="Today's Money"
-              value="$53,000"
-              description="<span
-                class='text-sm font-weight-bolder text-success'
-                >+55%</span> since yesterday"
-              :icon="{
-                component: 'ni ni-money-coins',
-                background: 'bg-gradient-primary',
-                shape: 'rounded-circle',
-              }"
-            />
+      <!-- 좌측: 필터 패널 (view-009 지원자리스트 레이아웃 상세) -->
+      <div class="col-lg-3 col-12 mb-4">
+        <div class="card">
+          <div class="card-header pb-0">
+            <h6 class="mb-0">검색/필터</h6>
           </div>
-          <div class="col-lg-3 col-md-6 col-12">
-            <mini-statistics-card
-              title="Today's Users"
-              value="2,300"
-              description="<span
-                class='text-sm font-weight-bolder text-success'
-                >+3%</span> since last week"
-              :icon="{
-                component: 'ni ni-world',
-                background: 'bg-gradient-danger',
-                shape: 'rounded-circle',
-              }"
+
+          <div class="card-body">
+            <label class="form-label text-sm">키워드</label>
+            <input
+              v-model="keyword"
+              type="text"
+              class="form-control"
+              placeholder="이름/전화번호/ID"
             />
-          </div>
-          <div class="col-lg-3 col-md-6 col-12">
-            <mini-statistics-card
-              title="New Clients"
-              value="+3,462"
-              description="<span
-                class='text-sm font-weight-bolder text-danger'
-                >-2%</span> since last quarter"
-              :icon="{
-                component: 'ni ni-paper-diploma',
-                background: 'bg-gradient-success',
-                shape: 'rounded-circle',
-              }"
-            />
-          </div>
-          <div class="col-lg-3 col-md-6 col-12">
-            <mini-statistics-card
-              title="Sales"
-              value="$103,430"
-              description="<span
-                class='text-sm font-weight-bolder text-success'
-                >+5%</span> than last month"
-              :icon="{
-                component: 'ni ni-cart',
-                background: 'bg-gradient-warning',
-                shape: 'rounded-circle',
-              }"
-            />
-          </div>
-        </div>
-        <div class="row">
-          <div class="col-lg-7 mb-lg">
-            <!-- line chart -->
-            <div class="card z-index-2">
-              <gradient-line-chart
-                id="chart-line"
-                title="Sales Overview"
-                description="<i class='fa fa-arrow-up text-success'></i>
-      <span class='font-weight-bold'>4% more</span> in 2021"
-                :chart="{
-                  labels: [
-                    'Apr',
-                    'May',
-                    'Jun',
-                    'Jul',
-                    'Aug',
-                    'Sep',
-                    'Oct',
-                    'Nov',
-                    'Dec',
-                  ],
-                  datasets: [
-                    {
-                      label: 'Mobile Apps',
-                      data: [50, 40, 300, 220, 500, 250, 400, 230, 500],
-                    },
-                  ],
-                }"
-              />
+
+            <div class="mt-3">
+              <label class="form-label text-sm">상태</label>
+              <select v-model="status" class="form-select">
+                <option value="all">전체</option>
+                <option value="inReview">서류검토</option>
+                <option value="interview">면접</option>
+                <option value="passed">최종합격</option>
+              </select>
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label text-sm">지원일 (From)</label>
+              <input v-model="dateFrom" type="date" class="form-control" />
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label text-sm">지원일 (To)</label>
+              <input v-model="dateTo" type="date" class="form-control" />
+            </div>
+
+            <div class="mt-4 d-grid gap-2">
+              <button class="btn btn-primary mb-0">검색</button>
+              <button
+                class="btn btn-outline-secondary mb-0"
+                @click="resetFilters"
+              >
+                초기화
+              </button>
             </div>
           </div>
-          <div class="col-lg-5">
-            <carousel />
-          </div>
         </div>
-        <div class="row mt-4">
-          <div class="col-lg-7 mb-lg-0 mb-4">
-            <div class="card">
-              <div class="p-3 pb-0 card-header">
-                <div class="d-flex justify-content-between">
-                  <h6 class="mb-2">Sales by Country</h6>
-                </div>
-              </div>
-              <div class="table-responsive">
-                <table class="table align-items-center">
-                  <tbody>
-                    <tr v-for="(sale, index) in sales" :key="index">
-                      <td class="w-30">
-                        <div class="px-2 py-1 d-flex align-items-center">
-                          <div>
-                            <img :src="sale.flag" alt="Country flag" />
-                          </div>
-                          <div class="ms-4">
-                            <p class="mb-0 text-xs font-weight-bold">
-                              Country:
-                            </p>
-                            <h6 class="mb-0 text-sm">{{ sale.country }}</h6>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div class="text-center">
-                          <p class="mb-0 text-xs font-weight-bold">Sales:</p>
-                          <h6 class="mb-0 text-sm">{{ sale.sales }}</h6>
-                        </div>
-                      </td>
-                      <td>
-                        <div class="text-center">
-                          <p class="mb-0 text-xs font-weight-bold">Value:</p>
-                          <h6 class="mb-0 text-sm">{{ sale.value }}</h6>
-                        </div>
-                      </td>
-                      <td class="text-sm align-middle">
-                        <div class="text-center col">
-                          <p class="mb-0 text-xs font-weight-bold">Bounce:</p>
-                          <h6 class="mb-0 text-sm">{{ sale.bounce }}</h6>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+      </div>
+
+      <!-- 우측: 리스트(테이블) 영역 (view-010 메인페이지 content 영역) -->
+      <div class="col-lg-9 col-12">
+        <div class="card">
+          <div class="card-header pb-0">
+            <div class="d-flex align-items-center justify-content-between">
+              <h6 class="mb-0">지원자 리스트</h6>
+              <span class="text-sm text-secondary">
+                총 {{ filteredApplicants.length }}명
+              </span>
             </div>
           </div>
-          <div class="col-lg-5">
-            <categories-list
-              :categories="[
-                {
-                  icon: {
-                    component: 'ni ni-mobile-button',
-                    background: 'dark',
-                  },
-                  label: 'Devices',
-                  description: '250 in stock <strong>346+ sold</strong>',
-                },
-                {
-                  icon: {
-                    component: 'ni ni-tag',
-                    background: 'dark',
-                  },
-                  label: 'Tickets',
-                  description: '123 closed <strong>15 open</strong>',
-                },
-                {
-                  icon: { component: 'ni ni-box-2', background: 'dark' },
-                  label: 'Error logs',
-                  description: '1 is active <strong>40 closed</strong>',
-                },
-                {
-                  icon: { component: 'ni ni-satisfied', background: 'dark' },
-                  label: 'Happy Users',
-                  description: '+ 430',
-                },
-              ]"
-            />
+
+          <div class="table-responsive">
+            <table class="table align-items-center mb-0">
+              <thead>
+                <tr>
+                  <th
+                    class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7"
+                  >
+                    ID
+                  </th>
+                  <th
+                    class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7"
+                  >
+                    이름
+                  </th>
+                  <th
+                    class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7"
+                  >
+                    전화번호
+                  </th>
+                  <th
+                    class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7"
+                  >
+                    지원일
+                  </th>
+                  <th
+                    class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7"
+                  >
+                    상태
+                  </th>
+                  <th
+                    class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 text-end"
+                  >
+                    액션
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr v-for="a in filteredApplicants" :key="a.id">
+                  <td class="text-sm">{{ a.id }}</td>
+                  <td class="text-sm font-weight-bold">{{ a.name }}</td>
+                  <td class="text-sm">{{ a.phone }}</td>
+                  <td class="text-sm">{{ a.appliedAt }}</td>
+                  <td class="text-sm">
+                    <span
+                      class="badge"
+                      :class="{
+                        'bg-gradient-info': a.status === 'inReview',
+                        'bg-gradient-warning': a.status === 'interview',
+                        'bg-gradient-success': a.status === 'passed',
+                      }"
+                    >
+                      {{ statusLabel(a.status) }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary mb-0">
+                      상세
+                    </button>
+                  </td>
+                </tr>
+
+                <tr v-if="filteredApplicants.length === 0">
+                  <td colspan="6" class="text-center text-secondary py-4">
+                    조건에 맞는 지원자가 없습니다.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card-footer d-flex justify-content-end">
+            <!-- (나중에 페이지네이션 영역) -->
+            <span class="text-xs text-secondary"
+              >페이지네이션은 다음 단계에서 붙입니다.</span
+            >
           </div>
         </div>
       </div>
