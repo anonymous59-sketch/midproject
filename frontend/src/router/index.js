@@ -6,6 +6,9 @@ import Tables from "../views/Tables.vue";
 import Profile from "../views/Profile.vue";
 import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
+import FindId from "../views/FindId.vue"; // 아이디 찾기
+import FindPassword from "../views/FindPassword.vue"; // 비밀번호 찾기
+import ResetPassword from "../views/ResetPassword.vue"; // 비밀번호 재설정
 import ProxyTest from "../views/ProxyTest.vue";
 
 const routes = [
@@ -40,6 +43,19 @@ const routes = [
     component: Signup,
   },
   {
+    path: "/find-id",
+    name: "FindId",
+    component: FindId,
+  },
+  {
+    path: "/reset-password",
+    name: "ResetPassword",
+    component: ResetPassword,
+  },
+  {
+    path: "/find-password",
+    name: "FindPassword",
+    component: FindPassword,
     path: "/proxy-test",
     name: "ProxyTest",
     component: ProxyTest,
