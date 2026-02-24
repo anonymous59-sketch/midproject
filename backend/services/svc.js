@@ -2,6 +2,7 @@
 // 이건 조원들이 계속 추가하는 구조라서 merge할 때 conflict가 나게 됨
 const login_service = require("./ex_login_service");
 const support_service = require("./jh_support_service");
+const rank_service = require("./jh_rank_service");
 const psw_survey = require("./psw_survey_service.js");
 
 // 선언한 변수를 ...과 함께 아래에 추가해줘야함.
@@ -10,5 +11,6 @@ module.exports = {
   // spread operator을 활용
   ...login_service,
   ...support_service,
+  ...rank_service,
   ...psw_survey,
 };

@@ -1,6 +1,6 @@
 <script setup>
 defineProps({
-  member_role: { type: String, default: "" },
+  // member_role: { type: String, default: "" }, // 로그인 연동 시 권한에 따라 노출 제어
   support_plan_title: { type: String, default: "" },
   support_plan_content: { type: String, default: "" },
   support_plan_file: { type: String, default: "" },
@@ -62,8 +62,8 @@ const emit = defineEmits([
       </div>
     </div>
     <div class="actions d-flex flex-wrap gap-2 mb-3">
+      <!-- 로그인 연동 시 member_role에 따라 v-if 적용 -->
       <button
-        v-if="member_role === 'a0_40' || member_role === 'a0_30' || member_role === 'a0_20'"
         type="button"
         class="btn btn-sm btn-success"
         @click="emit('history')"
@@ -71,7 +71,6 @@ const emit = defineEmits([
         수정이력
       </button>
       <button
-        v-if="member_role === 'a0_40' || member_role === 'a0_30' || member_role === 'a0_20'"
         type="button"
         class="btn btn-sm btn-primary"
         @click="emit('result')"
@@ -79,7 +78,7 @@ const emit = defineEmits([
         결과조회
       </button>
       <button
-        v-if="(member_role === 'a0_40' || member_role === 'a0_30') && (plan_result === 'e0_00' || plan_result === 'e0_80')"
+        v-if="plan_result === 'e0_00' || plan_result === 'e0_80'"
         type="button"
         class="btn btn-sm btn-primary"
         @click="emit('edit')"
@@ -87,7 +86,7 @@ const emit = defineEmits([
         수정
       </button>
       <button
-        v-if="member_role === 'a0_40' && (plan_result === 'e0_00' || plan_result === 'e0_80')"
+        v-if="plan_result === 'e0_00' || plan_result === 'e0_80'"
         type="button"
         class="btn btn-sm btn-success"
         @click="emit('approve')"
@@ -95,7 +94,7 @@ const emit = defineEmits([
         승인
       </button>
       <button
-        v-if="member_role === 'a0_40' && (plan_result === 'e0_00' || plan_result === 'e0_80')"
+        v-if="plan_result === 'e0_00' || plan_result === 'e0_80'"
         type="button"
         class="btn btn-sm btn-danger"
         @click="emit('reject')"
@@ -103,7 +102,7 @@ const emit = defineEmits([
         반려
       </button>
       <button
-        v-if="member_role === 'a0_40' && (plan_result === 'e0_00' || plan_result === 'e0_80')"
+        v-if="plan_result === 'e0_00' || plan_result === 'e0_80'"
         type="button"
         class="btn btn-sm btn-outline-secondary"
         @click="emit('supple')"

@@ -5,6 +5,7 @@ const router = express.Router();
 // 라우터 변수를 따로 설정하고 자신이 만든 파일의 경로를 가져와야함
 const login_router = require("./ex_login_router");
 const support_router = require("./jh_support_router");
+const rank_router = require("./jh_rank_router");
 const psw_survey = require("./psw_survey_router");
 
 // 라우터 주소가 최대한 겹치지 않도록 유의할 필요가 있음
@@ -16,6 +17,7 @@ const psw_survey = require("./psw_survey_router");
 // 대신 router.use("임의의 주소", 자신이 선언한 변수); 이 형태의 코드는 있어야 적용이 정상적으로 진행
 router.use("/login", login_router);
 router.use("/support", support_router);
-router.use('/', psw_survey);
+router.use("/rank", rank_router);
+router.use("/", psw_survey);
 
 module.exports = router;

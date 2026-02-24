@@ -1,6 +1,6 @@
 <script setup>
-import SupportPlanHeader from "./components/SupportPlanHeader.vue";
-import SupportPlanDetail from "./components/SupportPlanDetail.vue";
+import SupportPlanHeader from "./support/SupportPlanHeader.vue";
+import SupportPlanDetail from "./support/SupportPlanDetail.vue";
 import { onBeforeMount } from "vue";
 import { useRoute } from "vue-router";
 import { useSupportStore } from "../store/support.js";
@@ -11,8 +11,6 @@ const supportCode = route.params.supportCode;
 const supportStore = useSupportStore();
 const { detail, infoData } = storeToRefs(supportStore);
 const { supportPlanDetail } = supportStore;
-// TODO: 로그인 연동 시 store/권한에서 가져오기
-const memberRole = "a0_40";
 
 onBeforeMount(() => {
   supportPlanDetail(supportCode);
@@ -46,12 +44,11 @@ function reject() {
       :manager_name="infoData?.manager_name ?? ''"
       :priority="infoData?.priority ?? ''"
       :write_date="infoData?.write_date ?? ''"
-:disability_type="infoData?.disability_type ?? ''"
+      :disability_type="infoData?.disability_type ?? ''"
     />
     <SupportPlanDetail
       v-for="item in detail ?? []"
       :key="item.plan_code"
-      :member_role="memberRole"
       :support_plan_title="item.plan_goal"
       :support_plan_content="item.plan_content"
       :support_plan_file="item.origin_file_name"

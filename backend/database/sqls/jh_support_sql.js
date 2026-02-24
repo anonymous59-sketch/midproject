@@ -8,21 +8,24 @@
 const qry = {
   // 지원신청의 지원자 정보 조회
   supportInfo: `
-  SELECT s.sup_code, 
-         m1.m_nm AS member_name, 
-         d.mc_nm AS target_name, 
-         d.mc_type AS disability_type, 
-         s.sup_day AS write_date, 
-         m2.m_nm AS manager_name, 
-         s.rank_res AS priority
-  FROM support s 
-  INNER JOIN dsbl_prs d
-  ON s.mc_pn = d.mc_pn
-  INNER JOIN member m1
-  ON s.mem_no = m1.m_no
-  INNER JOIN member m2
-  ON s.mgr_no = m2.m_no
-  WHERE s.sup_code = ?`,
+  SELECT 
+    d.mc_nm target_name,
+    d.mc_type disability_type,
+    s.sup_day write_date,
+    m_mem.m_nm member_name,
+    m_mgr.m_nm manager_name,
+    sc.s_name AS priority
+  FROM support s
+  JOIN dsbl_prs d     ON s.mc_pn  = d.mc_pn
+  JOIN member m_mem   ON s.mem_no = m_mem.m_no
+  JOIN member m_mgr   ON s.mgr_no = m_mgr.m_no
+  LEFT JOIN rank r    ON s.sup_code = r.sup_code 
+                     AND r.req_code = (SELECT MAX(req_code) 
+                                       FROM rank 
+                                       WHERE sup_code = s.sup_code)
+  LEFT JOIN sub_code sc ON r.s_rank_code = sc.s_code
+  WHERE s.sup_code = ?
+  AND r.s_rank_res = 'e0_10'`,
 
   // 지원신청(sup_code)에 대한 계획 조회
   supportPlanBySupCode: `
@@ -33,7 +36,7 @@ const qry = {
     p.plan_content,
     p.plan_date,
     p.plan_tf,
-    p.plan_rej_cmt,
+    p.plan_cmt,
     p.plan_updday,
     f.file_code, 
     f.origin_file_name,
