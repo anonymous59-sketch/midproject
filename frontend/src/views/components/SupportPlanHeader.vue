@@ -1,18 +1,3 @@
-<script setup>
-defineProps({
-  summary: {
-    type: Object,
-    default: () => ({
-      supportTarget: "",
-      disabilityType: "",
-      writeDate: "",
-      applicant: "",
-      manager: "",
-      priority: "",
-    }),
-  },
-});
-</script>
 <template>
   <div class="sample-support-plan-header">
     <table class="table">

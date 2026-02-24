@@ -2,11 +2,11 @@
 import { useRoute, useRouter } from "vue-router";
 
 const route = useRoute();
-const router = useRouter();
+const routes = useRouter();
 
 const id = route.params.id;
 
-const goBack = () => router.push("/organmanager/counselings");
+const goBack = () => routes.push("/organmanager/counselings");
 </script>
 
 <template>

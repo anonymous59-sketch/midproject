@@ -7,7 +7,7 @@ import ArgonButton from "@/components/ArgonButton.vue";
 
 const body = document.getElementsByTagName("body")[0];
 const store = useStore();
-const router = useRouter();
+const routes = useRouter();
 
 onBeforeMount(() => {
   store.state.hideConfigButton = true;
@@ -27,7 +27,7 @@ onBeforeUnmount(() => {
 
 // 페이지 이동 함수
 const goToLogin = () => {
-  router.push("/signin"); // 라우터 설정에 맞춘 로그인 경로
+  routes.push("/signin"); // 라우터 설정에 맞춘 로그인 경로
 };
 
 // 인증번호 발송 로직

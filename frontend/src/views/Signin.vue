@@ -9,16 +9,16 @@ import ArgonButton from "@/components/ArgonButton.vue";
 
 const body = document.getElementsByTagName("body")[0];
 const store = useStore();
-const router = useRouter();
+const routes = useRouter();
 
 const goToSignUp = () => {
-  router.push("/signup");
+  routes.push("/signup");
 };
 const goToFindId = () => {
-  router.push("/find-id"); // 라우터 경로 설정
+  routes.push("/find-id"); // 라우터 경로 설정
 };
 const goToResetPassword = () => {
-  router.push("/find-password");
+  routes.push("/find-password");
 };
 
 onBeforeMount(() => {
