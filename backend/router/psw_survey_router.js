@@ -24,6 +24,20 @@ router.get("/survey", async (req, res) => {
 });
 /* Axios: axios.get('/api/survey', { params: { sv_name: 1 }}) 가능
 fetch: fetch('/api/survey?sv_name=1') 형태로 URL에 직접 붙여야 함 */
+//// 전체조회와 검색 조회를 하나로 합치는 건데 좀 확인해보고 적용해야할듯
+//// 작동 방식은 검색 조회에 값이 안들어오면 전체조회, 값이들어오면 검색 조회, 그리고 검색창에선 vue의 watch를 이용해 값을 계속 감시하는 방식으로 할듯
+// router.get("/survey", async (req, res) => {
+//   const searchName = req.query.sv_name || "";
+//   try {
+//     const result = searchName
+//       ? await survey.psw_searchSurveyName(searchName)
+//       : await survey.psw_showSurveyList();
+//     res.send(result);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).send({ error: "데이터 조회 실패" });
+//   }
+// });
 
 // 조사지 대분류 등록
 router.post("/survey/majorCategory", async (req, res) => {
@@ -56,10 +70,11 @@ router.post("/survey/surveyQuestion", async (req, res) => {
 // 수정: 대분류·소분류·질문 3곳 한 번에 수정 (트랜잭션, 하나라도 실패 시 rollback)
 // body: { major_name, major_code, sub_name, sub_code, q_content, q_code }
 router.put("/survey/categories", async (req, res) => {
+  const updateData = req.body
   const result = await survey
-    .psw_updateSurveyCategories(req.body)
+    .psw_updateSurveyCategories(updateData)
     .catch((err) => console.error(err));
-  res.send(result || { isSuccessed: false });
+  res.send(result);
 });
 
 module.exports = router;

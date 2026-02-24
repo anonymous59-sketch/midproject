@@ -21,16 +21,30 @@ const query = async (alias, values) => {
   }
 };
 
-// 트랜잭션용: 이미 획득한 connection으로 쿼리 실행 (connection 획득/반환 안 함)
-// 박상원 조사지 등록을 위해 필요한 트랜잭션용
-const queryWithConn = async (conn, alias, values) => {
-  const executeSql = sqlList[alias];
-  return conn.query(executeSql, values);
+/*
+박상원 조사지 수정을 한꺼번에 하기 위해서 사용하는 것
+여러 쿼리를 한 트랜잭션으로 실행 (트랜잭션 >> 전부 성공 시 commit, 하나라도 실패 시 rollback, 작업 결과가 어떻게 되든 마지막은 연결상태를 항상 release)
+*/
+const runInTransaction = async (objData) => {
+  let conn = null;
+  try {
+    conn = await connectionPool.getConnection();
+    await conn.beginTransaction(); // 트랜잭션 만들기 시작
+    for (const ob of objData) {
+      await conn.query(sqlList[ob.alias], ob.values);
+    }
+    await conn.commit();
+    return { success: true };
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.log(`==========SQL ERR (transaction rollback) ==========`);
+    console.error(err);
+    return { success: false, error: err };
+  } finally {
+    if (conn) conn.release();
+  }
 };
-
-const getConnection = () => connectionPool.getConnection();
+query.runInTransaction = runInTransaction; // export를 query만 하니까 query에 속성을 하나 추가하는 형식
 
 // services 폴더의 각자 service.js로 넘김
 module.exports = query;
-module.exports.queryWithConn = queryWithConn;
-module.exports.getConnection = getConnection;

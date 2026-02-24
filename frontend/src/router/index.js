@@ -7,11 +7,13 @@ import Profile from "../views/Profile.vue";
 import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
 import SupportPlan from "../views/SupportPlan.vue";
+import Rank from "../views/Rank.vue";
 import FindId from "../views/FindId.vue";
 import FindPassword from "../views/FindPassword.vue";
 import ResetPassword from "../views/ResetPassword.vue";
 import ProxyTest from "../views/ProxyTest.vue";
 import AdminLayout from "@/views/AdminLayout.vue"; // 새로 만들 파일
+import ManagerControl from "@/views/ManagerControl.vue";
 
 const routesList = [
   // 1) 지원자(기존) 영역: MainLayout 아래
@@ -109,6 +111,11 @@ const routesList = [
     component: SupportPlan,
   },
   {
+    path: "/rank/:supCode",
+    name: "Rank",
+    component: Rank,
+  },
+  {
     path: "/find-id",
     name: "FindId",
     component: FindId,
@@ -132,6 +139,19 @@ const routesList = [
     path: "/login",
     name: "login",
     component: () => import("@/views/auth/LoginPage.vue"),
+  },
+  {
+    path: "/systemSurveyList",
+    name: "systemSurveyList",
+    component: () => import("../views/SystemManager_survey.vue"),
+  },
+  {
+    path: "/systemSurveyForm",
+    name: "SystemManagerSurveyForm",
+    component: () => import("../views/systemmanager_surveyComp/SurveyForm.vue"),
+    path: "/manager-control",
+    name: "managerControl",
+    component: ManagerControl,
   },
 ];
 

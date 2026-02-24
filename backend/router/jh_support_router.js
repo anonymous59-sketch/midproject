@@ -14,15 +14,18 @@ router.get("/:supportCode", async (req, res) => {
   try {
     const supportInfo =
       await supportService.getSupportInfoBySupCode(supportCode);
-    if (supportInfo) {
-      const result = await supportService.getPlanBySupportCode(supportCode);
-      if (result.length === 0) {
-        res.json({ retCode: "Warning", retMsg: "조회 성공(0건)" });
-      } else if (result.length > 0) {
-        res.json({ retCode: "Success", retMsg: "조회 성공", data: result });
-      } else {
-        res.json({ retCode: "Fail", retMsg: "조회 실패" });
-      }
+    // supportInfo가 1건 나왔을 때만 result 조회·응답 (supportInfo 0건이면 아래 실행 안 함)
+    if (!supportInfo) {
+      res.json({ retCode: "Fail", retMsg: "지원 정보 없음" });
+      return;
+    }
+    const result = await supportService.getPlanBySupportCode(supportCode);
+    if (result.length === 0) {
+      res.json({ retCode: "Warning", retMsg: "조회 성공(0건)", data: [], infoData: supportInfo });
+    } else if (result.length > 0) {
+      res.json({ retCode: "Success", retMsg: "조회 성공", data: result, infoData: supportInfo });
+    } else {
+      res.json({ retCode: "Fail", retMsg: "조회 실패" });
     }
   } catch (err) {
     console.error(err);
