@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 const route = useRoute();
-const router = useRouter();
+const routes = useRouter();
 
 const id = computed(() => route.params.id);
 
@@ -25,7 +25,7 @@ const result = ref({
   ],
 });
 
-const goBack = () => router.back();
+const goBack = () => routes.back();
 </script>
 
 <template>

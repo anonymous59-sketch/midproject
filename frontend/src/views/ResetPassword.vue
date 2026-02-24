@@ -7,7 +7,7 @@ import ArgonButton from "@/components/ArgonButton.vue";
 
 const body = document.getElementsByTagName("body")[0];
 const store = useStore();
-const router = useRouter();
+const routes = useRouter();
 
 onBeforeMount(() => {
   store.state.hideConfigButton = true;
@@ -26,13 +26,13 @@ onBeforeUnmount(() => {
 });
 
 const goToLogin = () => {
-  router.push("/signin");
+  routes.push("/signin");
 };
 
 const handleResetPassword = () => {
   // 실제 비밀번호 변경 API 로직이 들어갈 자리입니다.
   alert("비밀번호가 성공적으로 변경되었습니다. 로그인 페이지로 이동합니다.");
-  router.push("/signin");
+  routes.push("/signin");
 };
 </script>
 

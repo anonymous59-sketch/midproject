@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 
-const router = useRouter();
+const routes = useRouter();
 
 // 더미 데이터 (나중에 API로 교체)
 const counselingList = ref([
@@ -23,7 +23,7 @@ const counselingList = ref([
 ]);
 
 const goDetail = (id) => {
-  router.push(`/organmanager/counselings/${id}`);
+  routes.push(`/organmanager/counselings/${id}`);
 };
 </script>
 

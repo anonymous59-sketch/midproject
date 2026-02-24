@@ -5,14 +5,14 @@ import { useRouter } from "vue-router";
 // TODO: 나중에 로그인 연동되면 store/pinia에서 가져오면 됨
 const userName = "홍길동";
 
-const router = useRouter();
+const routes = useRouter();
 
 // 로그아웃 버튼 동작(예시)
 const onLogout = async () => {
   // 1) 토큰/세션 삭제 (예: localStorage.removeItem("accessToken"))
   // 2) 로그인 페이지로 이동
   // 3) 필요하면 API 로그아웃 호출
-  router.push("/login");
+  routes.push("/login");
 };
 
 const greetingText = computed(() => `${userName} 님 반갑습니다!`);

@@ -9,7 +9,7 @@ const userName = "홍길동";
 const orgName = "대구 남구 지원센터";
 const orgAdminName = "김태균";
 
-const router = useRouter();
+const routes = useRouter();
 const route = useRoute();
 
 // ✅ /organmanager 로 시작하면 기관관리자 영역으로 판단
@@ -25,7 +25,7 @@ const managerName = "김래원";
 
 // 로그아웃 버튼 동작(예시)
 const onLogout = async () => {
-  router.push("/login");
+  routes.push("/login");
 };
 
 // ✅ 인사말 분기

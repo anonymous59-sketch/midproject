@@ -7,7 +7,7 @@ import ArgonButton from "@/components/ArgonButton.vue";
 
 const body = document.getElementsByTagName("body")[0];
 const store = useStore();
-const router = useRouter();
+const routes = useRouter();
 
 onBeforeMount(() => {
   store.state.hideConfigButton = true;
@@ -34,11 +34,11 @@ const sendVerificationCode = () => {
 const confirmAndGoToReset = () => {
   // 실제로는 인증번호가 맞는지 서버 체크 후 이동합니다.
   alert("인증이 완료되었습니다. 비밀번호 재설정 페이지로 이동합니다.");
-  router.push("/reset-password");
+  routes.push("/reset-password");
 };
 
 const goToLogin = () => {
-  router.push("/signin");
+  routes.push("/signin");
 };
 </script>
 

@@ -7,71 +7,12 @@ import Profile from "../views/Profile.vue";
 import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
 import SupportPlan from "../views/SupportPlan.vue";
-import FindId from "../views/FindId.vue"; // 아이디 찾기
-import FindPassword from "../views/FindPassword.vue"; // 비밀번호 찾기
-import ResetPassword from "../views/ResetPassword.vue"; // 비밀번호 재설정
+import FindId from "../views/FindId.vue";
+import FindPassword from "../views/FindPassword.vue";
+import ResetPassword from "../views/ResetPassword.vue";
 import ProxyTest from "../views/ProxyTest.vue";
 
-const routes = [
-  {
-    path: "/",
-    name: "/",
-    redirect: "/dashboard-default",
-  },
-  {
-    path: "/dashboard-default",
-    name: "Dashboard",
-    component: Dashboard,
-  },
-  {
-    path: "/tables",
-    name: "Tables",
-    component: Tables,
-  },
-  {
-    path: "/profile",
-    name: "Profile",
-    component: Profile,
-  },
-  {
-    path: "/signin",
-    name: "Signin",
-    component: Signin,
-  },
-  {
-    path: "/signup",
-    name: "Signup",
-    component: Signup,
-  },
-  {
-    path: "/support-plan",
-    name: "SupportPlan",
-    component: SupportPlan,
-  },
-  {
-    path: "/find-id",
-    name: "FindId",
-    component: FindId,
-  },
-  {
-    path: "/reset-password",
-    name: "ResetPassword",
-    component: ResetPassword,
-  },
-  {
-    path: "/find-password",
-    name: "FindPassword",
-    component: FindPassword,
-  },
-  {
-    path: "/proxy-test",
-    name: "ProxyTest",
-    component: ProxyTest,
-  },
-];
-
-// "/", "/dashboard-default"는 아래 레이아웃/기타에서 정의하므로 제외 후 병합
-const layoutRoutes = [
+const routesList = [
   // 1) 지원자(기존) 영역: MainLayout 아래
   {
     path: "/",
@@ -121,12 +62,56 @@ const layoutRoutes = [
       },
     ],
   },
-  // 기타: routes에서 "/", "/dashboard-default" 제외한 나머지 + 대시보드/로그인
-  ...routes.filter((r) => r.path !== "/" && r.path !== "/dashboard-default"),
+  // 기타 페이지
   {
     path: "/dashboard-default",
     name: "Dashboard",
-    component: () => import("../views/Dashboard.vue"),
+    component: Dashboard,
+  },
+  {
+    path: "/tables",
+    name: "Tables",
+    component: Tables,
+  },
+  {
+    path: "/profile",
+    name: "Profile",
+    component: Profile,
+  },
+  {
+    path: "/signin",
+    name: "Signin",
+    component: Signin,
+  },
+  {
+    path: "/signup",
+    name: "Signup",
+    component: Signup,
+  },
+  {
+    path: "/support-plan/:supportCode",
+    name: "SupportPlan",
+    component: SupportPlan,
+  },
+  {
+    path: "/find-id",
+    name: "FindId",
+    component: FindId,
+  },
+  {
+    path: "/reset-password",
+    name: "ResetPassword",
+    component: ResetPassword,
+  },
+  {
+    path: "/find-password",
+    name: "FindPassword",
+    component: FindPassword,
+  },
+  {
+    path: "/proxy-test",
+    name: "ProxyTest",
+    component: ProxyTest,
   },
   {
     path: "/login",
@@ -135,9 +120,9 @@ const layoutRoutes = [
   },
 ];
 
-const router = createRouter({
+const routes = createRouter({
   history: createWebHistory(process.env.BASE_URL),
-  routes: layoutRoutes,
+  routes: routesList,
 });
 
-export default router;
+export default routes;
