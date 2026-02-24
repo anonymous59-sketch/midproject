@@ -13,6 +13,7 @@ import FindPassword from "../views/FindPassword.vue";
 import ResetPassword from "../views/ResetPassword.vue";
 import ProxyTest from "../views/ProxyTest.vue";
 import ManagerControl from "@/views/ManagerControl.vue";
+import test from "./test";
 
 const routesList = [
   // 1) 지원자(기존) 영역: MainLayout 아래
@@ -20,11 +21,12 @@ const routesList = [
     path: "/",
     component: MainLayout,
     children: [
-      {
-        path: "",
-        name: "home",
-        component: () => import("@/views/MainContent.vue"),
-      },
+      // {
+      //   path: "",
+      //   name: "home",
+      //   component: () => import("@/views/MainContent.vue"),
+      // },
+      ...test,
       {
         path: "apply",
         name: "apply",
