@@ -4,17 +4,15 @@ import { useRouter } from "vue-router";
 import SurveyTable from "./systemmanager_surveyComp/SurveyTable.vue";
 import axios from "axios";
 
-const router = useRouter();
+const router = useRouter(); // 라우터에 정보를 입력해서 그 라우터로 이동하겠다는 의미
 
 const searchName = ref("");
 const surveys = ref([]);
-const loading = ref(false);
 const error = ref(null);
 
 // 전체 조회 또는 검색
 const fetchSurveys = async () => {
   try {
-    loading.value = true;
     const res = await axios.get("/api/survey", {
       params: { sv_name: searchName.value },
     });
@@ -23,8 +21,6 @@ const fetchSurveys = async () => {
   } catch (err) {
     console.error(err);
     error.value = "데이터를 불러오는데 실패했습니다.";
-  } finally {
-    loading.value = false;
   }
 };
 
@@ -35,26 +31,27 @@ const goCreateSurvey = () => {
   });
 };
 
-const handleEdit = (item) => {
+const handleEdit = (data) => {
   router.push({
     name: "SystemManagerSurveyForm",
     query: {
       mode: "edit",
-      sver_code: item.sver_code,
-      sv_name: item.sv_name,
-      sver_ondate: item.sver_ondate,
-      sver_enddate: item.sver_enddate,
+      sver_code: data.sver_code,
+      sv_name: data.sv_name,
+      // writer_name: data.writer_name,
+      sver_ondate: data.sver_ondate,
+      sver_enddate: data.sver_enddate,
     },
   });
 };
 
-// 페이지 로딩 시 전체 조회
-onBeforeMount(() => {
+// searchName 값 변경 시 자동 검색
+watch(searchName, () => {
   fetchSurveys();
 });
 
-// searchName 값 변경 시 자동 검색
-watch(searchName, () => {
+// 페이지 로딩 시 전체 조회
+onBeforeMount(() => {
   fetchSurveys();
 });
 </script>
@@ -75,7 +72,6 @@ watch(searchName, () => {
     <div class="card-box">
       <SurveyTable
         :surveys="surveys"
-        :loading="loading"
         :error="error"
         @edit="handleEdit"
       />
