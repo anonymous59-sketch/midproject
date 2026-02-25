@@ -6,17 +6,15 @@ import Tables from "../views/Tables.vue";
 import Profile from "../views/Profile.vue";
 import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
-import SupportPlan from "../views/SupportPlan.vue";
-import Rank from "../views/Rank.vue";
 import FindId from "../views/FindId.vue";
 import FindPassword from "../views/FindPassword.vue";
 import ResetPassword from "../views/ResetPassword.vue";
 import ProxyTest from "../views/ProxyTest.vue";
 import ManagerControl from "@/views/ManagerControl.vue";
-import test1 from "./test1";
-import test2 from "./test2";
-import test3 from "./test3";
-import test4 from "./test4";
+import kjh from "./kjh";
+import psw from "./psw";
+import six from "./six";
+import yang from "./yang";
 const routesList = [
   // 1) 지원자(기존) 영역: MainLayout 아래
   {
@@ -50,10 +48,10 @@ const routesList = [
       },
     ],
   },
-  ...test1,
-  ...test2,
-  ...test3,
-  ...test4,
+  ...kjh,
+  ...psw,
+  ...six,
+  ...yang,
   // 2) 기관관리자 영역
   {
     path: "/organmanager",
@@ -96,16 +94,6 @@ const routesList = [
     path: "/signup",
     name: "Signup",
     component: Signup,
-  },
-  {
-    path: "/support-plan/:supportCode",
-    name: "SupportPlan",
-    component: SupportPlan,
-  },
-  {
-    path: "/rank/:supCode",
-    name: "Rank",
-    component: Rank,
   },
   {
     path: "/find-id",
