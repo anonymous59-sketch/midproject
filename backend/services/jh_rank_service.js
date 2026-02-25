@@ -12,6 +12,7 @@ const svc = {
       console.error(err);
       throw err;
     });
+    console.log(rows);
     return rows ?? null;
   },
 

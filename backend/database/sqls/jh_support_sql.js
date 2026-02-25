@@ -6,23 +6,21 @@
 // export하고 sqList.js에서 require부분에 해당 폴더 경로를 추가해주기
 
 const qry = {
-  // 지원신청의 지원자 정보 조회
+  // 지원신청의 지원자 정보 조회 (Info 영역 = support/rank 공통 구조)
   supportInfo: `
-  SELECT 
-    d.mc_nm target_name,
-    d.mc_type disability_type,
-    s.sup_day write_date,
-    m_mem.m_nm member_name,
-    m_mgr.m_nm manager_name,
-    sc.s_name AS priority
+  SELECT
+    d.mc_nm       AS target_name,
+    d.mc_type     AS disability_type,
+    s.sup_day     AS write_date,
+    m_mem.m_nm    AS member_name,
+    m_mgr.m_nm    AS manager_name,
+    sc.s_name     AS priority
   FROM support s
   JOIN dsbl_prs d     ON s.mc_pn  = d.mc_pn
   JOIN member m_mem   ON s.mem_no = m_mem.m_no
   JOIN member m_mgr   ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN rank r    ON s.sup_code = r.sup_code 
-                     AND r.req_code = (SELECT MAX(req_code) 
-                                       FROM rank 
-                                       WHERE sup_code = s.sup_code)
+  LEFT JOIN rank r    ON s.sup_code = r.sup_code
+                    AND r.req_code = (SELECT MAX(req_code) FROM rank WHERE sup_code = s.sup_code)
   LEFT JOIN sub_code sc ON r.s_rank_code = sc.s_code
   WHERE s.sup_code = ?
   AND r.s_rank_res = 'e0_10'`,

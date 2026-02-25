@@ -28,8 +28,13 @@ const infoData = rankInfo;
       :manager_name="infoData?.manager_name ?? ''"
       :write_date="infoData?.write_date ?? ''"
       :disability_type="infoData?.disability_type ?? ''"
+      :priority="infoData?.priority ?? ''"
     />
-    <RankDetail />
+    <RankDetail
+      :rank_code="infoData?.s_rank_code ?? ''"
+      :rank_cmt="infoData?.rank_cmt ?? ''"
+      :priority="infoData?.priority ?? ''"
+    />
   </div>
 </template>
 <style></style>

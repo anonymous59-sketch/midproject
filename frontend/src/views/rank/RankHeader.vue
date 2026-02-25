@@ -3,6 +3,7 @@ defineProps({
   target_name: { type: String, default: "" },
   member_name: { type: String, default: "" },
   manager_name: { type: String, default: "" },
+  priority: { type: String, default: "" },
   write_date: { type: String, default: "" },
   disability_type: { type: String, default: "" },
 });
@@ -26,7 +27,7 @@ defineProps({
             <td class="bg-light fw-medium">담당자</td>
             <td>{{ manager_name }}</td>
             <td class="bg-light fw-medium">우선순위</td>
-            <td>-</td>
+            <td>{{ priority }}</td>
           </tr>
         </tbody>
       </table>

@@ -134,6 +134,8 @@ const routesList = [
     path: "/systemSurveyForm",
     name: "SystemManagerSurveyForm",
     component: () => import("../views/systemmanager_surveyComp/SurveyForm.vue"),
+  },
+  {
     path: "/manager-control",
     name: "managerControl",
     component: ManagerControl,
