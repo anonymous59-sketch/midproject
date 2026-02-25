@@ -6,8 +6,6 @@ import Tables from "../views/Tables.vue";
 import Profile from "../views/Profile.vue";
 import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
-import SupportPlan from "../views/SupportPlan.vue";
-import Rank from "../views/Rank.vue";
 import FindId from "../views/FindId.vue";
 import FindPassword from "../views/FindPassword.vue";
 import ResetPassword from "../views/ResetPassword.vue";
@@ -96,16 +94,6 @@ const routesList = [
     path: "/signup",
     name: "Signup",
     component: Signup,
-  },
-  {
-    path: "/support-plan/:supportCode",
-    name: "SupportPlan",
-    component: SupportPlan,
-  },
-  {
-    path: "/rank/:supCode",
-    name: "Rank",
-    component: Rank,
   },
   {
     path: "/find-id",
