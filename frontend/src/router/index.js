@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
 import MainLayout from "@/layouts/MainLayout.vue";
-import OrganManager from "@/views/OrganManager.vue";
 import Dashboard from "../views/Dashboard.vue";
 import Tables from "../views/Tables.vue";
 import Profile from "../views/Profile.vue";
@@ -13,10 +12,10 @@ import FindPassword from "../views/FindPassword.vue";
 import ResetPassword from "../views/ResetPassword.vue";
 import ProxyTest from "../views/ProxyTest.vue";
 import ManagerControl from "@/views/ManagerControl.vue";
-import test1 from "./test1";
-import test2 from "./test2";
-import test3 from "./test3";
-import test4 from "./test4";
+import kjh from "./kjh";
+import psw from "./psw";
+import six from "./six";
+import yang from "./yang";
 const routesList = [
   // 1) 지원자(기존) 영역: MainLayout 아래
   {
@@ -50,27 +49,11 @@ const routesList = [
       },
     ],
   },
-  ...test1,
-  ...test2,
-  ...test3,
-  ...test4,
-  // 2) 기관관리자 영역
-  {
-    path: "/organmanager",
-    component: OrganManager,
-    children: [
-      {
-        path: "",
-        name: "organmanager-home",
-        component: () => import("@/views/organmanager/ApplicantList.vue"),
-      },
-      {
-        path: "managers",
-        name: "organmanager-managers",
-        component: () => import("@/views/organmanager/ManagerList.vue"),
-      },
-    ],
-  },
+  ...kjh,
+  ...psw,
+  ...six,
+  ...yang,
+
   // 기타 페이지
   {
     path: "/dashboard-default",

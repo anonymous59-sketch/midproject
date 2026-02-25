@@ -7,6 +7,7 @@ const login_router = require("./ex_login_router");
 const support_router = require("./jh_support_router");
 const rank_router = require("./jh_rank_router");
 const psw_survey = require("./psw_survey_router");
+const six_apply = require("./six_apply_router");
 
 // 라우터 주소가 최대한 겹치지 않도록 유의할 필요가 있음
 // 만약 login_router로 불러오는 파일에서 라우터 예시 주소를 URL이라고 설정을 했을 경우
@@ -19,5 +20,6 @@ router.use("/login", login_router);
 router.use("/support", support_router);
 router.use("/rank", rank_router);
 router.use("/", psw_survey);
+router.use("/apply", six_apply);
 
 module.exports = router;

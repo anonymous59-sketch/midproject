@@ -1,6 +1,13 @@
 <script setup>
 import { RouterLink } from "vue-router";
 import HeaderNavbar from "../components/HeaderNavbar.vue";
+import { computed } from "vue";
+
+const menuItems = computed(() => [
+  { label: "홈", to: "/organmanager" },
+  { label: "담당자 관리", to: "/organmanager/managers" },
+  { label: "상담내역", to: "/organmanager/counselings" },
+]);
 </script>
 
 <template>
