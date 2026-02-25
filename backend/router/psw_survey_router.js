@@ -23,7 +23,7 @@ router.get("/survey", async (req, res) => {
   res.send(result);
 });
 /* Axios: axios.get('/api/survey', { params: { sv_name: 1 }}) 가능
-fetch: fetch('/api/survey?sv_name=1') 형태로 URL에 직접 붙여야 함 */
+fetch: fetch('/api/survey?sv_name=1') 형태로 URL에 직접 붙여야 함. */
 
 router.get("/majCate", async (req, res) => {
   const result = await survey.psw_majCateSelect(req.query.sver_code).catch(err => console.error(err));
