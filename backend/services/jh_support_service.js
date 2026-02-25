@@ -12,7 +12,7 @@ const svc = {
       (err) => {
         console.error(err);
         throw err;
-      }
+      },
     );
     return rows ?? [];
   },
@@ -24,7 +24,63 @@ const svc = {
       throw err;
     });
     return rows?.[0] ?? null;
-  }, /* ,
+  },
+
+  // 계획 추가 (승인요청, dsbl_no 없으면 supportInfo에서 조회)
+  insertPlan: async (
+    supportCode,
+    { dsbl_no, plan_goal, plan_content, start_time, end_time },
+  ) => {
+    await query("supportPlanInsert", [
+      supportCode,
+      dsbl_no ?? null,
+      plan_goal ?? "",
+      start_time ?? null,
+      end_time ?? null,
+      plan_content ?? "",
+      null, // plan_cmt
+    ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return null;
+  },
+  // 계획 수정 (제목, 내용만)
+  updatePlan: async (planCode, { plan_goal, plan_content }) => {
+    await query("supportPlanUpdate", [
+      plan_goal ?? "",
+      plan_content ?? "",
+      planCode,
+    ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return null;
+  },
+  // 계획 승인/보완/반려
+  decidePlan: async (planCode, decision, plan_cmt) => {
+    await query("supportPlanDecide", [
+      decision,
+      plan_cmt ?? null,
+      planCode,
+    ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return null;
+  },
+
+  // 지원결과에 대한 지원자 정보 및 지원 계획 (Header용)
+  getResultBySupportCode: async (supportCode) => {
+    const rows = await query("supportResultPlanInfo", [supportCode]).catch(
+      (err) => {
+        console.error(err);
+        throw err;
+      },
+    );
+    return rows ?? [];
+  },
+  /* ,
   findByBookNo: async (bookNo) => {
     const list = await mariadb
       .query("selectBookOne", bookNo)

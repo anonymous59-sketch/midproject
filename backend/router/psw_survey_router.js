@@ -7,14 +7,14 @@ const express = require("express");
 const router = express.Router();
 
 const survey = require("../services/svc.js"); // 서비스 가져오기. svc.js가 모든 서비스 모여있는 곳이라서 이 경로를 가져오면 됨
-// 조사지 전체 조회
-router.get("/surveys", async (req, res) => {
-  const result = await survey
-    .psw_showSurveyList()
-    .catch((err) => console.error(err));
-  res.send(result);
-});
-// 조사지 이름 검색
+// // 조사지 전체 조회
+// router.get("/surveys", async (req, res) => {
+//   const result = await survey
+//     .psw_showSurveyList()
+//     .catch((err) => console.error(err));
+//   res.send(result);
+// });
+// 조사지 검색 & 전체조회
 router.get("/survey", async (req, res) => {
   const searchName = req.query.sv_name || ""; // 만약 검색 내용이 아무것도 없다면 빈 문자열을 기본값으로 받아서 전체 조회가 됨
   const result = await survey
@@ -23,21 +23,21 @@ router.get("/survey", async (req, res) => {
   res.send(result);
 });
 /* Axios: axios.get('/api/survey', { params: { sv_name: 1 }}) 가능
-fetch: fetch('/api/survey?sv_name=1') 형태로 URL에 직접 붙여야 함 */
-//// 전체조회와 검색 조회를 하나로 합치는 건데 좀 확인해보고 적용해야할듯
-//// 작동 방식은 검색 조회에 값이 안들어오면 전체조회, 값이들어오면 검색 조회, 그리고 검색창에선 vue의 watch를 이용해 값을 계속 감시하는 방식으로 할듯
-// router.get("/survey", async (req, res) => {
-//   const searchName = req.query.sv_name || "";
-//   try {
-//     const result = searchName
-//       ? await survey.psw_searchSurveyName(searchName)
-//       : await survey.psw_showSurveyList();
-//     res.send(result);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send({ error: "데이터 조회 실패" });
-//   }
-// });
+fetch: fetch('/api/survey?sv_name=1') 형태로 URL에 직접 붙여야 함. */
+
+router.get("/majCate", async (req, res) => {
+  const result = await survey.psw_majCateSelect(req.query.sver_code).catch(err => console.error(err));
+  res.send(result);
+});
+router.get("/subCate", async (req, res) => {
+  const result = await survey.psw_subCateSelect(req.query.sver_code).catch(err => console.error(err));
+  res.send(result);
+});
+router.get("/surveyQ", async (req, res) => {
+  const result = await survey.psw_surveyQSelect(req.query.sver_code).catch(err => console.error(err));
+  res.send(result);
+});
+
 
 // 조사지 대분류 등록
 router.post("/survey/majorCategory", async (req, res) => {
@@ -75,6 +75,32 @@ router.put("/survey/categories", async (req, res) => {
     .psw_updateSurveyCategories(updateData)
     .catch((err) => console.error(err));
   res.send(result);
+});
+
+// 조사지 전체 저장(등록/수정) – 한 버전 전체를 저장
+router.post("/survey", async (req, res) => {
+  try {
+    console.log('확인용11111111111111111111111111', req.body);
+    const result = await survey.psw_saveSurveyAll(req.body);
+    res.status(result.isSuccessed ? 200 : 400).send(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ isSuccessed: false, message: "server error" });
+  }
+});
+
+// 조사지 전체 수정(버전 코드가 URL에 있는 경우)
+router.put("/survey/:sver_code", async (req, res) => {
+  try {
+    console.log('확인용2222222222222222222222222222222', req.body);
+    const payload = { ...req.body, survey: { ...(req.body.survey || {}), sver_code: req.params.sver_code } };
+    console.log('확인용333333333333333333333333', payload);
+    const result = await survey.psw_saveSurveyAll(payload);
+    res.status(result.isSuccessed ? 200 : 400).send(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ isSuccessed: false, message: "server error" });
+  }
 });
 
 module.exports = router;

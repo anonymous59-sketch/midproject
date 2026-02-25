@@ -1,22 +1,34 @@
 <script setup>
 import { ref, computed } from "vue";
 
+// ====== 페이징 ======
 const itemsPerPage = 10;
 const currentPage = ref(1);
 
-// 팝업 관련 상태
-const isModalOpen = ref(false);
+// ====== 모달 상태 ======
+const isModalOpen = ref(false); // 승인/반려 선택 모달
 const selectedItem = ref(null);
-const isRejectModalOpen = ref(false);
+const isRejectModalOpen = ref(false); // 반려 사유 모달
 const rejectReason = ref("");
-const isEmailSentModalOpen = ref(false);
+const isEmailSentModalOpen = ref(false); // 반려 이메일 발송 완료
 const emailSentTarget = ref(null);
-const isEmailFailModalOpen = ref(false);
+const isEmailFailModalOpen = ref(false); // 반려 이메일 실패
 const emailFailTarget = ref(null);
-const isApproveModalOpen = ref(false);
+const isApproveModalOpen = ref(false); // 승인 완료
 const approveTarget = ref(null);
 
-// 샘플 데이터
+// ====== 수정 모달 ======
+const isEditModalOpen = ref(false);
+const editTarget = ref(null);
+const editUserId = ref("");
+const editUserName = ref("");
+const editPhone = ref("");
+const editEmail = ref("");
+const editPassword = ref("");
+const newPassword = ref("");
+const confirmPassword = ref("");
+
+// ====== 샘플 데이터 ======
 const tableData = ref([
   {
     id: 1,
@@ -141,6 +153,7 @@ const tableData = ref([
   },
 ]);
 
+// ====== 페이징 계산 ======
 const totalPages = computed(() =>
   Math.ceil(tableData.value.length / itemsPerPage),
 );
@@ -149,16 +162,19 @@ const paginatedData = computed(() => {
   return tableData.value.slice(start, start + itemsPerPage);
 });
 
+// ====== 상태별 배지 ======
 const statusBadge = (status) => ({
   "bg-gradient-success": status === "승인",
   "bg-gradient-secondary": status === "대기중",
   "bg-gradient-danger": status === "반려",
 });
 
+// ====== 승인/반려 모달 ======
 const openModal = (item) => {
   selectedItem.value = item;
   isModalOpen.value = true;
 };
+
 const processStatus = (status) => {
   if (selectedItem.value) {
     selectedItem.value.status = status;
@@ -176,9 +192,8 @@ const openRejectModal = () => {
   rejectReason.value = "";
   isRejectModalOpen.value = true;
 };
-const closeRejectModal = () => {
-  isRejectModalOpen.value = false;
-};
+
+const closeRejectModal = () => (isRejectModalOpen.value = false);
 
 const confirmReject = async () => {
   if (!rejectReason.value.trim()) {
@@ -187,15 +202,7 @@ const confirmReject = async () => {
   }
   if (selectedItem.value) {
     try {
-      await fetch("/api/users/reject", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: selectedItem.value.userId,
-          email: selectedItem.value.email,
-          reason: rejectReason.value,
-        }),
-      });
+      // 실제 API 호출 필요 시 fetch 사용
       selectedItem.value.status = "반려";
       selectedItem.value.rejectReason = rejectReason.value;
       emailSentTarget.value = selectedItem.value;
@@ -211,6 +218,7 @@ const confirmReject = async () => {
   selectedItem.value = null;
 };
 
+// ====== 선택 삭제 ======
 const deleteSelected = () => {
   const selectedCount = tableData.value.filter((i) => i.selected).length;
   if (!selectedCount) {
@@ -223,11 +231,53 @@ const deleteSelected = () => {
       currentPage.value = totalPages.value || 1;
   }
 };
-const handleEdit = (item) => console.log("Edit:", item.userName);
+
+// ====== 수정 모달 ======
+const handleEdit = (item) => {
+  editTarget.value = item;
+  editUserId.value = item.userId;
+  editUserName.value = item.userName;
+  editPhone.value = item.phone;
+  editEmail.value = item.email;
+  newPassword.value = "";
+  confirmPassword.value = "";
+  isEditModalOpen.value = true;
+};
+
+const confirmEdit = () => {
+  if (!editTarget.value) return;
+
+  // 비밀번호 변경 확인
+  if (newPassword.value || confirmPassword.value) {
+    if (newPassword.value !== confirmPassword.value) {
+      alert("새 비밀번호와 확인이 일치하지 않습니다.");
+      return;
+    }
+    editTarget.value.password = newPassword.value;
+  }
+
+  editTarget.value.userId = editUserId.value;
+  editTarget.value.userName = editUserName.value;
+  editTarget.value.phone = editPhone.value;
+  editTarget.value.email = editEmail.value;
+
+  closeEditModal();
+};
+
+const closeEditModal = () => {
+  isEditModalOpen.value = false;
+  editTarget.value = null;
+  editUserId.value = "";
+  editUserName.value = "";
+  editPhone.value = "";
+  editEmail.value = "";
+  editPassword.value = "";
+};
 </script>
 
 <template>
   <div class="container-fluid py-4">
+    <!-- ====== 테이블 ====== -->
     <div class="card mb-4">
       <div
         class="card-header d-flex justify-content-between align-items-center pb-0"
@@ -320,22 +370,26 @@ const handleEdit = (item) => console.log("Edit:", item.userName);
                       item.status === '대기중' ? 'hover-opacity' : '',
                     ]"
                     @click="item.status === '대기중' && openModal(item)"
-                    >{{ item.status }}</span
                   >
+                    {{ item.status }}
+                  </span>
                 </td>
                 <td class="text-center">
                   <a
                     href="javascript:;"
                     @click="handleEdit(item)"
-                    class="text-secondary text-xs font-weight-bold"
-                    >수정</a
+                    class="text-secondary"
+                    title="수정"
                   >
+                    <i class="fas fa-pencil-alt"></i>
+                  </a>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
 
+        <!-- ====== 페이징 ====== -->
         <div
           v-if="tableData.length > itemsPerPage"
           class="d-flex justify-content-center py-3"
@@ -374,7 +428,7 @@ const handleEdit = (item) => console.log("Edit:", item.userName);
       </div>
     </div>
 
-    <!-- 모달 -->
+    <!-- ====== 승인/반려 모달 ====== -->
     <div
       v-if="
         isModalOpen ||
@@ -387,10 +441,9 @@ const handleEdit = (item) => console.log("Edit:", item.userName);
       <div
         class="modal fade show d-block"
         tabindex="-1"
-        role="dialog"
         style="background: rgba(0, 0, 0, 0.5)"
       >
-        <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content card shadow-lg border-0">
             <div class="card-header text-center bg-transparent pb-0">
               <h6 class="font-weight-bolder text-dark" v-if="isModalOpen">
@@ -442,7 +495,6 @@ const handleEdit = (item) => console.log("Edit:", item.userName);
                 승인되었습니다.
               </p>
             </div>
-
             <div
               class="card-body p-4 text-center d-flex justify-content-center gap-2 flex-column flex-md-row"
             >
@@ -511,6 +563,137 @@ const handleEdit = (item) => console.log("Edit:", item.userName);
               >
                 확인
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="isEditModalOpen">
+      <div
+        class="modal fade show d-block"
+        tabindex="-1"
+        style="background: rgba(0, 0, 0, 0.5)"
+      >
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content card shadow-lg border-0">
+            <div class="card-header text-center bg-transparent pb-0">
+              <h6 class="font-weight-bolder text-dark">당담자 정보 수정</h6>
+            </div>
+            <div class="card-body p-4">
+              <h6 class="text-dark mb-3 border-bottom pb-1">기본 정보</h6>
+              <!-- 아이디 -->
+              <div
+                class="d-flex flex-column flex-md-row align-items-center mb-2"
+              >
+                <label
+                  class="me-md-2 mb-1 mb-md-0"
+                  style="width: 120px; text-align: right"
+                  >아이디</label
+                >
+                <input
+                  v-model="editUserId"
+                  class="form-control flex-grow-1"
+                  placeholder="아이디"
+                />
+              </div>
+
+              <!-- 담당자명 -->
+              <div
+                class="d-flex flex-column flex-md-row align-items-center mb-2"
+              >
+                <label
+                  class="me-md-2 mb-1 mb-md-0"
+                  style="width: 120px; text-align: right"
+                  >담당자명</label
+                >
+                <input
+                  v-model="editUserName"
+                  class="form-control flex-grow-1"
+                  placeholder="담당자명"
+                />
+              </div>
+
+              <!-- 연락처 -->
+              <div
+                class="d-flex flex-column flex-md-row align-items-center mb-2"
+              >
+                <label
+                  class="me-md-2 mb-1 mb-md-0"
+                  style="width: 120px; text-align: right"
+                  >연락처</label
+                >
+                <input
+                  v-model="editPhone"
+                  class="form-control flex-grow-1"
+                  placeholder="연락처"
+                />
+              </div>
+
+              <!-- 이메일 -->
+              <div
+                class="d-flex flex-column flex-md-row align-items-center mb-2"
+              >
+                <label
+                  class="me-md-2 mb-1 mb-md-0"
+                  style="width: 120px; text-align: right"
+                  >이메일</label
+                >
+                <input
+                  v-model="editEmail"
+                  class="form-control flex-grow-1"
+                  placeholder="이메일"
+                />
+              </div>
+
+              <h6 class="text-dark mb-3 border-bottom pb-1">비밀번호 변경</h6>
+              <!-- 비밀번호 변경 -->
+              <div
+                class="d-flex flex-column flex-md-row align-items-center mb-2"
+              >
+                <label
+                  class="me-md-2 mb-1 mb-md-0"
+                  style="width: 120px; text-align: right"
+                  >새 비밀번호</label
+                >
+                <input
+                  v-model="newPassword"
+                  type="password"
+                  class="form-control flex-grow-1"
+                  placeholder="새 비밀번호"
+                />
+              </div>
+              <div
+                class="d-flex flex-column flex-md-row align-items-center mb-3"
+              >
+                <label
+                  class="me-md-2 mb-1 mb-md-0"
+                  style="width: 120px; text-align: right"
+                  >비밀번호 확인</label
+                >
+                <input
+                  v-model="confirmPassword"
+                  type="password"
+                  class="form-control flex-grow-1"
+                  placeholder="비밀번호 확인"
+                />
+              </div>
+
+              <!-- 버튼 -->
+              <div class="d-flex justify-content-center gap-2 flex-wrap">
+                <button
+                  class="btn btn-sm bg-gradient-success"
+                  @click="confirmEdit"
+                >
+                  저장
+                </button>
+                <button
+                  class="btn btn-sm bg-gradient-secondary"
+                  @click="closeEditModal"
+                >
+                  취소
+                </button>
+              </div>
             </div>
           </div>
         </div>

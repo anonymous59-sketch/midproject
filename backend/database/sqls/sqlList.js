@@ -5,6 +5,8 @@ const ex_login = require("./ex_login.sql.js");
 const support_sql = require("./jh_support_sql.js");
 const rank_sql = require("./jh_rank_sql.js");
 const psw_survey = require("./psw_survey_sql.js");
+const memberSql = require("./member_sql");
+const authSql = require("./yang_auth_sql");
 
 // 선언한 변수를 ...과 함께 아래에 추가해줘야함.
 // mapper 폴더의 mappers.js로 넘김
@@ -14,4 +16,6 @@ module.exports = {
   ...support_sql,
   ...rank_sql,
   ...psw_survey,
+  ...memberSql,
+  ...authSql,
 };

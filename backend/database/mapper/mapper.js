@@ -14,6 +14,7 @@ const query = async (alias, values) => {
   } catch (err) {
     console.log(`==========SQL ERR ==========`);
     console.error(err);
+    throw err;
   } finally {
     if (conn) {
       conn.release();
