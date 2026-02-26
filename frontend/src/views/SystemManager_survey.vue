@@ -14,7 +14,7 @@ const error = ref(null);
 const fetchSurveys = async () => {
   try {
     const res = await axios.get("/api/survey", {
-      params: { sv_name: searchName.value },
+      params: { sv_name: searchName.value.trim() },
     });
     surveys.value = res.data;
     error.value = null;
@@ -38,7 +38,7 @@ const handleEdit = (data) => {
       mode: "edit",
       sver_code: data.sver_code,
       sv_name: data.sv_name,
-      // writer_name: data.writer_name,
+      writer_name: data.writer_name,
       sver_ondate: data.sver_ondate,
       sver_enddate: data.sver_enddate,
     },

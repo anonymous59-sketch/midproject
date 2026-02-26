@@ -40,12 +40,43 @@ const runInTransaction = async (objData) => {
     if (conn) await conn.rollback();
     console.log(`==========SQL ERR (transaction rollback) ==========`);
     console.error(err);
-    return { success: false, error: err };
+    return { success: false, error: err, errorMessage: "트랜잭션 처리 중 오류 발생" };
   } finally {
     if (conn) conn.release();
   }
 };
 query.runInTransaction = runInTransaction; // export를 query만 하니까 query에 속성을 하나 추가하는 형식
+
+/*
+여러 단계 쿼리 사이에서 이전 결과를 활용할 수 있는 트랜잭션 헬퍼
+callback 안에서 conn, sqlList를 직접 사용하면서
+부모 INSERT → PK 조회 → 자식 INSERT 같은 흐름을 구현할 수 있음.
+*/
+const runInTransactionWithContext = async (callback) => {
+  let conn = null;
+  try {
+    conn = await connectionPool.getConnection();
+    await conn.beginTransaction();
+
+    // callback에서 conn, sqlList를 사용해 임의의 쿼리 시퀀스를 실행
+    const data = await callback({ conn, sqlList });
+
+    await conn.commit();
+    return { success: true, data };
+  } catch (err) {
+    if (conn) await conn.rollback();
+    console.log(`==========SQL ERR (transaction rollback with context) ==========`);
+    console.error(err);
+    return {
+      success: false,
+      error: err,
+      errorMessage: "트랜잭션 처리 중 오류 발생 (context)",
+    };
+  } finally {
+    if (conn) conn.release();
+  }
+};
+query.runInTransactionWithContext = runInTransactionWithContext;
 
 // services 폴더의 각자 service.js로 넘김
 module.exports = query;

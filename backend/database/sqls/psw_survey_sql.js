@@ -6,7 +6,7 @@
 // export하고 sqList.js에서 require부분에 해당 폴더 경로를 추가해주기
 
 const qry = {
-// 조사지 리스트 및 검색(검색값이 없으면 전체 조회)
+  // 조사지 리스트 및 검색(검색값이 없으면 전체 조회)
   psw_surveySearch: `
     SELECT 
       s.sver_code, 
@@ -23,13 +23,13 @@ const qry = {
     ORDER BY 1 DESC
   `,
 
-// 조사지 등록 기능 중에 해당 항목 선택했을 시 조회를 위한 쿼리문
-// 조사지 버전 클릭시 해당 버전에 맞는 대분류 조회
-  psw_majCateSelect: `
+  // 조사지 등록 기능 중에 해당 항목 선택했을 시 조회를 위한 쿼리문
+  // 조사지 버전 클릭시 해당 버전에 맞는 대분류 조회
+  psw_majCateList: `
   SELECT major_code, major_name FROM major_category WHERE sver_code = ?;
   `,
-// 조사지 버전 기준 해당 대분류와 JOIN을 해서 소분류 조회
-  psw_subCateSelect: `
+  // 조사지 버전 기준 해당 대분류와 JOIN을 해서 소분류 조회
+  psw_subCateList: `
     SELECT
     sc.sub_code,
     sc.major_code,
@@ -38,8 +38,8 @@ const qry = {
     JOIN major_category mc ON sc.major_code = mc.major_code
     WHERE mc.sver_code = ?;
   `,
-// 조사지 버전 기준 해당 대분류에 JOIN된 소분류에 JOIN된 질문들 조회
-  psw_surveyQSelect: `
+  // 조사지 버전 기준 해당 대분류에 JOIN된 소분류에 JOIN된 질문들 조회
+  psw_surveyQList: `
     SELECT
     q.q_code,
     q.sub_code,
@@ -52,21 +52,19 @@ const qry = {
     WHERE mc.sver_code = ?;
   `,
 
-
-  //////////////////////// 여기 아래 쿼리 대폭 수정해야됨, 등록이랑 업데이트 제대로 구분하기
-
+  // 대분류, 소분류, 질문 등록
   psw_surveyMajorCategoryCreate: `
-INSERT INTO major_category (sver_code, major_name)
-VALUES (?, ?);
-  `, // VALUES (PK값(자동설정), 조사지버전 특정(선택한 조사지의 코드), 대분류 이름(값을 입력 받아오기))
+    INSERT INTO major_category (sver_code, major_name)
+    VALUES (?, ?);
+  `,
   psw_surveySubCategoryCreate: `
-INSERT INTO sub_category (major_code, sub_name)
-VALUES (?, ?);
-  `, // VALUES (PK값(자동설정), 소분류가 속한 대분류 코드(선택한 대분류), 소분류 이름(값을 입력 받아오기))
+    INSERT INTO sub_category (major_code, sub_name)
+    VALUES (?, ?);
+  `,
   psw_surveyQuestionCreate: `
-INSERT INTO survey_q (sub_code, q_no, q_type, q_content)
-VALUES (?, ?, ?, ?);
-  `, //VALUES (PK(자동입력), 선택한 소분류코드를 가져오기, 질문번호?, 질문타입(선택한 값을 부코드로 가져오기), 질문 내용(입력한 값을 가져오기))
+    INSERT INTO survey_q (sub_code, q_no, q_type, q_content)
+    VALUES (?, ?, ?, ?);
+  `,
 
   // 수정 (트랜잭션: 3개 모두 성공 시 commit, 하나라도 실패 시 rollback)
   psw_majorCategoryUpdate: `
@@ -85,13 +83,16 @@ VALUES (?, ?, ?, ?);
     WHERE q_code = ?;
   `,
 
-  
-  // 조사지 INSERT (트리거로 sver_code 생성된다고 가정)
+  // 조사지 INSERT
+  psw_surveyUpdateDate: `
+  UPDATE survey 
+   SET sver_enddate = ?
+ WHERE sver_enddate IS NULL;
+   `,
   psw_surveyInsert: `
     INSERT INTO survey (sv_name, sv_writer, sv_time, sver_ondate, sver_enddate)
     VALUES (?, ?, NOW(), ?, ?);
   `,
-
   // 조사지 UPDATE
   psw_surveyUpdate: `
     UPDATE survey
@@ -99,6 +100,34 @@ VALUES (?, ?, ?, ?);
            sver_ondate = ?,
            sver_enddate = ?
      WHERE sver_code = ?;
+  `,
+
+  // 방금 INSERT한 조사지 버전 코드 조회 (작성자 + 조사지명 기준, 가장 최근 것)
+  psw_getLastSurveyCodeByWriter: `
+    SELECT sver_code
+      FROM survey
+     WHERE sv_writer = ?
+       AND sv_name = ?
+     ORDER BY sv_time DESC
+     LIMIT 1;
+  `,
+
+  // 특정 조사지 버전에서 가장 최근에 생성된 대분류 코드 조회
+  psw_getLastMajorCodeBySurvey: `
+    SELECT major_code
+      FROM major_category
+     WHERE sver_code = ?
+     ORDER BY major_code DESC
+     LIMIT 1;
+  `,
+
+  // 특정 대분류에서 가장 최근에 생성된 소분류 코드 조회
+  psw_getLastSubCodeByMajor: `
+    SELECT sub_code
+      FROM sub_category
+     WHERE major_code = ?
+     ORDER BY sub_code DESC
+     LIMIT 1;
   `,
 
   // 특정 버전의 모든 대분류 삭제
@@ -123,22 +152,6 @@ VALUES (?, ?, ?, ?);
       JOIN major_category mc ON sc.major_code = mc.major_code
      WHERE mc.sver_code = ?;
   `,
-
-  // 기존에 있던 것 재사용 (PK 자리는 NULL 전달한다고 가정)
-  psw_surveyMajorCategoryCreate: `
-UPDATE major_category
-SET major_name = "테스트 대분류 수정값"
-WHERE major_code = "MAJ0001";
-  `,
-  psw_surveySubCategoryCreate: `
-INSERT INTO sub_category (major_code, sub_name)
-VALUES (?, ?);
-  `,
-  psw_surveyQuestionCreate: `
-INSERT INTO survey_q (sub_code, q_no, q_type, q_content)
-VALUES (?, ?, ?, ?);
-  `,
-  //// 조회용
 };
 // s.sv_name LIKE CONCAT('%', ?, '%')
 // sqList.js로 넘김

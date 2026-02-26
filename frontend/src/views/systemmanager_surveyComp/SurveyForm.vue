@@ -1,4 +1,5 @@
 <script setup>
+// **을 검색해서 작업해야할 항목 확인하기
 import { ref, computed, onBeforeMount, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import axios from "axios";
@@ -9,11 +10,13 @@ const router = useRouter();
 
 const mode = computed(() => (route.query.mode == "edit" ? "edit" : "create"));
 
+const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD 형식으로 오늘 날짜 구하기
+
 const form = ref({
   sver_code: "",
   sv_name: "",
-  sver_ondate: "",
-  sver_enddate: "",
+  sver_ondate: today,
+  sver_enddate: "2999-12-31",
 });
 
 // 모달 상태
@@ -46,10 +49,21 @@ const questionForm = ref({
   answerType: "OX", // 질문 유형, 기본값 OX
 });
 
+// 유효 시작일, 종료일 비교 -> 종료일이 시작일보다 빠르면 true 반환
+const isInvalidDateRange = computed(() => {
+  if (!form.value.sver_ondate || !form.value.sver_enddate) return false;
+
+  return form.value.sver_ondate > form.value.sver_enddate;
+});
+
 // 대분류 / 소분류 / 질문
 const majorCategories = ref([]);
 const subCategories = ref([]);
-const questionsBySubcategory = ref({});
+const questionsBySubcategory = ref([]);
+
+// 프론트에서만 사용하는 임시 ID 시퀀스 (DB PK 아님)
+let tempMajorIdSeq = 1;
+let tempSubIdSeq = 1;
 
 // DB에서 데이터를 가지고 오는 함수
 const loadSurveyStructure = async () => {
@@ -71,39 +85,33 @@ const loadSurveyStructure = async () => {
       majorId: sub.major_code,
       name: sub.sub_name,
     }));
-    questionsBySubcategory.value = transformSurveyQuestions(qRes.data);
+    questionsBySubcategory.value = qRes.data.map((q) => ({
+      id: q.q_code,
+      subId: q.sub_code,
+      qNo: q.q_no,
+      text: q.q_content,
+      answerType: codeToUiType(q.q_type),
+    }));
   } catch (err) {
     console.error(err);
   }
 };
-// DB의 질문유형 부코드와 화면에서 사용하는 이름 일치를 위한 함수
+// DB의 질문유형 부코드와 화면에서 사용하는 이름 일치를 위한 함수 **
 const codeToUiType = (code) => {
   if (code == "f0_10") return "DATE";
   if (code == "f0_20") return "TEXT";
   return "OX";
 };
-// 소분류에 해당하는 질문 정보
-const transformSurveyQuestions = (surveyQList) => {
-  const result = {};
 
-  surveyQList.forEach((q) => {
-    const subCode = q.sub_code;
-
-    if (!result[subCode]) {
-      result[subCode] = [];
-    }
-
-    result[subCode].push({
-      text: q.q_content,
-      answerType: codeToUiType(q.q_type),
-    });
-  });
-
-  return result;
+// 라디오(radio), 체크박스(check), 사유(text)로 수정해야됨 **
+const answerTypeLabel = (type) => {
+  if (type == "DATE") return "날짜";
+  if (type == "TEXT") return "사유";
+  return "O/X";
 };
-// "?." 옵셔널 체이닝 >> 값이 있으면 그 값을 사용하고 값이 없으면 다른 선택지를 사용하는 코드
-const selectedMajorId = ref(majorCategories.value[0]?.id || null);
-// 여기에선 majorCatgories.value 배열의 첫번째 값이 있으면 그것의 id속성의 값을 가지고 오고 없으면 null을 반환
+
+// 선택한 (대분류/소분류) 반응형 변수
+const selectedMajorId = ref(null);
 const selectedSubId = ref(null);
 
 // 소분류 항목 중에서 대분류 항목과 같은 것만 가지고 오기
@@ -112,47 +120,22 @@ const filteredSubCategories = computed(() =>
   subCategories.value.filter((sub) => sub.majorId == selectedMajorId.value),
 );
 
-const selectedMajor = computed(
-  () =>
-    majorCategories.value.find((majC) => majC.id == selectedMajorId.value) ||
-    null,
+const selectedMajor = computed(() =>
+  majorCategories.value.find((majC) => majC.id == selectedMajorId.value),
 );
 
-const selectedSub = computed(
-  () =>
-    subCategories.value.find((subC) => subC.id == selectedSubId.value) || null,
+const selectedSub = computed(() =>
+  subCategories.value.find((subC) => subC.id == selectedSubId.value),
 );
 
-const currentQuestions = computed(
-  () => questionsBySubcategory.value[selectedSubId.value] || [],
+const currentQuestions = computed(() =>
+  questionsBySubcategory.value.filter((q) => q.subId == selectedSubId.value),
 );
 
-// 라디오(radio), 체크박스(check), 사유(text)로 수정해야됨
-const answerTypeLabel = (type) => {
-  if (type == "DATE") return "날짜";
-  if (type == "TEXT") return "사유";
-  return "O/X";
-};
-
+// 화면에 나오는 타이틀
 const titleText = computed(() =>
   mode.value == "edit" ? "조사지 수정" : "조사지 등록",
 );
-
-onBeforeMount(() => {
-  loadSurveyStructure();
-
-  if (mode.value == "edit") {
-    form.value.sver_code = route.query.sver_code || "";
-    form.value.sv_name = route.query.sv_name || "";
-    form.value.sver_ondate = route.query.sver_ondate || "";
-    form.value.sver_enddate = route.query.sver_enddate || "";
-  }
-
-  // 최초 진입 시 선택된 대분류에 맞는 첫 소분류 선택
-  if (filteredSubCategories.value.length > 0) {
-    selectedSubId.value = filteredSubCategories.value[0].id;
-  }
-});
 
 watch(selectedMajorId, () => {
   const list = filteredSubCategories.value;
@@ -164,7 +147,8 @@ const handleSave = async () => {
     sver_code: form.value.sver_code || null,
     sv_name: form.value.sv_name,
     sver_ondate: form.value.sver_ondate,
-    sver_enddate: form.value.sver_enddate,
+    sver_enddate:
+      form.value.sver_enddate == "2999-12-31" ? null : form.value.sver_enddate, // 종료일이 기본값이면 null로 처리
   };
 
   const majorList = majorCategories.value.map((majorC) => ({
@@ -189,15 +173,13 @@ const handleSave = async () => {
     return "f0_00"; // 기본 O/X
   };
 
-  const questionList = Object.entries(questionsBySubcategory.value).flatMap(
-    ([subId, qs]) =>
-      (qs || []).map((q, idx) => ({
-        subId,
-        order: idx + 1,
-        text: q.text,
-        answerType: mapAnswerTypeToCode(q.answerType),
-      })),
-  );
+  const questionList = questionsBySubcategory.value.map((q) => ({
+    id: q.id,
+    subId: q.subId,
+    qNo: q.qNo,
+    text: q.text,
+    answerType: mapAnswerTypeToCode(q.answerType),
+  }));
 
   const payload = {
     mode: mode.value, // 'create' | 'edit'
@@ -205,6 +187,7 @@ const handleSave = async () => {
     majors: majorList,
     subs: subList,
     questions: questionList,
+    writer: "", // 실제 로그인 구현 시 작성자 정보로 교체 필요 **
   };
 
   try {
@@ -246,12 +229,15 @@ const saveMajor = () => {
     return;
   }
   if (majorModalMode.value == "create") {
-    const nextId =
-      (majorCategories.value[majorCategories.value.length - 1]?.id || 0) + 1;
+    // 새 대분류는 프론트 전용 임시 ID를 사용 (예: TMP_MAJ_1)
+    const newId = `TMP_MAJ_${tempMajorIdSeq++}`;
     majorCategories.value.push({
-      id: nextId,
+      id: newId,
       name: majorForm.value.name.trim(),
     });
+    // 방금 만든 대분류를 선택 상태로 변경
+    selectedMajorId.value = newId;
+    selectedSubId.value = null;
   } else if (majorModalMode.value == "edit") {
     const idx = majorCategories.value.findIndex(
       (m) => m.id == editingMajorId.value,
@@ -285,14 +271,16 @@ const saveSub = () => {
     return;
   }
   if (subModalMode.value == "create") {
-    const nextId =
-      (subCategories.value[subCategories.value.length - 1]?.id || 0) + 1;
+    // 새 소분류도 프론트 전용 임시 ID 사용 (예: TMP_SUB_1)
+    const newId = `TMP_SUB_${tempSubIdSeq++}`;
     subCategories.value.push({
-      id: nextId,
+      id: newId,
       majorId: selectedMajorId.value,
       name: subForm.value.name.trim(),
       note: subForm.value.note.trim(),
     });
+    // 방금 만든 소분류 선택
+    selectedSubId.value = newId;
   } else if (subModalMode.value == "edit") {
     const idx = subCategories.value.findIndex(
       (s) => s.id == editingSubId.value,
@@ -326,34 +314,52 @@ const saveQuestion = () => {
   if (!selectedSubId.value || !questionForm.value.text.trim()) {
     return;
   }
-  const key = selectedSubId.value;
-  if (!questionsBySubcategory.value[key]) {
-    questionsBySubcategory.value[key] = [];
-  }
+
+  const subId = selectedSubId.value;
 
   if (questionModalMode.value == "create") {
-    questionsBySubcategory.value[key].push({
+    // 현재 소분류에 속한 질문들만 필터해서, 그중 가장 큰 qNo 찾기
+    const questionsInSub = questionsBySubcategory.value.filter(
+      (q) => q.subId == subId,
+    );
+    const maxQNo = questionsInSub.length
+      ? Math.max(...questionsInSub.map((q) => q.qNo))
+      : 0;
+
+    // 배열 끝에 새 질문 push (majorCategories, subCategories와 동일한 방식)
+    questionsBySubcategory.value.push({
+      id: null, // 새로 추가한 질문은 DB 저장 전까지 id 없음
+      subId,
+      qNo: maxQNo + 1,
       text: questionForm.value.text.trim(),
       answerType: questionForm.value.answerType,
     });
   } else if (questionModalMode.value == "edit") {
-    const list = questionsBySubcategory.value[key];
-    if (
-      list &&
-      editingQuestionIndex.value !== null &&
-      editingQuestionIndex.value >= 0 &&
-      editingQuestionIndex.value < list.length
-    ) {
-      list[editingQuestionIndex.value] = {
-        ...(list[editingQuestionIndex.value] || {}),
-        text: questionForm.value.text.trim(),
-        answerType: questionForm.value.answerType,
-      };
+    // editingQuestionIndex는 currentQuestions(필터된 리스트) 내 인덱스
+    const filteredList = currentQuestions.value;
+    const targetQuestion = filteredList[editingQuestionIndex.value];
+
+    if (targetQuestion) {
+      targetQuestion.text = questionForm.value.text.trim();
+      targetQuestion.answerType = questionForm.value.answerType;
     }
   }
 
   showQuestionModal.value = false;
 };
+
+onBeforeMount(() => {
+  // 데이터 통신해서 조사지 정보 가져오기
+  loadSurveyStructure();
+
+  // 수정 눌렀을 때 조사지 정보(조사지버전, 이름, 유효날짜 정보 가져오기)
+  if (mode.value == "edit") {
+    form.value.sver_code = route.query.sver_code;
+    form.value.sv_name = route.query.sv_name;
+    form.value.sver_ondate = route.query.sver_ondate;
+    form.value.sver_enddate = route.query.sver_enddate;
+  }
+});
 </script>
 
 <template>
@@ -531,7 +537,7 @@ const saveQuestion = () => {
                 </thead>
                 <tbody>
                   <tr v-for="(question, idx) in currentQuestions" :key="idx">
-                    <td>{{ idx + 1 }}</td>
+                    <td>{{ question.qNo }}</td>
                     <td>
                       <div class="fw-semibold">{{ question.text }}</div>
                       <div class="text-muted small">
@@ -589,20 +595,31 @@ const saveQuestion = () => {
         </div>
       </div>
 
-      <!-- 하단 버튼 영역 -->
+      <!-- 버튼 영역 -->
       <div
-        class="card-footer d-flex justify-content-end align-items-center bg-transparent gap-2"
+        class="card-footer d-flex flex-column align-items-end bg-transparent "
       >
-        <button class="btn btn-success" type="button" @click="handleSave">
-          전체저장
-        </button>
-        <button
-          class="btn btn-outline-secondary"
-          type="button"
-          @click="handleCancel"
-        >
-          취소
-        </button>
+        <div class="d-flex gap-2" >
+          <button
+            class="btn btn-success"
+            type="button"
+            @click="handleSave"
+            :disabled="isInvalidDateRange"
+          >
+            전체저장
+          </button>
+          <button
+            class="btn btn-outline-secondary"
+            type="button"
+            @click="handleCancel"
+          >
+            취소
+          </button>
+        </div>
+
+        <div v-if="isInvalidDateRange" class="text-danger small mt-1 mb-0">
+          유효시작일은 유효종료일보다 늦을 수 없습니다.
+        </div>
       </div>
 
       <!-- 대분류 모달 -->

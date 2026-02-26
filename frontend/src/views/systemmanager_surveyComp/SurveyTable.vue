@@ -38,7 +38,7 @@ const emit = defineEmits(["edit"]);
           <td>{{ data.sv_name }}</td>
           <td>{{ data.writer_name }}</td>
           <td>{{ data.sver_ondate }}</td>
-          <td>{{ data.sver_enddate }}</td>
+          <td>{{ data.sver_enddate == null ? "2999-12-31" : data.sver_enddate }}</td>
           <td>
             <button
               class="btn btn-sm btn-outline-dark"
