@@ -6,6 +6,8 @@ import {
   computed,
   onUnmounted,
 } from "vue";
+import { onMounted } from "vue";
+import axios from "axios";
 import { useStore } from "vuex";
 import Navbar from "@/examples/PageLayout/Navbar.vue";
 import AppFooter from "@/examples/PageLayout/Footer.vue";
@@ -21,6 +23,8 @@ const userid = ref("");
 const isIdChecked = ref(false);
 const idErrorMessage = ref("");
 
+const name = ref("");
+
 const password = ref("");
 const confirmPassword = ref("");
 
@@ -29,11 +33,37 @@ const isEmailVerified = ref(false);
 const authCodeInput = ref("");
 const showEmailModal = ref(false);
 
+const tel = ref("");
+const bd = ref("");
+const address = ref("");
+const userType = ref("");
+const org = ref("");
+
 const timer = ref(180); // 3분
+
 const timerInterval = ref(null);
+
+const organList = ref([]);
+
+const authCodeMap = {
+  일반회원: "a0_20",
+  기관담당자: "a0_30",
+  기관관리자: "a0_40",
+};
 
 const showModal = ref(false);
 const modalMessage = ref("");
+
+// --- [라이프사이클] ---
+
+onMounted(async () => {
+  try {
+    const res = await axios.get("/api/auth/organ/list");
+    organList.value = res.data;
+  } catch (err) {
+    console.error("기관 목록 조회 실패", err);
+  }
+});
 
 onBeforeMount(() => {
   store.state.hideConfigButton = true;
@@ -52,8 +82,6 @@ onBeforeUnmount(() => {
 });
 
 // --- [검증 로직] ---
-
-// 1. 아이디 실시간 체크
 const idValidationMessage = computed(() => {
   if (userid.value.length === 0) return "";
   if (userid.value.length < 4 || userid.value.length > 15)
@@ -61,7 +89,6 @@ const idValidationMessage = computed(() => {
   return "";
 });
 
-// 2. 비밀번호 일치 실시간 체크
 const passwordValidationMessage = computed(() => {
   if (confirmPassword.value.length === 0) return "";
   if (password.value !== confirmPassword.value)
@@ -69,29 +96,38 @@ const passwordValidationMessage = computed(() => {
   return "";
 });
 
-// 3. 이메일 타이머 포맷 (03:00)
 const formattedTime = computed(() => {
   const m = Math.floor(timer.value / 60);
   const s = timer.value % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 });
 
-// --- [주요 기능 함수] ---
-
-const checkIdDuplication = () => {
+// --- [기능 함수] ---
+const checkIdDuplication = async () => {
+  // 1. 기본 길이 검증
   if (idValidationMessage.value) {
     modalMessage.value = idValidationMessage.value;
     showModal.value = true;
     return;
   }
-  const existingIds = ["admin", "test", "user1"];
-  if (existingIds.includes(userid.value)) {
-    idErrorMessage.value = "이미 등록된 아이디입니다.";
-    isIdChecked.value = false;
-  } else {
-    idErrorMessage.value = "";
-    isIdChecked.value = true;
-    modalMessage.value = "사용 가능한 아이디입니다.";
+
+  try {
+    // 2. 서버에 중복 검사 요청
+    const res = await axios.get(`/api/auth/check-id/${userid.value}`);
+
+    // 3. 결과 처리
+    if (res.data.exists) {
+      idErrorMessage.value = "이미 등록된 아이디입니다.";
+      isIdChecked.value = false;
+    } else {
+      idErrorMessage.value = "";
+      isIdChecked.value = true;
+      modalMessage.value = "사용 가능한 아이디입니다.";
+      showModal.value = true;
+    }
+  } catch (err) {
+    console.error(err);
+    modalMessage.value = "중복 검사 중 오류 발생";
     showModal.value = true;
   }
 };
@@ -121,7 +157,6 @@ const verifyEmail = () => {
 
 const confirmAuthCode = () => {
   if (authCodeInput.value === "123456") {
-    // 테스트용 번호
     alert("인증되었습니다.");
     isEmailVerified.value = true;
     showEmailModal.value = false;
@@ -131,7 +166,11 @@ const confirmAuthCode = () => {
   }
 };
 
-const handleSignUp = () => {
+const selectUserType = (type) => {
+  userType.value = type;
+};
+
+const handleSignUp = async () => {
   if (!isIdChecked.value) {
     modalMessage.value = "아이디 중복 검사를 해주세요.";
     showModal.value = true;
@@ -146,7 +185,32 @@ const handleSignUp = () => {
     alert("비밀번호 확인 요망");
     return;
   }
-  alert("회원가입 완료!");
+
+  try {
+    const userInfo = {
+      m_id: userid.value,
+      m_pw: password.value,
+      m_nm: name.value,
+      m_email: email.value,
+      m_tel: tel.value,
+      m_bd: bd.value,
+      m_add: address.value,
+      m_auth: authCodeMap[userType.value] || "a0_20",
+      m_org: org.value || null,
+    };
+
+    const res = await axios.post("/api/auth/sign-up", userInfo);
+
+    if (res.data.success) {
+      alert("회원가입 완료!");
+      // 로그인 페이지 이동 등
+    } else {
+      alert(res.data.message);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("회원가입 실패");
+  }
 };
 
 const searchAddress = () => alert("주소 검색 실행");
@@ -187,37 +251,40 @@ onUnmounted(() => {
               <h5 class="font-weight-bolder">회원 가입</h5>
             </div>
 
-            <!-- 회원 유형 선택 -->
+            <!-- 수정: 회원 유형 버튼 선택 시 색상 표시 -->
             <div class="row px-xl-5 px-sm-4 px-3 mb-4 text-center">
               <div class="col-4 px-1">
                 <argon-button
-                  variant="outline"
-                  color="success"
+                  :variant="userType === '일반회원' ? 'gradient' : 'outline'"
+                  :color="userType === '일반회원' ? 'success' : 'secondary'"
                   fullWidth
                   class="rounded-0 py-2 text-nowrap"
-                  style="font-size: 0.7rem; height: 46px"
-                  >일반 회원</argon-button
+                  @click="selectUserType('일반회원')"
                 >
+                  일반 회원
+                </argon-button>
               </div>
               <div class="col-4 px-1">
                 <argon-button
-                  variant="outline"
-                  color="success"
+                  :variant="userType === '기관담당자' ? 'gradient' : 'outline'"
+                  :color="userType === '기관담당자' ? 'success' : 'secondary'"
                   fullWidth
                   class="rounded-0 py-2 text-nowrap"
-                  style="font-size: 0.7rem; height: 46px"
-                  >기관 담당자</argon-button
+                  @click="selectUserType('기관담당자')"
                 >
+                  기관 담당자
+                </argon-button>
               </div>
               <div class="col-4 px-1">
                 <argon-button
-                  variant="outline"
-                  color="success"
+                  :variant="userType === '기관관리자' ? 'gradient' : 'outline'"
+                  :color="userType === '기관관리자' ? 'success' : 'secondary'"
                   fullWidth
                   class="rounded-0 py-2 text-nowrap"
-                  style="font-size: 0.7rem; height: 46px"
-                  >기관 관리자</argon-button
+                  @click="selectUserType('기관관리자')"
                 >
+                  기관 관리자
+                </argon-button>
               </div>
               <p class="text-xs font-weight-bold mt-3 mb-0 text-secondary">
                 회원 유형을 선택해주세요
@@ -299,7 +366,7 @@ onUnmounted(() => {
                   </p>
                 </div>
 
-                <!-- 이메일 인증 -->
+                <!-- 이메일 -->
                 <div class="mb-3">
                   <div class="d-flex gap-2">
                     <argon-input
@@ -322,21 +389,32 @@ onUnmounted(() => {
                   </div>
                 </div>
 
+                <!-- 연락처 -->
                 <div class="mb-3">
                   <argon-input
+                    v-model="tel"
                     type="tel"
                     placeholder="연락처"
                     size="lg"
                     class="rounded-0"
                   />
                 </div>
+
+                <!-- 생년월일 -->
                 <div class="mb-3">
-                  <argon-input type="date" size="lg" class="rounded-0" />
+                  <argon-input
+                    v-model="bd"
+                    type="date"
+                    size="lg"
+                    class="rounded-0"
+                  />
                 </div>
 
+                <!-- 주소 -->
                 <div class="mb-3">
                   <div class="d-flex gap-2">
                     <argon-input
+                      v-model="address"
                       placeholder="주소"
                       size="lg"
                       class="rounded-0 flex-grow-1 mb-0"
@@ -353,25 +431,30 @@ onUnmounted(() => {
                   </div>
                 </div>
 
-                <div class="mb-4">
-                  <label class="form-label text-sm">기관 선택</label>
-                  <select
-                    class="form-select form-select-lg rounded-0 border-gray-300"
-                    style="height: 46px; font-size: 0.875rem"
-                  >
-                    <option disabled selected>기관을 선택해주세요</option>
-                    <option>기관 A</option>
-                  </select>
-                </div>
-
-                <argon-checkbox checked
-                  ><label class="form-check-label text-sm"
-                    >이용약관 동의</label
-                  ></argon-checkbox
+                <!-- 기관 선택 -->
+                <select
+                  v-model="org"
+                  class="form-select form-select-lg rounded-0 border-gray-300"
+                  style="height: 46px; font-size: 0.875rem"
                 >
+                  <option disabled value="">기관을 선택해주세요</option>
+
+                  <option
+                    v-for="item in organList"
+                    :key="item.organ_no"
+                    :value="item.organ_no"
+                  >
+                    {{ item.organ_name }}
+                  </option>
+                </select>
+
+                <argon-checkbox checked>
+                  <label class="form-check-label text-sm">이용약관 동의</label>
+                </argon-checkbox>
 
                 <div class="text-center mt-4">
                   <argon-button
+                    type="submit"
                     fullWidth
                     color="success"
                     variant="gradient"
@@ -388,7 +471,7 @@ onUnmounted(() => {
     </div>
   </main>
 
-  <!-- [모달 1] 이메일 인증용 -->
+  <!-- 모달: 이메일 인증 -->
   <div
     v-if="showEmailModal"
     class="modal fade show d-block"
@@ -431,7 +514,7 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <!-- [모달 2] 알림용 (중복검사 등) -->
+  <!-- 모달: 알림 -->
   <div
     v-if="showModal"
     class="modal fade show d-block"
@@ -457,6 +540,7 @@ onUnmounted(() => {
       </div>
     </div>
   </div>
+
   <app-footer />
 </template>
 

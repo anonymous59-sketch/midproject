@@ -1,50 +1,106 @@
 const express = require("express");
 const router = express.Router();
-const authService = require("../services/yang_auth_service");
-const jwt = require("jsonwebtoken");
+const authService = require("../services/yang_auth_service"); // 서비스 가져오기
 
-// 로그인 처리 (단순 문자열 비교)
+// 로그인 처리
 router.post("/sign-in", async (req, res) => {
-  const { m_id, m_pw } = req.body;
-
-  if (!m_id || !m_pw)
-    return res.json({ success: false, message: "ID/PW 입력" });
-
   try {
-    const rows = await authService.getUserById(m_id);
-    if (!rows || rows.length === 0)
+    const { m_id, m_pw } = req.body;
+
+    if (!m_id || !m_pw) {
+      return res.json({ success: false, message: "ID/PW 입력" });
+    }
+
+    const user = await authService.getUserById(m_id);
+
+    if (!user) {
       return res.json({ success: false, message: "존재하지 않는 아이디" });
+    }
 
-    const user = rows[0]; // 첫 번째 계정 정보
-
-    // bcrypt 대신 단순 문자열 비교 (테스트용)
-    if (user.m_pw !== m_pw)
+    // 단순 문자열 비교
+    if (user.m_pw !== m_pw) {
       return res.json({ success: false, message: "비밀번호 틀림" });
+    }
 
-    const token = jwt.sign(
-      { m_no: user.m_no, m_id: user.m_id },
-      process.env.JWT_SECRET,
-      { expiresIn: "2h" },
-    );
-
-    return res.json({ success: true, token });
+    // JWT 없이 로그인 성공 처리
+    return res.json({
+      success: true,
+      message: "로그인 성공!",
+      user: {
+        m_no: user.m_no,
+        m_id: user.m_id,
+        m_nm: user.m_nm,
+        m_email: user.m_email,
+        m_tel: user.m_tel,
+        m_bd: user.m_bd,
+        m_add: user.m_add,
+        m_auth: user.m_auth,
+        m_org: user.m_org,
+      },
+    });
   } catch (err) {
-    console.error(err);
+    console.error("로그인 라우터 오류:", err);
     return res.json({ success: false, message: "서버 오류" });
   }
 });
 
-// DB 연결 테스트
-router.get("/db-test", async (req, res) => {
+// 회원가입 API
+router.post("/sign-up", async (req, res) => {
   try {
-    const rows = await authService.getUserById("seoul_stf1"); // 실제 DB 계정
-    if (!rows || rows.length === 0) {
-      return res.json({ success: false, message: "DB에 계정이 없습니다." });
+    const userInfo = req.body; // Vue에서 넘어온 데이터
+
+    // 필수값 체크
+    if (
+      !userInfo.m_id ||
+      !userInfo.m_pw ||
+      !userInfo.m_nm ||
+      !userInfo.m_email
+    ) {
+      return res.json({ success: false, message: "필수 입력값 누락" });
     }
-    res.json({ success: true, user: rows[0] }); // 첫 번째 계정 정보 반환
+
+    // ID 중복 확인
+    const existUser = await authService.getUserById(userInfo.m_id);
+    if (existUser)
+      return res.json({ success: false, message: "이미 존재하는 아이디" });
+
+    // 회원가입
+    const result = await authService.signUpUser(userInfo);
+    return res.json(result);
+  } catch (err) {
+    console.error("회원가입 라우터 오류:", err);
+    return res.json({ success: false, message: "서버 오류" });
+  }
+});
+
+router.get("/organ/list", async (req, res) => {
+  const rows = await authService.getOrganList();
+  res.json(rows);
+});
+
+// 아이디 중복 체크 API
+router.get("/check-id/:m_id", async (req, res) => {
+  const m_id = req.params.m_id;
+  if (!m_id) return res.json({ exists: false });
+
+  try {
+    const exists = await authService.checkIdExists(m_id);
+    res.json({ exists });
+  } catch (err) {
+    console.error("ID 중복 체크 오류:", err);
+    res.json({ exists: false });
+  }
+});
+
+// 회원 정보 조회 예시
+router.get("/users/:m_id", async (req, res) => {
+  try {
+    const m_id = req.params.m_id;
+    const user = await authService.getUserById(m_id);
+    res.json(user || {});
   } catch (err) {
     console.error(err);
-    res.json({ success: false, message: "DB 연결 실패" });
+    res.json({});
   }
 });
 
