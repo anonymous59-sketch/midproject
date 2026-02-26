@@ -9,7 +9,10 @@ router.get("/surveys", async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error("[GET /surveys]", err);
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
   }
 });
 
@@ -19,8 +22,132 @@ router.get("/targets", async (req, res) => {
     const data = await sixApplyService.getTargets();
     return res.json(data);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Server error" });
+    console.error("[GET /targets]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
+// ✅ 보호자별 지원대상자 목록: GET /dsbl-prs?gdn_no=xxx (review 화면)
+router.get("/dsbl-prs", async (req, res) => {
+  try {
+    const gdnNo = req.query.gdn_no || "";
+    const data = await sixApplyService.getDsblPrsByGdnNo(gdnNo);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /dsbl-prs]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
+// ✅ 지원 1건 + 대상자 정보: GET /support/:supCode (review 화면)
+router.get("/support/:supCode", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const data = await sixApplyService.getSupportWithDsbl(supCode);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /support/:supCode]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
+// ✅ 조사지 질문+답변 목록: GET /support/:supCode/survey-answers (review 지원신청서)
+router.get("/support/:supCode/survey-answers", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const data = await sixApplyService.getSurveyAnswersBySupCode(supCode);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /support/:supCode/survey-answers]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
+// ✅ 상담내역 목록: GET /support/:supCode/counsels (review 우측 상담내역)
+router.get("/support/:supCode/counsels", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const data = await sixApplyService.getCounselBySupCode(supCode);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /support/:supCode/counsels]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
+// ✅ 상담 1건 등록: POST /support/:supCode/counsels
+router.post("/support/:supCode/counsels", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const payload = req.body || {};
+    const result = await sixApplyService.createCounsel(supCode, payload);
+    return res.status(201).json({
+      message: "ok",
+      csl_code: result.csl_code,
+    });
+  } catch (err) {
+    if (err.message === "제목과 상담일은 필수입니다.") {
+      return res.status(400).json({ message: err.message });
+    }
+    console.error("[POST /support/:supCode/counsels]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
+// ✅ 임시저장 목록 조회: GET /support/:supCode/temp-storage?category_name=j0_10|j0_20|j0_30
+router.get("/support/:supCode/temp-storage", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const categoryName = req.query.category_name || "j0_10";
+    const data = await sixApplyService.getTempStorageList(supCode, categoryName);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /support/:supCode/temp-storage]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
+// ✅ 임시저장 INSERT: POST /support/:supCode/temp-storage (body: category_name=j0_10|j0_20|j0_30, save_title, save_content)
+router.post("/support/:supCode/temp-storage", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const payload = req.body || {};
+    const categoryName = payload.category_name || "j0_10";
+    const result = await sixApplyService.saveTempStorage(supCode, categoryName, payload);
+    return res.status(201).json({
+      message: "ok",
+      tmp_code: result.tmp_code,
+    });
+  } catch (err) {
+    if (err.message && err.message.includes("찾을 수 없거나")) {
+      return res.status(400).json({ message: err.message });
+    }
+    console.error("[POST /support/:supCode/temp-storage]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
   }
 });
 
@@ -75,6 +202,20 @@ router.post("/applications", async (req, res) => {
       sup_code: result.sup_code,
     });
   } catch (err) {
+    if (err.message === "FK_REFERENCE_MISSING" && err.fkDetail) {
+      const d = err.fkDetail;
+      return res.status(400).json({
+        message:
+          "참조 오류: 저장하려는 데이터가 다른 테이블에 존재하지 않습니다.",
+        detail: {
+          table: d.table,
+          column: d.column,
+          referencedTable: d.referencedTable,
+          referencedColumn: d.referencedColumn,
+          hint: `${d.referencedTable} 테이블에 ${d.referencedColumn} 값이 먼저 있어야 합니다. 해당 테이블에 데이터를 입력한 뒤 다시 저장해 주세요.`,
+        },
+      });
+    }
     console.error("[POST /apply/applications] error:", err);
     return res.status(500).json({ message: "Server error" });
   }

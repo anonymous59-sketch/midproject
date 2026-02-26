@@ -12,7 +12,7 @@ const onLogout = async () => {
   // 1) 토큰/세션 삭제 (예: localStorage.removeItem("accessToken"))
   // 2) 로그인 페이지로 이동
   // 3) 필요하면 API 로그아웃 호출
-  routes.push("/login");
+  routes.push("/signin");
 };
 
 const greetingText = computed(() => `${userName} 님 반갑습니다!`);

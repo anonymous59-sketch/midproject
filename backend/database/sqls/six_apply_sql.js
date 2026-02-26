@@ -35,6 +35,36 @@ exports.selectTargets = `
   ORDER BY mc_submitdate DESC
 `;
 
+// ✅ support 1건 조회 (sup_code)
+exports.selectSupportBySupCode = `
+  SELECT sup_code, mem_no, mc_pn, sup_day, mgr_no, req_yn, res_time, supt_rej_cmt, rank_res
+  FROM support
+  WHERE sup_code = ?
+`;
+
+// ✅ 지원대상자 1건 조회 (mc_pn) — review 화면용
+exports.selectDsblPrsByMcPn = `
+  SELECT mc_pn, mc_nm, mc_bd, mc_gender, mc_address, mc_type, gdn_no, mc_submitdate
+  FROM dsbl_prs
+  WHERE mc_pn = ?
+`;
+
+// ✅ 보호자(gdn_no)별 지원대상자 목록 (review 화면용)
+exports.selectDsblPrsByGdnNo = `
+  SELECT
+    mc_pn,
+    mc_nm,
+    mc_bd,
+    mc_gender,
+    mc_address,
+    mc_type,
+    gdn_no,
+    mc_submitdate
+  FROM dsbl_prs
+  WHERE gdn_no = ?
+  ORDER BY mc_submitdate DESC
+`;
+
 // ✅ 조사지 목록
 exports.selectSurveyList = `
   SELECT
@@ -57,6 +87,14 @@ exports.insertSupport = `
   VALUES (?, ?, ?, ?, ?)
 `;
 
+// 당일 최대 sup_code 조회 (순번 생성용)
+exports.selectMaxSupCodeByDate = `
+  SELECT sup_code FROM support
+  WHERE sup_code LIKE ?
+  ORDER BY sup_code DESC
+  LIMIT 1
+`;
+
 // 설문 답변 단건 INSERT (survey_a)
 exports.insertSurveyAnswer = `
   INSERT INTO survey_a (
@@ -67,4 +105,69 @@ exports.insertSurveyAnswer = `
     sup_code
   )
   VALUES (?, ?, ?, ?, ?)
+`;
+
+// ✅ sup_code별 조사지 질문+답변 (review 지원신청서) — major_name, sub_name 포함
+exports.selectSurveyAnswersBySupCode = `
+  SELECT
+    a.q_code,
+    a.a_content,
+    q.q_no,
+    q.q_content,
+    sb.sub_name,
+    mj.major_name
+  FROM survey_a a
+  JOIN survey_q q ON q.q_code = a.q_code
+  JOIN sub_category sb ON sb.sub_code = q.sub_code
+  JOIN major_category mj ON mj.major_code = sb.major_code
+  WHERE a.sup_code = ?
+  ORDER BY mj.major_code, sb.sub_code, q.q_no
+`;
+
+// ✅ sup_code별 상담내역 목록 (review 우측 상담내역)
+exports.selectCounselBySupCode = `
+  SELECT csl_code, csl_name, csl_date, csl_writer, csl_write_date, csl_title, csl_content, sup_code
+  FROM counsel
+  WHERE sup_code = ?
+  ORDER BY csl_date DESC, csl_code DESC
+`;
+
+// 당일 최대 csl_code 조회 (순번 생성용, CNSL + YYYYMMDD + 4자리)
+exports.selectMaxCslCodeByDate = `
+  SELECT csl_code FROM counsel
+  WHERE csl_code LIKE ?
+  ORDER BY csl_code DESC
+  LIMIT 1
+`;
+
+// 상담 1건 INSERT
+exports.insertCounsel = `
+  INSERT INTO counsel (
+    csl_code, csl_name, csl_date, csl_writer, csl_write_date, csl_title, csl_content, sup_code
+  )
+  VALUES (?, ?, ?, ?, NOW(), ?, ?, ?)
+`;
+
+// ✅ temp_storage: 당일 최대 tmp_code (TMP + YYYYMMDD + 4자리)
+exports.selectMaxTmpCodeByDate = `
+  SELECT tmp_code FROM temp_storage
+  WHERE tmp_code LIKE ?
+  ORDER BY tmp_code DESC
+  LIMIT 1
+`;
+
+// ✅ temp_storage: 상담등록 임시저장 INSERT
+exports.insertTempStorage = `
+  INSERT INTO temp_storage (
+    tmp_code, tar_category, category_name, save_time, m_no, save_title, save_content
+  )
+  VALUES (?, ?, ?, NOW(), ?, ?, ?)
+`;
+
+// ✅ temp_storage 목록 조회 (tar_category, category_name, m_no 기준 — m_no는 sup_code로 support 조회 후 mgr_no 사용)
+exports.selectTempStorageList = `
+  SELECT tmp_code, save_time, save_title, save_content
+  FROM temp_storage
+  WHERE tar_category = ? AND category_name = ? AND m_no = ?
+  ORDER BY save_time DESC
 `;

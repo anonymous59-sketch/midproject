@@ -56,7 +56,7 @@ onMounted(() => {
   스타일 클래스 출처 (페이지 통일성용):
   - Bootstrap 5 (package.json: "bootstrap": "5.3.3")
   - Argon Dashboard 테마: src/argon-dashboard.js → assets/scss/argon-dashboard.scss
-  - 레이아웃: Dashboard.vue, Tables.vue와 동일하게 py-4 container-fluid + row + col-12 사용
+  - 레이아웃: py-4 container-fluid + row + col-12 사용
   - 자세한 활용법: frontend/STYLE_GUIDE.md 참고
 -->
 <template>

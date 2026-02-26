@@ -115,14 +115,23 @@ const loadTargets = async () => {
     console.error("[loadTargets] error:", err);
     targets.value = [];
     selectedMcPn.value = "";
+    const msg = err.response?.data?.error || err.message;
+    if (msg) alert(`지원대상자 목록 조회 실패: ${msg}`);
   } finally {
     targetLoading.value = false;
   }
 };
 
 const loadSurveyList = async () => {
-  const { data } = await apiGet("/surveys");
-  surveyList.value = data || [];
+  try {
+    const { data } = await apiGet("/surveys");
+    surveyList.value = data || [];
+  } catch (err) {
+    console.error("[loadSurveyList] error:", err);
+    surveyList.value = [];
+    const msg = err.response?.data?.error || err.message;
+    if (msg) alert(`조사지 목록 조회 실패: ${msg}`);
+  }
 };
 
 const loadSurveyTree = async (code) => {

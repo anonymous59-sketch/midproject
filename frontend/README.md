@@ -66,7 +66,7 @@ Let us know your thoughts below. And good luck with development!
 - [Sign In](https://demos.creative-tim.com/vue-argon-dashboard/#/sign-in?ref=readme-vad)
 - [Sign Up](https://demos.creative-tim.com/vue-argon-dashboard/#/sign-up?ref=readme-vad)
 
-[View More](https://demos.creative-tim.com/vue-argon-dashboard/#/dashboard-default?ref=readme-vad).
+[View More](https://demos.creative-tim.com/vue-argon-dashboard/#/profile?ref=readme-vad).
 
 ## Quick start
 
@@ -134,13 +134,10 @@ vue-argon-dashboard
     │   ├── views
     │   │   ├── components
     │   │   ├── Billing.vue
-    │   │   ├── Dashboard.vue
     │   │   ├── Home.vue
-    │   │   ├── Profile.vue
     │   │   ├── Rtl.vue
     │   │   ├── Signin.vue
     │   │   ├── Signup.vue
-    │   │   ├── Tables.vue
     │   │   └── VirtualReality.vue
     │   ├── App.vue
     │   ├── argon-dashboard.js
@@ -164,7 +161,7 @@ At present, we officially aim to support the last two versions of the following 
 
 ## Resources
 
-- [Live Preview](https://demos.creative-tim.com/vue-argon-dashboard/#/dashboard-default?ref=readme-vad)
+- [Live Preview](https://demos.creative-tim.com/vue-argon-dashboard/#/profile?ref=readme-vad)
 - [Download Page](https://www.creative-tim.com/product/vue-argon-dashboard?ref=readme-vad)
 - Documentation is [here](https://www.creative-tim.com/learning-lab/vue/overview/argon-dashboard/?ref=readme-vad)
 - [License Agreement](https://www.creative-tim.com/license?ref=readme-vad)
