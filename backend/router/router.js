@@ -8,6 +8,7 @@ const support_router = require("./jh_support_router");
 const rank_router = require("./jh_rank_router");
 const psw_survey = require("./psw_survey_router");
 const six_apply = require("./six_apply_router");
+const admin_organ = require("./admin_organ_router");
 const authRouter = require("./yang_auth_router");
 const testDbRouter = require("./test_db_router");
 
@@ -23,6 +24,7 @@ router.use("/support", support_router);
 router.use("/rank", rank_router);
 router.use("/", psw_survey);
 router.use("/apply", six_apply);
+router.use("/admin", admin_organ);
 router.use("/auth", authRouter);
 router.use("/test", testDbRouter);
 

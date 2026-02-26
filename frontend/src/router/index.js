@@ -1,8 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
 import MainLayout from "@/layouts/MainLayout.vue";
-import Dashboard from "../views/Dashboard.vue";
-import Tables from "../views/Tables.vue";
-import Profile from "../views/Profile.vue";
 import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
 import FindId from "../views/FindId.vue";
@@ -45,6 +42,11 @@ const routesList = [
         name: "manager-home",
         component: () => import("@/views/manager/ManagerHome.vue"),
       },
+      {
+        path: "review/:sup_code",
+        name: "review",
+        component: () => import("@/views/counsel/Counsel.vue"),
+      },
     ],
   },
   ...kjh,
@@ -53,21 +55,6 @@ const routesList = [
   ...yang,
 
   // 기타 페이지
-  {
-    path: "/dashboard-default",
-    name: "Dashboard",
-    component: Dashboard,
-  },
-  {
-    path: "/tables",
-    name: "Tables",
-    component: Tables,
-  },
-  {
-    path: "/profile",
-    name: "Profile",
-    component: Profile,
-  },
   {
     path: "/signin",
     name: "Signin",
@@ -97,11 +84,6 @@ const routesList = [
     path: "/proxy-test",
     name: "ProxyTest",
     component: ProxyTest,
-  },
-  {
-    path: "/login",
-    name: "login",
-    component: () => import("@/views/auth/LoginPage.vue"),
   },
   {
     path: "/systemSurveyList",

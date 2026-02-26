@@ -46,7 +46,7 @@
 ### 카드
 
 - `card`, `card-header`, `card-body`  
-  → 예: `Dashboard.vue`, `Tables.vue`, `Profile.vue`, `ProxyTest.vue`
+  → 예: `ProxyTest.vue`
 
 ### 버튼
 
@@ -73,7 +73,7 @@
 2. **컴포넌트**: 템플릿에 이미 있는 `@/examples/Cards/`, `@/views/components/` 등을 최대한 재사용하세요.
 3. **클래스**: Bootstrap 5 + 위에서 쓴 Argon 패턴(`card`, `btn`, `alert` 등)을 그대로 쓰면 됩니다.
 4. **참고할 파일**:  
-   `src/views/Dashboard.vue`, `src/views/Tables.vue`, `src/views/ProxyTest.vue`
+   `src/views/ProxyTest.vue`
 
 ---
 

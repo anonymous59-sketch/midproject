@@ -5,6 +5,8 @@ const ex_login = require("./ex_login.sql.js");
 const support_sql = require("./jh_support_sql.js");
 const rank_sql = require("./jh_rank_sql.js");
 const psw_survey = require("./psw_survey_sql.js");
+const six_apply_sql = require("./six_apply_sql.js");
+const admin_organ_sql = require("./admin_organ_sql.js");
 const memberSql = require("./member_sql");
 const authSql = require("./yang_auth_sql");
 
@@ -16,6 +18,8 @@ module.exports = {
   ...support_sql,
   ...rank_sql,
   ...psw_survey,
+  ...six_apply_sql,
+  ...admin_organ_sql,
   ...memberSql,
   ...authSql,
 };
