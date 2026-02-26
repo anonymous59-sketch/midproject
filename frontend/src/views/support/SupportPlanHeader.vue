@@ -1,4 +1,8 @@
 <script setup>
+// ========== import ==========
+// (없음)
+
+// ========== 변수 ==========
 defineProps({
   target_name: { type: String, default: "" },
   member_name: { type: String, default: "" },
@@ -32,6 +36,8 @@ defineProps({
         </tbody>
       </table>
     </div>
+    <!-- 간격 -->
+    <div class="space-20"></div>
   </div>
 </template>
 
@@ -39,5 +45,6 @@ defineProps({
 .support-plan-header .table td {
   padding: 0.5rem 0.75rem;
   vertical-align: middle;
+  border: 1px solid var(--bs-border-color) !important;
 }
 </style>

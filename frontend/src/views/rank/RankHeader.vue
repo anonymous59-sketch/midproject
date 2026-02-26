@@ -39,5 +39,6 @@ defineProps({
 .rank-header .table td {
   padding: 0.5rem 0.75rem;
   vertical-align: middle;
+  border: 1px solid var(--bs-border-color) !important;
 }
 </style>

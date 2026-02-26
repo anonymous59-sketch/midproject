@@ -14,10 +14,10 @@ router.put("/plan/:planCode/decide", async (req, res) => {
   const { decision, plan_cmt } = req.body || {};
   try {
     await supportService.decidePlan(planCode, decision, plan_cmt);
-    res.json({ retCode: "Success", retMsg: "처리되었습니다." });
+    res.json({ retCode: "Success", retMsg: "처리 완료" });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "처리 중 오류가 발생했습니다." });
+    res.json({ retCode: "Error", retMsg: "처리 실패" });
   }
 });
 
@@ -27,10 +27,10 @@ router.put("/plan/:planCode", async (req, res) => {
   const { plan_goal, plan_content } = req.body || {};
   try {
     await supportService.updatePlan(planCode, { plan_goal, plan_content });
-    res.json({ retCode: "Success", retMsg: "수정되었습니다." });
+    res.json({ retCode: "Success", retMsg: "수정 완료" });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "수정 중 오류가 발생했습니다." });
+    res.json({ retCode: "Error", retMsg: "수정 실패" });
   }
 });
 
@@ -52,10 +52,26 @@ router.post("/:supportCode/plan", async (req, res) => {
       start_time: start_date ?? null,
       end_time: end_date ?? null,
     });
-    res.json({ retCode: "Success", retMsg: "등록되었습니다." });
+    res.json({ retCode: "Success", retMsg: "등록 완료" });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "등록 중 오류가 발생했습니다." });
+    res.json({ retCode: "Error", retMsg: "등록 실패" });
+  }
+});
+
+// 계획 임시저장
+router.post("/:supportCode/plan/temp", async (req, res) => {
+  const supportCode = req.params.supportCode;
+  const { save_title, save_content } = req.body || {};
+  try {
+    await supportService.insertPlanTemp(supportCode, {
+      save_title,
+      save_content,
+    });
+    res.json({ retCode: "Success", retMsg: "임시저장 완료" });
+  } catch (err) {
+    console.error(err);
+    res.json({ retCode: "Error", retMsg: "임시저장 실패" });
   }
 });
 
@@ -74,72 +90,95 @@ router.get("/:supportCode", async (req, res) => {
     if (result.length === 0) {
       res.json({
         retCode: "Warning",
-        retMsg: "조회 성공(0건)",
+        retMsg: "지원계획 없음",
         data: [],
         infoData: supportInfo,
       });
-    } else if (result.length > 0) {
+    } else {
       res.json({
         retCode: "Success",
-        retMsg: "조회 성공",
         data: result,
         infoData: supportInfo,
       });
-    } else {
-      res.json({ retCode: "Fail", retMsg: "조회 실패" });
     }
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "조회 중 오류 발생" });
+    res.json({ retCode: "Error", retMsg: "조회 실패" });
   }
 });
 
-// 지원결과 조회 (infoData + planData + resultData)
+// 지원결과 추가 (plan_code, result_title, result_content)
+router.post("/:supportCode/result", async (req, res) => {
+  const { plan_code, result_title, result_content } = req.body || {};
+  try {
+    if (!plan_code) {
+      res.json({ retCode: "Fail", retMsg: "plan_code 필요" });
+      return;
+    }
+    await supportService.insertResult(plan_code, result_title, result_content);
+    res.json({ retCode: "Success", retMsg: "등록 완료" });
+  } catch (err) {
+    console.error(err);
+    res.json({ retCode: "Error", retMsg: "등록 실패" });
+  }
+});
+
+// 지원결과 조회 (infoData: supportCode, planData: planCode로 해당 계획 1건)
 router.get("/:supportCode/result", async (req, res) => {
   const supportCode = req.params.supportCode;
+  const planCode = req.query.planCode;
   try {
+    // 지원자 정보 조회
     const supportInfo =
       await supportService.getSupportInfoBySupCode(supportCode);
     if (!supportInfo) {
       res.json({ retCode: "Fail", retMsg: "지원 정보 없음" });
       return;
     }
-    // 계획이 없으면 결과도 없음 → planData/resultData 빈 배열
-    const plans = await supportService.getPlanBySupportCode(supportCode);
-    if (plans.length === 0) {
-      res.json({
-        retCode: "Warning",
-        retMsg: "계획이 없습니다.",
-        infoData: supportInfo,
-        planData: [],
-        resultData: [],
-      });
-      return;
-    }
-    const result = await supportService.getResultBySupportCode(supportCode);
+    const planData = planCode
+      ? await supportService.getResultPlanInfoByPlanCode(planCode)
+      : [];
+    const resultData = planCode
+      ? await supportService.getResultByPlanCode(planCode)
+      : [];
     res.json({
       retCode: "Success",
-      retMsg: "조회 성공",
       infoData: supportInfo,
-      planData: plans,
-      resultData: result ?? [],
+      planData: planData ?? [],
+      resultData: resultData ?? [],
     });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "조회 중 오류 발생" });
+    res.json({ retCode: "Error", retMsg: "조회 실패" });
   }
 });
-// 도서 등록
-// router.post("/books", async (req, res) => {
-//   const bookInfo = req.body;
-//   const result = await bookService
-//     .addNewBook(bookInfo)
-//     .catch((err) => console.error(err));
-//   res.send(result);
-// });
 
-// 도서 수정
+// 지원결과 수정 (result_title, result_content)
+router.put("/result/:resultCode", async (req, res) => {
+  const { resultCode } = req.params;
+  const { result_title, result_content } = req.body || {};
+  try {
+    await supportService.updateResult(resultCode, {
+      result_title,
+      result_content,
+    });
+    res.json({ retCode: "Success", retMsg: "수정 완료" });
+  } catch (err) {
+    console.error(err);
+    res.json({ retCode: "Error", retMsg: "수정 실패" });
+  }
+});
 
-// 도서 삭제
-
+// 지원결과 승인/보완/반려 (result_tf: e0_10 승인, e0_80 보완, e0_99 반려, result_cmt에 사유, result_updday 강제 유지)
+router.put("/result/:resultCode/decide", async (req, res) => {
+  const { resultCode } = req.params;
+  const { decision, result_cmt } = req.body || {};
+  try {
+    await supportService.decideResult(resultCode, decision, result_cmt);
+    res.json({ retCode: "Success", retMsg: "처리 완료" });
+  } catch (err) {
+    console.error(err);
+    res.json({ retCode: "Error", retMsg: "처리 실패" });
+  }
+});
 module.exports = router;

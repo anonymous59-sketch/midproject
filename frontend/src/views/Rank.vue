@@ -14,8 +14,8 @@ const supCode = route.params.supCode;
 const rankStore = useRankStore();
 const { rankInfo } = storeToRefs(rankStore);
 const { getRankInfo } = rankStore;
-
 const reasonModal = ref({ show: false, type: "reject" });
+
 function openReasonModal(type) {
   reasonModal.value = { show: true, type };
 }
@@ -49,7 +49,7 @@ async function onApprovalConfirmYes() {
   const res = await rankStore.requestApproval(
     supCode,
     payload.s_rank_code,
-    infoData?.value?.mgr_no ?? null,
+    rankInfo?.value?.mgr_no ?? null,
     payload.apply_for ?? null,
     payload.prev_req_code ?? null,
   );
@@ -68,7 +68,7 @@ onBeforeMount(() => {
 });
 
 async function onApprove() {
-  const reqCode = infoData?.value?.req_code;
+  const reqCode = rankInfo?.value?.req_code;
   if (!reqCode) return;
   const res = await rankStore.decideRank(reqCode, supCode, "e0_10");
   if (res?.retCode === "Success") {
@@ -82,7 +82,7 @@ async function onReject() {
   openReasonModal("reject");
 }
 async function onReasonConfirm(reason) {
-  const reqCode = infoData?.value?.req_code;
+  const reqCode = rankInfo?.value?.req_code;
   if (!reqCode) return;
   const isReject = reasonModal.value.type === "reject";
   if (isReject) {
@@ -94,27 +94,26 @@ async function onReasonConfirm(reason) {
   }
   closeReasonModal();
 }
-// 헤더/디테일에 넘길 데이터 (API data 필드명 그대로 사용)
-const infoData = rankInfo;
+// 헤더/디테일에 넘길 데이터 (store rankInfo = API data)
 </script>
 <template>
   <div class="container-fluid py-4">
     <h5 class="mb-3">우선순위</h5>
     <RankHeader
-      :target_name="infoData?.target_name ?? ''"
-      :member_name="infoData?.member_name ?? ''"
-      :manager_name="infoData?.manager_name ?? ''"
-      :write_date="infoData?.write_date ?? ''"
-      :disability_type="infoData?.disability_type ?? ''"
-      :priority="infoData?.priority ?? ''"
+      :target_name="rankInfo?.target_name ?? ''"
+      :member_name="rankInfo?.member_name ?? ''"
+      :manager_name="rankInfo?.manager_name ?? ''"
+      :write_date="rankInfo?.write_date ?? ''"
+      :disability_type="rankInfo?.disability_type ?? ''"
+      :priority="rankInfo?.priority ?? ''"
     />
     <RankDetail
-      :rank_code="infoData?.s_rank_code ?? ''"
-      :rank_cmt="infoData?.rank_cmt ?? ''"
-      :priority="infoData?.priority ?? ''"
-      :apply_for="infoData?.apply_for ?? ''"
-      :s_rank_res="infoData?.s_rank_res ?? ''"
-      :req_code="infoData?.req_code ?? ''"
+      :rank_code="rankInfo?.s_rank_code ?? ''"
+      :rank_cmt="rankInfo?.rank_cmt ?? ''"
+      :priority="rankInfo?.priority ?? ''"
+      :apply_for="rankInfo?.apply_for ?? ''"
+      :s_rank_res="rankInfo?.s_rank_res ?? ''"
+      :req_code="rankInfo?.req_code ?? ''"
       @approval-request="onApprovalRequest"
       @cancel="onCancel"
       @approve="onApprove"

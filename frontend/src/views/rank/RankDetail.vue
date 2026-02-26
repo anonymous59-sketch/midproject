@@ -2,7 +2,7 @@
 import { ref, watch } from "vue";
 
 const props = defineProps({
-  rank_code: { type: String, default: "" },
+  rank_code: { type: String, default: "" }, // 우선순위 코드 (d0_20/d0_30/d0_40)
   rank_cmt: { type: String, default: "" },
   priority: { type: String, default: "" },
   apply_for: { type: String, default: "" },
@@ -110,17 +110,29 @@ function onCancel() {
         <div class="rank-supple-text">{{ rank_cmt || "—" }}</div>
       </div>
     </div>
-    <!-- 우선순위 선택: 빈 문자열이면 3개 모두, 선택 시 해당 pill만 중앙 정렬 -->
-    <div class="rank-detail-block mb-3">
+    <!-- 우선순위: e0_99 반려 시 미표시, e0_10 승인 시 선택값만 읽기 전용, e0_00/e0_80 검토·보완 시 선택 가능 -->
+    <div v-if="s_rank_res !== 'e0_99'" class="rank-detail-block mb-3">
       <div
         class="rank-detail-block-inner py-3 px-3 d-flex align-items-center flex-wrap gap-2"
         :class="
           selectedCode ? 'justify-content-center' : 'justify-content-between'
         "
       >
+        <!-- e0_10 승인: 선택된 pill만 표시, 클릭 불가 -->
         <span
           v-for="p in pills"
-          v-show="showPill(p)"
+          v-show="s_rank_res === 'e0_10' && p.code === selectedCode"
+          :key="'ro-' + p.code"
+          class="rank-pill rank-pill-readonly"
+          :class="p.pillClass"
+        >
+          {{ p.label }}
+        </span>
+        <span
+          v-for="p in pills"
+          v-show="
+            s_rank_res !== 'e0_10' && s_rank_res !== 'e0_99' && showPill(p)
+          "
           :key="p.code"
           role="button"
           tabindex="0"
@@ -158,35 +170,43 @@ function onCancel() {
           }
         "
       />
-      <!-- e0_10(승인)·e0_99(반려)면 모든 버튼 숨김 / e0_00이면 승인요청·취소 숨김 / e0_80(보완)이면 승인요청·취소만 표시 -->
+      <!-- 버튼 영역
+        - 신청 단계 (s_rank_res가 '' 등): 승인요청 / 취소만 표시
+        - 승인요청 상태 (e0_00): 승인 / 보완 / 반려만 표시
+        - 보완판정 상태 (e0_80): 승인요청 / 취소만 표시
+        - 승인(e0_10) / 반려(e0_99): 버튼 숨김
+      -->
       <div
         v-if="s_rank_res !== 'e0_10' && s_rank_res !== 'e0_99'"
         class="d-flex flex-wrap gap-2 justify-content-end"
       >
+        <!-- 신청 단계('' 등) 및 보완판정(e0_80): 승인요청 / 취소 활성 -->
+        <template v-if="s_rank_res !== 'e0_00'">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary"
+            @click="
+              emit('approval-request', {
+                s_rank_code: selectedCode,
+                apply_for: rankComment,
+                prev_req_code: s_rank_res === 'e0_80' ? req_code : null,
+              })
+            "
+          >
+            승인요청
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            @click="onCancel"
+          >
+            취소
+          </button>
+        </template>
+
+        <!-- 승인요청 상태(e0_00): 승인 / 보완 / 반려만 활성 -->
         <button
-          v-if="s_rank_res !== 'e0_00'"
-          type="button"
-          class="btn btn-sm btn-outline-primary"
-          @click="
-            emit('approval-request', {
-              s_rank_code: selectedCode,
-              apply_for: rankComment,
-              prev_req_code: s_rank_res === 'e0_80' ? req_code : null,
-            })
-          "
-        >
-          승인요청
-        </button>
-        <button
-          v-if="s_rank_res !== 'e0_00'"
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="onCancel"
-        >
-          취소
-        </button>
-        <button
-          v-if="s_rank_res !== 'e0_80'"
+          v-if="s_rank_res === 'e0_00'"
           type="button"
           class="btn btn-sm btn-success"
           @click="emit('approve')"
@@ -194,7 +214,7 @@ function onCancel() {
           승인
         </button>
         <button
-          v-if="s_rank_res !== 'e0_80'"
+          v-if="s_rank_res === 'e0_00'"
           type="button"
           class="btn btn-sm btn-warning"
           @click="emit('supple')"
@@ -202,7 +222,7 @@ function onCancel() {
           보완
         </button>
         <button
-          v-if="s_rank_res !== 'e0_80'"
+          v-if="s_rank_res === 'e0_00'"
           type="button"
           class="btn btn-sm btn-danger"
           @click="emit('reject')"
@@ -238,6 +258,10 @@ function onCancel() {
   font-size: 0.9rem;
   color: #fff;
   white-space: nowrap;
+}
+.rank-pill-readonly {
+  cursor: default;
+  pointer-events: none;
 }
 .rank-pill-plan {
   background-color: #7eb8da;

@@ -57,6 +57,18 @@ const svc = {
     });
     return null;
   },
+  // 계획 임시저장 (tar_category는 SQL에서 당일 plan_code 규칙으로 생성)
+  insertPlanTemp: async (supportCode, { save_title, save_content }) => {
+    await query("supportPlanTempInsert", [
+      save_title ?? "",
+      save_content ?? "",
+      supportCode,
+    ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return null;
+  },
   // 계획 승인/보완/반려
   decidePlan: async (planCode, decision, plan_cmt) => {
     await query("supportPlanDecide", [
@@ -70,9 +82,9 @@ const svc = {
     return null;
   },
 
-  // 지원결과에 대한 지원자 정보 및 지원 계획 (Header용)
-  getResultBySupportCode: async (supportCode) => {
-    const rows = await query("supportResultPlanInfo", [supportCode]).catch(
+  // 결과 조회: plan_code로 해당 계획 1건 (organ_name, manager_name 등)
+  getResultPlanInfoByPlanCode: async (planCode) => {
+    const rows = await query("supportResultPlanInfo", [planCode]).catch(
       (err) => {
         console.error(err);
         throw err;
@@ -80,44 +92,52 @@ const svc = {
     );
     return rows ?? [];
   },
-  /* ,
-  findByBookNo: async (bookNo) => {
-    const list = await mariadb
-      .query("selectBookOne", bookNo)
-      .catch((err) => console.error(err));
-    const info = list[0];
-    return info;
+  // 결과 조회: plan_code로 해당 결과 조회
+  getResultByPlanCode: async (planCode) => {
+    const rows = await query("supportResultByPlanCode", [planCode]).catch(
+      (err) => {
+        console.error(err);
+        throw err;
+      },
+    );
+    return rows ?? [];
   },
-  addNewBook: async (bookInfo) => {
-    const data = convertObjToAry(bookInfo);
-    const resInfo = await mariadb
-      .query("bookInsert", data)
-      .catch((err) => console.error(err));
-
-    let result = null;
-    if(resInfo.insertId > 0) {
-      result = {
-        isSuccessed: true,
-        bookNo: resInfo.insertId,
-      }
-    } else {
-      result = {
-        isSuccessed: false,
-      }
-    }
-    return result;
-  }, */
+  // 결과 추가
+  insertResult: async (planCode, result_title, result_content) => {
+    await query("supportResultInsert", [
+      planCode,
+      result_title ?? "",
+      result_content ?? "",
+    ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return null;
+  },
+  // 결과 수정 (제목, 내용만)
+  updateResult: async (resultCode, { result_title, result_content }) => {
+    await query("supportResultUpdate", [
+      result_title ?? "",
+      result_content ?? "",
+      resultCode,
+    ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return null;
+  },
+  // 결과 승인/보완/반려
+  decideResult: async (resultCode, decision, result_cmt) => {
+    await query("supportResultDecide", [
+      decision,
+      result_cmt ?? null,
+      resultCode,
+    ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return null;
+  },
 };
 
-// function convertObjToAry(target) {
-//   return [
-//     target.name,
-//     target.writer,
-//     target.publisher,
-//     target.publication_date,
-//     target.info,
-//   ];
-// }
-
-// 같은 경로에 있는 svc.js 내보내기
 module.exports = svc;

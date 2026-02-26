@@ -9,7 +9,7 @@ const props = defineProps({
     default: "reject",
     validator: (v) => ["reject", "supple"].includes(v),
   },
-  /** 제목 오버라이드 (예: '반려처리된 반려', '보완') */
+  /** 제목 오버라이드 (예: '반려 사유', '보완 사유') */
   titleOverride: { type: String, default: "" },
   /** 기존 사유(plan_cmt 등) 읽기 전용 표시 */
   displayContent: { type: String, default: "" },
@@ -20,21 +20,22 @@ const emit = defineEmits(["close", "confirm"]);
 const reasonText = ref("");
 
 const typeConfig = computed(() => {
-  const base = props.type === "supple"
-    ? {
-        title: "보완 사유",
-        placeholder: "보완 사유는 반드시 입력해야 합니다.",
-        buttonText: "보완",
-        buttonClass: "btn-warning",
-        requiredMessage: "보완 사유를 입력해 주세요.",
-      }
-    : {
-        title: "반려 사유",
-        placeholder: "반려 사유는 반드시 입력해야 합니다.",
-        buttonText: "반려",
-        buttonClass: "btn-danger",
-        requiredMessage: "반려 사유를 입력해 주세요.",
-      };
+  const base =
+    props.type === "supple"
+      ? {
+          title: "보완 사유",
+          placeholder: "보완 사유는 반드시 입력해야 합니다.",
+          buttonText: "보완",
+          buttonClass: "btn-warning",
+          requiredMessage: "보완 사유를 입력해 주세요.",
+        }
+      : {
+          title: "반려 사유",
+          placeholder: "반려 사유는 반드시 입력해야 합니다.",
+          buttonText: "반려",
+          buttonClass: "btn-danger",
+          requiredMessage: "반려 사유를 입력해 주세요.",
+        };
   return { ...base, title: props.titleOverride || base.title };
 });
 

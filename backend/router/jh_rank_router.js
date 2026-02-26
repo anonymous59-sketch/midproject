@@ -19,10 +19,10 @@ router.post("/request", async (req, res) => {
       mgr_no ?? null,
       apply_for ?? null
     );
-    res.json({ retCode: "Success", retMsg: "승인요청 등록 완료" });
+    res.json({ retCode: "Success", retMsg: "등록 완료" });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "승인요청 등록 중 오류 발생" });
+    res.json({ retCode: "Error", retMsg: "등록 실패" });
   }
 });
 
@@ -36,14 +36,14 @@ router.put("/decide", async (req, res) => {
     }
     const decisionStr = String(decision).trim();
     if (decisionStr !== "e0_10" && decisionStr !== "e0_99") {
-      res.json({ retCode: "Fail", retMsg: "decision은 e0_10(승인) 또는 e0_99(반려)" });
+      res.json({ retCode: "Fail", retMsg: "decision 오류" });
       return;
     }
     await rankService.decideRank(req_code, sup_code, decisionStr);
-    res.json({ retCode: "Success", retMsg: decisionStr === "e0_10" ? "승인 처리되었습니다." : "반려 처리되었습니다." });
+    res.json({ retCode: "Success", retMsg: "처리 완료" });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: err.message || "판정 처리 중 오류 발생" });
+    res.json({ retCode: "Error", retMsg: "처리 실패" });
   }
 });
 
@@ -56,10 +56,10 @@ router.put("/supple", async (req, res) => {
       return;
     }
     await rankService.suppleRank(req_code, rank_cmt ?? null);
-    res.json({ retCode: "Success", retMsg: "보완 처리되었습니다." });
+    res.json({ retCode: "Success", retMsg: "처리 완료" });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "보완 처리 중 오류 발생" });
+    res.json({ retCode: "Error", retMsg: "처리 실패" });
   }
 });
 
@@ -75,7 +75,7 @@ router.put("/update", async (req, res) => {
     res.json({ retCode: "Success", retMsg: "수정 완료" });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "수정 중 오류 발생" });
+    res.json({ retCode: "Error", retMsg: "수정 실패" });
   }
 });
 
@@ -89,10 +89,10 @@ router.get("/:supCode", async (req, res) => {
       return;
     }
     const data = Array.isArray(info) ? info[0] : info;
-    res.json({ retCode: "Success", retMsg: "조회 성공", data });
+    res.json({ retCode: "Success", data });
   } catch (err) {
     console.error(err);
-    res.json({ retCode: "Error", retMsg: "조회 중 오류 발생" });
+    res.json({ retCode: "Error", retMsg: "조회 실패" });
   }
 });
 

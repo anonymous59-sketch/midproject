@@ -1,4 +1,4 @@
-﻿-- 1-1. 메인 코드
+-- 1-1. 메인 코드
 CREATE TABLE `main_code` (
   `m_code` VARCHAR(30) NOT NULL,
   `m_name` VARCHAR(30) NULL,
@@ -233,14 +233,15 @@ CREATE TABLE `survey_a` (
 -- 7-1. 임시 저장
 CREATE TABLE `temp_storage` (
   `tmp_code` VARCHAR(30) NOT NULL,
-  `tar_category` VARCHAR(30) NOT NULL,
-  `category_name` VARCHAR(30) NOT NULL,
+  `tar_category` VARCHAR(30) NOT NULL, -- 상담일지 / 지원계획 / 지원결과의 PK코드
+  `category_name` VARCHAR(30) NOT NULL, -- 부코드 FK(주코드가 0J인 라인을 사용)
   `save_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `m_no` VARCHAR(20) NOT NULL,
   `save_title` VARCHAR(40) NULL,
   `save_content` LONGTEXT NULL,
   PRIMARY KEY (`tmp_code`),
   CONSTRAINT `FK_member_TO_temp_storage` FOREIGN KEY (`m_no`) REFERENCES `member` (`m_no`)
+  CONSTRAINT `FK_sub_code_TO_temp_storage` FOREIGN KEY (`category_name`) REFERENCES `sub_code` (`s_code`)
 );
 
 -- 7-2. 파일 관리
@@ -256,6 +257,7 @@ CREATE TABLE `file` (
   `upload_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`file_code`),
   CONSTRAINT `FK_member_TO_file` FOREIGN KEY (`upload_mem`) REFERENCES `member` (`m_no`)
+  CONSTRAINT `FK_sub_code_TO_file` FOREIGN KEY (`category_name`) REFERENCES `sub_code` (`s_code`)
 );
 
 -- 7-3. 수정 이력
@@ -270,4 +272,5 @@ CREATE TABLE `upd_history` (
   `upd_content` LONGTEXT NOT NULL, -- LONGTEXT로 통합
   PRIMARY KEY (`history_no`),
   CONSTRAINT `FK_member_TO_upd_history` FOREIGN KEY (`upd_member`) REFERENCES `member` (`m_no`)
+  CONSTRAINT `FK_sub_code_TO_upd_history` FOREIGN KEY (`category_name`) REFERENCES `sub_code` (`s_code`)
 );

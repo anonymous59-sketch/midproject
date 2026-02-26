@@ -1,19 +1,25 @@
 <script setup>
-import { ref, reactive } from "vue";
+// ========== import ==========
+import { ref, reactive, onBeforeMount } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
+import { useSupportStore } from "../store/support.js";
 import SupportPlanHeader from "./support/SupportPlanHeader.vue";
 import SupportPlanDetail from "./support/SupportPlanDetail.vue";
 import ReasonModal from "./modal/ReasonModal.vue";
 import ConfirmModal from "./modal/ConfirmModal.vue";
-import { onBeforeMount } from "vue";
-import { useRoute } from "vue-router";
-import { useSupportStore } from "../store/support.js";
-import { storeToRefs } from "pinia";
+import AlertModal from "./modal/AlertModal.vue";
+import { getAlertPreset } from "../utils/alertPresets.js";
 
+// ========== 변수 ==========
 const route = useRoute();
+const router = useRouter();
 const supportCode = route.params.supportCode;
+
 const supportStore = useSupportStore();
-const { detail, infoData } = storeToRefs(supportStore);
-const { supportPlanDetail, insertPlan, updatePlan, decidePlan } = supportStore;
+const { planData, infoData } = storeToRefs(supportStore);
+const { supportPlanDetail, insertPlan, tempSavePlan, updatePlan, decidePlan } =
+  supportStore;
 
 const showAddPlanForm = ref(false);
 const addForm = reactive({
@@ -22,6 +28,33 @@ const addForm = reactive({
   startDate: "",
   endDate: "",
 });
+
+const reasonModal = ref({
+  show: false,
+  type: "reject",
+  planCode: null,
+  planCmt: "",
+});
+const cancelModal = ref({ show: false, context: "add", planCode: null });
+const cancelRequestPlanCode = ref(null);
+const approvalConfirm = ref({ show: false, source: "add", payload: null });
+
+const alertModal = ref({
+  show: false,
+  type: "success",
+  title: "알림",
+  message: "",
+});
+
+// ========== 함수 ==========
+function showAlert(type, title, message) {
+  const m = (message ?? "").trim();
+  if (!m || m === "조회 완료" || m === "조회 성공") return;
+  alertModal.value = { show: true, type, title, message: m };
+}
+function closeAlertModal() {
+  alertModal.value.show = false;
+}
 
 function toggleAddPlan() {
   showAddPlanForm.value = !showAddPlanForm.value;
@@ -33,12 +66,6 @@ function toggleAddPlan() {
   }
 }
 
-const reasonModal = ref({
-  show: false,
-  type: "reject",
-  planCode: null,
-  planCmt: "",
-});
 function openReasonModal(type, planCode, planCmt) {
   reasonModal.value = { show: true, type, planCode, planCmt: planCmt ?? "" };
 }
@@ -46,8 +73,6 @@ function closeReasonModal() {
   reasonModal.value = { ...reasonModal.value, show: false };
 }
 
-const cancelModal = ref({ show: false, context: "add", planCode: null }); // context: 'add' | 'edit'
-const cancelRequestPlanCode = ref(null); // confirm 시 해당 Detail에 전달해 복구 유도
 function openCancelModal(context, planCode = null) {
   cancelModal.value = { show: true, context, planCode };
 }
@@ -63,6 +88,8 @@ function onCancelModalConfirm() {
     addForm.endDate = "";
   } else {
     cancelRequestPlanCode.value = cancelModal.value.planCode;
+    const p = getAlertPreset("cancelComplete", "plan");
+    showAlert(p.type, p.title, p.message);
   }
   closeCancelModal();
 }
@@ -70,26 +97,41 @@ function clearCancelRequest() {
   cancelRequestPlanCode.value = null;
 }
 
-onBeforeMount(() => {
-  supportPlanDetail(supportCode);
-});
+function closeApprovalConfirm() {
+  approvalConfirm.value = { show: false, source: "add", payload: null };
+}
 
 function updHistory() {
   console.log("수정이력");
 }
-function result() {
-  console.log("결과조회");
+function result(planCode) {
+  router.push({
+    name: "SupportResult",
+    params: { supportCode },
+    query: planCode ? { planCode } : {},
+  });
 }
 function edit() {
   console.log("수정");
 }
+function onCancel() {
+  console.log("취소");
+}
+function onAddPlan() {
+  console.log("계획추가");
+}
+
 function openReasonModalForPlan(type, planCode) {
   openReasonModal(type, planCode, "");
 }
 async function onApprove(planCode) {
   const res = await decidePlan(planCode, "e0_10", null);
-  if (res?.retCode === "Success") await supportPlanDetail(supportCode);
-  else if (res != null) alert(res.retMsg || "처리 중 오류가 발생했습니다.");
+  if (res?.retCode === "Success") {
+    await supportPlanDetail(supportCode);
+    const p = getAlertPreset("approvalComplete", "plan");
+    showAlert(p.type, p.title, res.retMsg ?? p.message);
+  } else if (res != null)
+    showAlert("error", "알림", res.retMsg ?? "처리 중 오류가 발생했습니다.");
 }
 function supple(planCode) {
   openReasonModalForPlan("supple", planCode);
@@ -102,18 +144,20 @@ async function onReasonConfirm(reason) {
   const decision = type === "reject" ? "e0_99" : "e0_80";
   const res = await decidePlan(planCode, decision, reason);
   closeReasonModal();
-  if (res?.retCode === "Success") await supportPlanDetail(supportCode);
-  else if (res != null) alert(res.retMsg || "처리 중 오류가 발생했습니다.");
+  if (res?.retCode === "Success") {
+    await supportPlanDetail(supportCode);
+    const presetKey = decision === "e0_99" ? "rejectComplete" : "suppleComplete";
+    const p = getAlertPreset(presetKey, "plan");
+    showAlert(p.type, p.title, res.retMsg ?? p.message);
+  } else if (res != null)
+    showAlert("error", "알림", res.retMsg ?? "처리 중 오류가 발생했습니다.");
 }
-const approvalConfirm = ref({ show: false, source: "add", payload: null }); // source: 'add' | 'detail'
+
 function onApprovalRequestFromAdd() {
   approvalConfirm.value = { show: true, source: "add", payload: null };
 }
 function onApprovalRequest(payload) {
   approvalConfirm.value = { show: true, source: "detail", payload };
-}
-function closeApprovalConfirm() {
-  approvalConfirm.value = { show: false, source: "add", payload: null };
 }
 async function onApprovalConfirmYes() {
   if (approvalConfirm.value.source === "add") {
@@ -133,10 +177,12 @@ async function onApprovalConfirmYes() {
       addForm.content = "";
       addForm.startDate = "";
       addForm.endDate = "";
+      const p = getAlertPreset("approvalRequestComplete", "plan");
+      showAlert(p.type, p.title, res.retMsg ?? p.message);
     } else if (res != null) {
-      alert(res.retMsg || "승인요청 처리 중 오류가 발생했습니다.");
+      showAlert("error", "알림", res.retMsg ?? "등록 중 오류가 발생했습니다.");
     } else {
-      alert("승인요청에 실패했습니다.");
+      showAlert("error", "알림", "승인요청에 실패했습니다.");
     }
   } else {
     const payload = approvalConfirm.value.payload;
@@ -146,12 +192,13 @@ async function onApprovalConfirmYes() {
         plan_goal: payload.title,
         plan_content: payload.content,
       });
-      if (res?.retCode === "Success") await supportPlanDetail(supportCode);
+      if (res?.retCode === "Success") {
+        await supportPlanDetail(supportCode);
+        const p = getAlertPreset("approvalRequestComplete", "plan");
+        showAlert(p.type, p.title, res.retMsg ?? p.message);
+      }
     }
   }
-}
-function onCancel() {
-  console.log("취소");
 }
 async function onEditComplete(payload) {
   if (!payload?.planCode) return;
@@ -162,12 +209,27 @@ async function onEditComplete(payload) {
   if (res?.retCode === "Success") {
     await supportPlanDetail(supportCode);
   } else if (res != null) {
-    alert(res.retMsg || "수정 처리 중 오류가 발생했습니다.");
+    showAlert("error", "알림", res.retMsg ?? "수정 중 오류가 발생했습니다.");
   }
 }
-function onAddPlan() {
-  console.log("계획추가");
+async function onTempSaveFromAdd() {
+  const res = await tempSavePlan(supportCode, {
+    save_title: addForm.title ?? "",
+    save_content: addForm.content ?? "",
+  });
+  if (res?.retCode === "Success") {
+    showAlert("success", "알림", res.retMsg ?? "임시저장 완료");
+  } else if (res != null) {
+    showAlert("error", "알림", res.retMsg ?? "임시저장 실패");
+  } else {
+    showAlert("error", "알림", "임시저장 처리 중 오류가 발생했습니다.");
+  }
 }
+
+// ========== 라이프사이클 훅 ==========
+onBeforeMount(() => {
+  supportPlanDetail(supportCode);
+});
 </script>
 <template>
   <div class="container-fluid py-4">
@@ -236,6 +298,13 @@ function onAddPlan() {
         <div class="d-flex justify-content-end gap-2">
           <button
             type="button"
+            class="btn btn-sm btn-secondary"
+            @click="onTempSaveFromAdd"
+          >
+            임시저장
+          </button>
+          <button
+            type="button"
             class="btn btn-sm btn-outline-primary"
             @click="onApprovalRequestFromAdd"
           >
@@ -252,12 +321,13 @@ function onAddPlan() {
       </div>
     </div>
     <SupportPlanDetail
-      v-for="item in detail ?? []"
+      v-for="item in planData ?? []"
       :key="item.plan_code"
       :plan_code="item.plan_code"
       :support_plan_title="item.plan_goal"
       :support_plan_content="item.plan_content"
       :support_plan_file="item.origin_file_name"
+      :support_plan_updday="item.plan_updday"
       :support_plan_tf="item.plan_tf"
       :support_plan_comment="item.plan_cmt"
       :plan_date="item.plan_date"
@@ -300,6 +370,13 @@ function onAddPlan() {
       :display-content="reasonModal.planCmt"
       @close="closeReasonModal"
       @confirm="onReasonConfirm"
+    />
+    <AlertModal
+      :show="alertModal.show"
+      :type="alertModal.type"
+      :title="alertModal.title"
+      :message="alertModal.message"
+      @close="closeAlertModal"
     />
   </div>
 </template>
