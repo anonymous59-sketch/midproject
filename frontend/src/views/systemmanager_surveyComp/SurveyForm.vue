@@ -10,7 +10,7 @@ const router = useRouter();
 
 const mode = computed(() => (route.query.mode == "edit" ? "edit" : "create"));
 
-const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD 형식으로 오늘 날짜 구하기
+const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD 형식으로 오늘 날짜 구하기
 
 const form = ref({
   sver_code: "",
@@ -24,6 +24,7 @@ const form = ref({
 const showMajorModal = ref(false); // 대분류 관련
 const showSubModal = ref(false); // 소분류 관련
 const showQuestionModal = ref(false); // 질문 등록 관련
+const showPreviewModal = ref(false); // 조사지 전체 미리보기
 
 // 조사지에 대한 등록인지 수정인지 체크 (create | edit)
 const majorModalMode = ref("create"); // 대분류
@@ -47,12 +48,16 @@ const subForm = ref({
 const questionForm = ref({
   text: "", // 항목내용
   answerType: "OX", // 질문 유형, 기본값 OX
+  views: [], // 체크박스 보기 목록
 });
+
+const isExpiredSurvey = ref(false); // 유효종료일을 확인해서 만료된 조사지인지 체크
 
 // 유효 시작일, 종료일 비교 -> 종료일이 시작일보다 빠르면 true 반환
 const isInvalidDateRange = computed(() => {
-  if (!form.value.sver_ondate || !form.value.sver_enddate) return false;
-
+  if (!form.value.sver_ondate || !form.value.sver_enddate) {
+    return false; // 날짜가 하나라도 없으면 유효성 검사 통과로 간주
+  };
   return form.value.sver_ondate > form.value.sver_enddate;
 });
 
@@ -64,16 +69,25 @@ const questionsBySubcategory = ref([]);
 // 프론트에서만 사용하는 임시 ID 시퀀스 (DB PK 아님)
 let tempMajorIdSeq = 1;
 let tempSubIdSeq = 1;
+let tempViewIdSeq = 1;
 
-// DB에서 데이터를 가지고 오는 함수
+// DB에서 데이터를 가지고 오는 함수 (create 모드에서는 sver_code 없으면 조회 생략)
 const loadSurveyStructure = async () => {
   const sverCode = route.query.sver_code;
+  // create 모드에서 sver_code 없으면 빈 구조로 초기화
+  if (!sverCode && mode.value === "create") {
+    majorCategories.value = [];
+    subCategories.value = [];
+    questionsBySubcategory.value = [];
+    return;
+  }
   try {
-    // 조사지 버전을 기준으로 각각 대분류, 소분류, 질문을 조회함
-    const [majorRes, subRes, qRes] = await Promise.all([
+    // 조사지 버전을 기준으로 각각 대분류, 소분류, 질문, 보기 조회
+    const [majorRes, subRes, qRes, viewRes] = await Promise.all([
       axios.get("/api/majCate", { params: { sver_code: sverCode } }),
       axios.get("/api/subCate", { params: { sver_code: sverCode } }),
       axios.get("/api/surveyQ", { params: { sver_code: sverCode } }),
+      axios.get("/api/surveyView", { params: { sver_code: sverCode } }),
     ]);
     // 각각 사용하는 이름에 맞게 정리
     majorCategories.value = majorRes.data.map((maj) => ({
@@ -85,12 +99,20 @@ const loadSurveyStructure = async () => {
       majorId: sub.major_code,
       name: sub.sub_name,
     }));
+    const viewList = Array.isArray(viewRes?.data) ? viewRes.data : [];
     questionsBySubcategory.value = qRes.data.map((q) => ({
       id: q.q_code,
       subId: q.sub_code,
       qNo: q.q_no,
       text: q.q_content,
       answerType: codeToUiType(q.q_type),
+      // 보기는 질문(q_code)에 FK로 연결됨 → 해당 질문의 보기만 필터
+      views: viewList
+        .filter((v) => v.q_code === q.q_code)
+        .map((v) => ({
+          id: v.q_view_code,
+          content: v.q_view_content,
+        })),
     }));
   } catch (err) {
     console.error(err);
@@ -98,14 +120,14 @@ const loadSurveyStructure = async () => {
 };
 // DB의 질문유형 부코드와 화면에서 사용하는 이름 일치를 위한 함수 **
 const codeToUiType = (code) => {
-  if (code == "f0_10") return "DATE";
-  if (code == "f0_20") return "TEXT";
+  if (code == "f0_10") return "CHECK";
+  if (code == "f0_00") return "TEXT";
   return "OX";
 };
 
 // 라디오(radio), 체크박스(check), 사유(text)로 수정해야됨 **
 const answerTypeLabel = (type) => {
-  if (type == "DATE") return "날짜";
+  if (type == "CHECK") return "체크박스";
   if (type == "TEXT") return "사유";
   return "O/X";
 };
@@ -142,13 +164,47 @@ watch(selectedMajorId, () => {
   selectedSubId.value = list.length ? list[0].id : null;
 });
 
-const handleSave = async () => {
+// 질문 유형이 체크박스일 때 보기 하나 자동 추가
+watch(
+  () => questionForm.value.answerType,
+  (newVal) => {
+    if (newVal == "CHECK" && questionForm.value.views.length == 0) {
+      questionForm.value.views.push({
+        id: `TMP_VIEW_${tempViewIdSeq++}`,
+        content: "",
+      });
+    }
+    if (newVal != "CHECK") {
+      questionForm.value.views = [];
+    }
+  },
+);
+
+// 질문 유형이 체크박스일 때 보기 추가/삭제 함수
+const addViewOption = () => {
+  questionForm.value.views.push({
+    id: `TMP_VIEW_${tempViewIdSeq++}`,
+    content: "",
+  });
+};
+
+const removeViewOption = (index) => {
+  questionForm.value.views.splice(index, 1);
+};
+
+// 미리보기 모달에서 저장 시 사용할 payload
+const pendingPreviewPayload = ref(null);
+
+// payload 생성 (handleSave와 공유)
+const buildPayload = () => {
   const surveyInfo = {
     sver_code: form.value.sver_code || null,
     sv_name: form.value.sv_name,
     sver_ondate: form.value.sver_ondate,
     sver_enddate:
-      form.value.sver_enddate == "2999-12-31" ? null : form.value.sver_enddate, // 종료일이 기본값이면 null로 처리
+      form.value.sver_enddate == "2999-12-31"
+        ? null
+        : form.value.sver_enddate,
   };
 
   const majorList = majorCategories.value.map((majorC) => ({
@@ -164,13 +220,9 @@ const handleSave = async () => {
   }));
 
   const mapAnswerTypeToCode = (type) => {
-    if (type == "DATE") {
-      return "f0_10";
-    }
-    if (type == "TEXT") {
-      return "f0_20";
-    }
-    return "f0_00"; // 기본 O/X
+    if (type == "CHECK") return "f0_10";
+    if (type == "TEXT") return "f0_00";
+    return "f0_20";
   };
 
   const questionList = questionsBySubcategory.value.map((q) => ({
@@ -179,18 +231,59 @@ const handleSave = async () => {
     qNo: q.qNo,
     text: q.text,
     answerType: mapAnswerTypeToCode(q.answerType),
+    views: q.answerType == "CHECK" ? q.views || [] : [],
   }));
 
-  const payload = {
-    mode: mode.value, // 'create' | 'edit'
+  return {
+    mode: mode.value,
     survey: surveyInfo,
     majors: majorList,
     subs: subList,
     questions: questionList,
-    writer: "", // 실제 로그인 구현 시 작성자 정보로 교체 필요 **
+    writer: "",
   };
+};
+
+// 미리보기용 계층 구조 (대분류 > 소분류 > 질문)
+const previewStructure = computed(() => {
+  const result = [];
+  for (const major of majorCategories.value) {
+    const subsOfMajor = subCategories.value.filter(
+      (s) => s.majorId == major.id,
+    );
+    const subsWithQuestions = subsOfMajor.map((sub) => ({
+      sub,
+      questions: questionsBySubcategory.value
+        .filter((q) => q.subId == sub.id)
+        .sort((a, b) => (a.qNo || 0) - (b.qNo || 0)),
+    }));
+    result.push({
+      major,
+      subs: subsWithQuestions,
+    });
+  }
+  return result;
+});
+
+// 전체저장 클릭 → 미리보기 모달 열기
+const openPreviewModal = () => {
+  pendingPreviewPayload.value = buildPayload();
+  showPreviewModal.value = true;
+};
+
+// 미리보기 모달 닫기 (취소)
+const closePreviewModal = () => {
+  showPreviewModal.value = false;
+  pendingPreviewPayload.value = null;
+};
+
+// 미리보기 모달의 저장 클릭 → DB 전송
+const handleSave = async () => {
+  const payload =
+    pendingPreviewPayload.value || buildPayload();
 
   try {
+    const surveyInfo = payload.survey;
     const isEdit = mode.value == "edit" && surveyInfo.sver_code;
     const url = isEdit
       ? `/api/survey/${encodeURIComponent(surveyInfo.sver_code)}`
@@ -198,6 +291,7 @@ const handleSave = async () => {
     const method = isEdit ? "put" : "post";
 
     await axios[method](url, payload);
+    closePreviewModal();
     router.push({ name: "systemSurveyList" });
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -299,6 +393,7 @@ const openQuestionCreate = () => {
   editingQuestionIndex.value = null;
   questionForm.value.text = "";
   questionForm.value.answerType = "OX";
+  questionForm.value.views = [];
   showQuestionModal.value = true;
 };
 
@@ -307,6 +402,7 @@ const openQuestionEdit = (index, q) => {
   editingQuestionIndex.value = index;
   questionForm.value.text = q?.text || "";
   questionForm.value.answerType = q?.answerType || "OX";
+  questionForm.value.views = q?.views || [];
   showQuestionModal.value = true;
 };
 
@@ -333,6 +429,15 @@ const saveQuestion = () => {
       qNo: maxQNo + 1,
       text: questionForm.value.text.trim(),
       answerType: questionForm.value.answerType,
+      views:
+        questionForm.value.answerType == "CHECK"
+          ? questionForm.value.views
+              .filter((v) => v.content.trim())
+              .map((v) => ({
+                id: v.id,
+                content: v.content.trim(),
+              }))
+          : [],
     });
   } else if (questionModalMode.value == "edit") {
     // editingQuestionIndex는 currentQuestions(필터된 리스트) 내 인덱스
@@ -342,6 +447,15 @@ const saveQuestion = () => {
     if (targetQuestion) {
       targetQuestion.text = questionForm.value.text.trim();
       targetQuestion.answerType = questionForm.value.answerType;
+      targetQuestion.views =
+        questionForm.value.answerType == "CHECK"
+          ? questionForm.value.views
+              .filter((v) => v.content.trim())
+              .map((v) => ({
+                id: v.id,
+                content: v.content.trim(),
+              }))
+          : [];
     }
   }
 
@@ -359,6 +473,13 @@ onBeforeMount(() => {
     form.value.sver_ondate = route.query.sver_ondate;
     form.value.sver_enddate = route.query.sver_enddate;
   }
+
+  // 유효종료일이 오늘보다 과거면 isExpiredSurvey를 true로 설정해서 화면에서 수정 불가 처리
+  if (
+      route.query.sver_enddate <= today
+    ) {
+      isExpiredSurvey.value = true;
+    }
 });
 </script>
 
@@ -558,12 +679,28 @@ onBeforeMount(() => {
                           <span class="small">아니오</span>
                         </label>
                       </div>
-                      <div v-else-if="question.answerType == 'DATE'">
-                        <input
-                          type="date"
-                          class="form-control form-control-sm"
-                          disabled
-                        />
+                      <div v-else-if="question.answerType == 'CHECK'">
+                        <div
+                          v-if="question.views && question.views.length"
+                          class="d-flex flex-wrap gap-3"
+                        >
+                          <label
+                            v-for="(view, vIdx) in question.views"
+                            :key="vIdx"
+                            class="d-flex align-items-center gap-1 mb-0"
+                            style="white-space: nowrap"
+                          >
+                            <input
+                              type="checkbox"
+                              class="form-check-input"
+                              disabled
+                            />
+                            <span class="small">{{ view.content }}</span>
+                          </label>
+                        </div>
+                        <div v-else class="text-muted small">
+                          (등록된 보기가 없습니다)
+                        </div>
                       </div>
                       <div v-else>
                         <textarea
@@ -597,14 +734,14 @@ onBeforeMount(() => {
 
       <!-- 버튼 영역 -->
       <div
-        class="card-footer d-flex flex-column align-items-end bg-transparent "
+        class="card-footer d-flex flex-column align-items-end bg-transparent"
       >
-        <div class="d-flex gap-2" >
+        <div class="d-flex gap-2">
           <button
             class="btn btn-success"
             type="button"
-            @click="handleSave"
-            :disabled="isInvalidDateRange"
+            @click="openPreviewModal"
+            :disabled="isExpiredSurvey || isInvalidDateRange"
           >
             전체저장
           </button>
@@ -617,8 +754,13 @@ onBeforeMount(() => {
           </button>
         </div>
 
-        <div v-if="isInvalidDateRange" class="text-danger small mt-1 mb-0">
-          유효시작일은 유효종료일보다 늦을 수 없습니다.
+        <div v-if="isExpiredSurvey" class="text-danger small mt-1 mb-0">
+          유효종료일이 이미 지난 조사지입니다. 수정할 수 없습니다.
+        </div>
+        <div v-else-if="isInvalidDateRange">
+          <div class="text-danger small mt-1 mb-0">
+            유효기간이 올바르지 않습니다. 종료일은 시작일보다 빠를 수 없습니다.
+          </div>
         </div>
       </div>
 
@@ -741,13 +883,15 @@ onBeforeMount(() => {
               </div>
               <div class="form-check form-check-inline">
                 <input
-                  id="type-date"
+                  id="type-check"
                   v-model="questionForm.answerType"
                   class="form-check-input"
                   type="radio"
-                  value="DATE"
+                  value="CHECK"
                 />
-                <label class="form-check-label" for="type-date">날짜</label>
+                <label class="form-check-label" for="type-check"
+                  >체크박스</label
+                >
               </div>
               <div class="form-check form-check-inline">
                 <input
@@ -759,6 +903,38 @@ onBeforeMount(() => {
                 />
                 <label class="form-check-label" for="type-text">사유작성</label>
               </div>
+              <div v-if="questionForm.answerType == 'CHECK'" class="mt-3">
+                <label class="form-label">보기 항목</label>
+
+                <div
+                  v-for="(view, idx) in questionForm.views"
+                  :key="idx"
+                  class="d-flex gap-2 mb-2"
+                >
+                  <input
+                    v-model="view.content"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="보기 내용을 입력하세요"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm"
+                    @click="removeViewOption(idx)"
+                    v-if="questionForm.views.length > 1"
+                  >
+                    -
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  class="btn btn-outline-primary btn-sm"
+                  @click="addViewOption"
+                >
+                  + 보기 추가
+                </button>
+              </div>
             </div>
           </div>
           <div class="modal-footer d-flex justify-content-end gap-2">
@@ -769,6 +945,122 @@ onBeforeMount(() => {
               class="btn btn-warning"
               type="button"
               @click="showQuestionModal = false"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 조사지 전체 미리보기 모달 -->
+      <div
+        v-if="showPreviewModal"
+        class="modal-backdrop preview-modal-backdrop"
+      >
+        <div class="modal-card preview-modal-card">
+          <div class="modal-header">
+            <h6 class="mb-0">조사지 미리보기</h6>
+          </div>
+          <div class="modal-body preview-modal-body">
+            <div class="mb-3">
+              <div class="preview-survey-info small text-muted mb-2">
+                <span>{{ form.sv_name || "(조사지명)" }}</span>
+                <span class="ms-2"
+                  >{{ form.sver_ondate }} ~
+                  {{
+                    form.sver_enddate == "2999-12-31"
+                      ? "무기한"
+                      : form.sver_enddate
+                  }}</span
+                >
+              </div>
+            </div>
+
+            <div v-if="previewStructure.length" class="preview-content">
+              <template
+                v-for="(group, majIdx) in previewStructure"
+                :key="majIdx"
+              >
+                <div class="preview-major">{{ group.major.name }}</div>
+                <template
+                  v-for="({ sub, questions }, subIdx) in group.subs"
+                  :key="sub.id || subIdx"
+                >
+                  <div class="preview-sub">{{ sub.name }}</div>
+                  <div
+                    v-for="(q, qIdx) in questions"
+                    :key="q.id || qIdx"
+                    class="preview-question-block"
+                  >
+                    <template v-if="q.answerType == 'OX'">
+                      <div class="preview-question-row">
+                        <span class="preview-q-no">{{ q.qNo }}.</span>
+                        <span class="preview-q-text">{{ q.text }}</span>
+                        <div class="preview-answer-ox ms-auto">
+                          <label class="d-flex align-items-center gap-1 mb-0">
+                            <input type="radio" disabled />
+                            <span class="small">예</span>
+                          </label>
+                          <label class="d-flex align-items-center gap-1 mb-0">
+                            <input type="radio" disabled />
+                            <span class="small">아니오</span>
+                          </label>
+                        </div>
+                      </div>
+                    </template>
+                    <template v-else-if="q.answerType == 'CHECK'">
+                      <div class="preview-q-line">
+                        <span class="preview-q-no">{{ q.qNo }}.</span>
+                        <span class="preview-q-text">{{ q.text }}</span>
+                      </div>
+                      <div
+                        v-if="q.views?.length"
+                        class="preview-answer-check d-flex flex-wrap gap-3"
+                      >
+                        <label
+                          v-for="(v, vIdx) in q.views"
+                          :key="vIdx"
+                          class="d-flex align-items-center gap-1 mb-0 small"
+                        >
+                          <input
+                            type="checkbox"
+                            class="form-check-input"
+                            disabled
+                            readonly
+                          />
+                          <span>{{ v.content }}</span>
+                        </label>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div class="preview-q-line">
+                        <span class="preview-q-no">{{ q.qNo }}.</span>
+                        <span class="preview-q-text">{{ q.text }}</span>
+                      </div>
+                      <textarea
+                        class="form-control form-control-sm mt-1"
+                        rows="2"
+                        disabled
+                        readonly
+                        placeholder="사유를 입력하세요"
+                      ></textarea>
+                    </template>
+                  </div>
+                </template>
+              </template>
+            </div>
+            <div v-else class="text-muted small py-4 text-center">
+              등록된 질문이 없습니다.
+            </div>
+          </div>
+          <div class="modal-footer d-flex justify-content-end gap-2">
+            <button class="btn btn-success" type="button" @click="handleSave">
+              저장
+            </button>
+            <button
+              class="btn btn-warning"
+              type="button"
+              @click="closePreviewModal"
             >
               취소
             </button>
@@ -957,5 +1249,93 @@ onBeforeMount(() => {
 
 .modal-footer {
   margin-top: 8px;
+}
+
+/* 조사지 미리보기 모달 */
+.preview-modal-backdrop {
+  z-index: 1060;
+}
+
+.preview-modal-card {
+  min-width: 560px;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-modal-body {
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.preview-survey-info {
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.preview-content {
+  font-size: 0.9rem;
+}
+
+.preview-major {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.preview-major:first-child {
+  margin-top: 0;
+}
+
+.preview-sub {
+  font-weight: 600;
+  color: #495057;
+  margin-top: 12px;
+  margin-bottom: 6px;
+  padding-left: 8px;
+  border-left: 3px solid #adb5bd;
+}
+
+.preview-question-block {
+  margin-bottom: 12px;
+  padding-left: 12px;
+}
+
+.preview-question-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preview-q-line {
+  display: flex;
+  gap: 4px;
+}
+
+.preview-q-no {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.preview-q-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-answer-ox {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.preview-answer-check {
+  padding-left: 1.5em;
+  margin-top: 6px;
 }
 </style>

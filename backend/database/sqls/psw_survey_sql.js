@@ -11,6 +11,7 @@ const qry = {
     SELECT 
       s.sver_code, 
       s.sv_name, 
+      s.sv_time,
       s.sver_ondate, 
       s.sver_enddate, 
       m.m_nm AS writer_name
@@ -79,16 +80,16 @@ const qry = {
   `,
   psw_surveyQUpdate: `
     UPDATE survey_q
-    SET q_content = ?
+    SET q_no = ?, q_type = ?, q_content = ?
     WHERE q_code = ?;
   `,
 
-  // 조사지 INSERT
+  // 조사지 INSERT 전: 이전 버전(종료일 null)을 새 버전 시작일로 종료 처리
   psw_surveyUpdateDate: `
-  UPDATE survey 
-   SET sver_enddate = ?
- WHERE sver_enddate IS NULL;
-   `,
+    UPDATE survey
+       SET sver_enddate = ?
+     WHERE sver_enddate IS NULL;
+  `,
   psw_surveyInsert: `
     INSERT INTO survey (sv_name, sv_writer, sv_time, sver_ondate, sver_enddate)
     VALUES (?, ?, NOW(), ?, ?);
@@ -151,6 +152,58 @@ const qry = {
       JOIN sub_category sc ON sq.sub_code = sc.sub_code
       JOIN major_category mc ON sc.major_code = mc.major_code
      WHERE mc.sver_code = ?;
+  `,
+
+  psw_surveyViewList: `
+  SELECT
+    qv.q_view_code,
+    qv.q_code,
+    qv.q_view_content
+  FROM survey_view qv
+  JOIN survey_q q ON qv.q_code = q.q_code
+  JOIN sub_category sc ON q.sub_code = sc.sub_code
+  JOIN major_category mc ON sc.major_code = mc.major_code
+  WHERE mc.sver_code = ?;
+`,
+
+  // survey_view INSERT
+  psw_surveyViewCreate: `
+    INSERT INTO survey_view (q_code, q_view_content)
+    VALUES (?, ?);
+  `,
+
+  // 특정 질문의 보기 전체 삭제
+  psw_surveyViewDeleteByQCode: `
+    DELETE FROM survey_view
+    WHERE q_code = ?;
+  `,
+  // survey_view UPDATE
+  psw_surveyViewUpdate: `
+    UPDATE survey_view
+      SET q_view_content = ?
+    WHERE q_view_code = ?;
+  `,
+
+  // survey_view DELETE (특정 q_code + 특정 id 목록 제외)
+  psw_surveyViewDeleteNotIn: `
+    DELETE FROM survey_view
+    WHERE q_code = ?
+      AND q_view_code NOT IN (?);
+  `,
+  psw_getLastQuestionCodeBySub: `
+    SELECT q_code
+    FROM survey_q
+    WHERE sub_code = ?
+    ORDER BY q_code DESC
+    LIMIT 1;
+  `,
+
+  psw_getLastViewCodeByQuestion: `
+    SELECT q_view_code
+    FROM survey_view
+    WHERE q_code = ?
+    ORDER BY q_view_code DESC
+    LIMIT 1;
   `,
 };
 // s.sv_name LIKE CONCAT('%', ?, '%')
