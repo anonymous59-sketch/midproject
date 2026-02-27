@@ -29,11 +29,16 @@ router.get("/surveyQ", async (req, res) => {
   const result = await survey.psw_surveyQList(req.query.sver_code).catch(err => console.error(err));
   res.send(result);
 });
+router.get("/surveyView", async (req, res) => {
+  const result = await survey.psw_surveyViewList(req.query.sver_code).catch(err => console.error(err));
+  res.send(result);
+});
 
 // 조사지 전체 저장(등록/수정) – 한 버전 전체를 저장
 router.post("/survey", async (req, res) => {
   try {
     const payload = req.body;
+    console.log("받은 payload111111111111111111111:", payload);
     const result = await survey.psw_saveSurveyAll(payload);
     res.status(result.isSuccessed ? 200 : 400).send(result);
   } catch (err) {
@@ -46,6 +51,7 @@ router.post("/survey", async (req, res) => {
 router.put("/survey/:sver_code", async (req, res) => {
   try {
     const payload = req.body;
+    console.dir( payload, { depth: null });
     const result = await survey.psw_saveSurveyAll(payload);
     res.status(result.isSuccessed ? 200 : 400).send(result);
   } catch (err) {

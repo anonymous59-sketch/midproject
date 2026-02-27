@@ -8,12 +8,11 @@ const API_PREFIX = "/api/apply";
 // ===== 상태 =====
 const loading = ref(true);
 
-// survey list + selected
-const surveyList = ref([]);
+// 오늘 기준 유효 조사지 1건 (sver_ondate ~ sver_enddate, enddate null이면 2099-12-31)
+const currentSurvey = ref(null);
 const selectedSurveyCode = ref("");
 const survey = ref(null);
 
-const activeSubCode = ref(null);
 const answers = ref({});
 
 // 작성일
@@ -25,15 +24,18 @@ const targets = ref([]);
 const selectedMcPn = ref("");
 
 // ===== computed =====
-const activeSub = computed(() => {
-  if (!survey.value || !activeSubCode.value) return null;
-  for (const mj of survey.value.majors || []) {
-    const found = (mj.subs || []).find(
-      (s) => s.sub_code === activeSubCode.value,
-    );
-    if (found) return found;
+/** 조사지 내 모든 질문 q_code 목록 (저장 전 검증용) */
+const allQuestionCodes = computed(() => {
+  if (!survey.value?.majors) return [];
+  const codes = [];
+  for (const mj of survey.value.majors) {
+    for (const sb of mj.subs || []) {
+      for (const q of sb.questions || []) {
+        if (q.q_code) codes.push(q.q_code);
+      }
+    }
   }
-  return null;
+  return codes;
 });
 
 const selectedTarget = computed(() => {
@@ -122,15 +124,16 @@ const loadTargets = async () => {
   }
 };
 
-const loadSurveyList = async () => {
+// 오늘 기준 유효 조사지 1건 조회 (apply 페이지용)
+const loadCurrentSurvey = async () => {
   try {
-    const { data } = await apiGet("/surveys");
-    surveyList.value = data || [];
+    const { data } = await apiGet("/surveys/current");
+    currentSurvey.value = data?.sver_code ? data : null;
   } catch (err) {
-    console.error("[loadSurveyList] error:", err);
-    surveyList.value = [];
+    console.error("[loadCurrentSurvey] error:", err);
+    currentSurvey.value = null;
     const msg = err.response?.data?.error || err.message;
-    if (msg) alert(`조사지 목록 조회 실패: ${msg}`);
+    if (msg) alert(`조사지 조회 실패: ${msg}`);
   }
 };
 
@@ -146,8 +149,6 @@ const loadSurveyTree = async (code) => {
 
   survey.value = normalized;
 
-  const firstSub = normalized?.majors?.[0]?.subs?.[0];
-  activeSubCode.value = firstSub?.sub_code ?? null;
   answers.value = {};
 };
 
@@ -156,14 +157,14 @@ onMounted(async () => {
   try {
     setToday();
     await loadTargets();
-    await loadSurveyList();
+    await loadCurrentSurvey();
 
-    if (!surveyList.value.length) {
+    if (!currentSurvey.value?.sver_code) {
       survey.value = null;
       return;
     }
 
-    selectedSurveyCode.value = surveyList.value[0].sver_code;
+    selectedSurveyCode.value = currentSurvey.value.sver_code;
     await loadSurveyTree(selectedSurveyCode.value);
   } catch (err) {
     console.error("[onMounted] error:", err);
@@ -181,7 +182,17 @@ const onSave = async () => {
       return;
     }
     if (!selectedSurveyCode.value) {
-      alert("조사지를 선택해 주세요.");
+      alert("조사지 정보가 없습니다.");
+      return;
+    }
+
+    // 모든 질문에 답변이 있는지 검사 (null/빈값이면 저장하지 않음)
+    const missing = allQuestionCodes.value.filter(
+      (qCode) =>
+        answers.value[qCode] !== "Y" && answers.value[qCode] !== "N",
+    );
+    if (missing.length > 0) {
+      alert("모든 항목에 답변해 주세요. 답변하지 않은 문항이 있습니다.");
       return;
     }
 
@@ -216,10 +227,10 @@ const onCancel = () => alert("취소(더미)");
     <div v-if="loading" class="text-center text-muted py-5">불러오는 중...</div>
 
     <div
-      v-else-if="surveyList.length === 0"
+      v-else-if="!currentSurvey?.sver_code"
       class="text-center text-muted py-5"
     >
-      등록된 조사지가 없습니다. (survey 테이블 확인)
+      현재 신청 가능한 조사지가 없습니다. (오늘 날짜가 조사 기간에 포함된 조사지가 없습니다.)
     </div>
 
     <div v-else-if="!survey" class="text-center text-danger py-5">
@@ -312,80 +323,65 @@ const onCancel = () => alert("취소(더미)");
           <div class="card-body pt-3">
             <div class="mb-3" style="max-width: 420px">
               <label class="form-label text-sm">조사지</label>
-              <select
-                class="form-select form-select-sm"
-                v-model="selectedSurveyCode"
-                @change="loadSurveyTree(selectedSurveyCode)"
-              >
-                <option
-                  v-for="s in surveyList"
-                  :key="s.sver_code"
-                  :value="s.sver_code"
-                >
-                  {{ s.sv_name }} ({{ s.sver_code }})
-                </option>
-              </select>
+              <input
+                type="text"
+                class="form-control form-control-sm bg-light"
+                :value="currentSurvey?.sv_name ?? survey?.sv_name ?? ''"
+                readonly
+              />
             </div>
 
-            <div class="mb-3 d-flex flex-wrap gap-2">
+            <!-- 전체 질문 스크롤 영역 (대분류 > 소분류 > 질문 순) -->
+            <div
+              class="survey-questions-scroll border rounded p-3 bg-light"
+              style="max-height: 60vh; overflow-y: auto"
+            >
               <template v-for="mj in survey.majors" :key="mj.major_code">
-                <button
-                  v-for="sb in mj.subs"
-                  :key="sb.sub_code"
-                  class="btn btn-sm mb-0"
-                  :class="
-                    activeSubCode === sb.sub_code
-                      ? 'btn-warning'
-                      : 'btn-outline-secondary'
-                  "
-                  @click="activeSubCode = sb.sub_code"
-                >
-                  {{ sb.sub_name }}
-                </button>
-              </template>
-            </div>
-
-            <hr class="horizontal dark my-3" />
-
-            <div v-if="!activeSub" class="text-muted text-sm">
-              항목을 선택하세요.
-            </div>
-
-            <div v-else>
-              <h6 class="mb-3">{{ activeSub.sub_name }}</h6>
-              <div
-                v-for="q in activeSub.questions"
-                :key="q.q_code"
-                class="d-flex align-items-center justify-content-between py-2 border-bottom"
-              >
-                <div class="d-flex align-items-start gap-2">
-                  <div class="text-sm text-muted" style="width: 20px">
-                    {{ q.q_no }}
+                <div class="mb-4">
+                  <div class="text-dark fw-semibold text-sm mb-2">
+                    {{ mj.major_name }}
                   </div>
-                  <div class="text-sm">{{ q.q_content }}</div>
+                  <template v-for="sb in mj.subs" :key="sb.sub_code">
+                    <div class="ms-2 mb-3">
+                      <div class="text-muted text-xs fw-medium mb-2">
+                        {{ sb.sub_name }}
+                      </div>
+                      <div
+                        v-for="q in sb.questions"
+                        :key="q.q_code"
+                        class="d-flex align-items-center justify-content-between py-2 border-bottom border-light"
+                      >
+                        <div class="d-flex align-items-start gap-2 flex-grow-1 me-3">
+                          <span class="text-muted text-sm" style="min-width: 20px">
+                            {{ q.q_no }}.
+                          </span>
+                          <span class="text-sm">{{ q.q_content }}</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 flex-shrink-0">
+                          <label class="mb-0 d-flex align-items-center gap-1 text-sm">
+                            <input
+                              type="radio"
+                              :name="q.q_code"
+                              value="Y"
+                              v-model="answers[q.q_code]"
+                            />
+                            예
+                          </label>
+                          <label class="mb-0 d-flex align-items-center gap-1 text-sm">
+                            <input
+                              type="radio"
+                              :name="q.q_code"
+                              value="N"
+                              v-model="answers[q.q_code]"
+                            />
+                            아니오
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
                 </div>
-
-                <div class="d-flex align-items-center gap-3">
-                  <label class="mb-0 d-flex align-items-center gap-1 text-sm">
-                    <input
-                      type="radio"
-                      :name="q.q_code"
-                      value="Y"
-                      v-model="answers[q.q_code]"
-                    />
-                    예
-                  </label>
-                  <label class="mb-0 d-flex align-items-center gap-1 text-sm">
-                    <input
-                      type="radio"
-                      :name="q.q_code"
-                      value="N"
-                      v-model="answers[q.q_code]"
-                    />
-                    아니오
-                  </label>
-                </div>
-              </div>
+              </template>
             </div>
 
             <div class="d-flex justify-content-end gap-2 mt-4">

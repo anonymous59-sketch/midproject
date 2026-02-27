@@ -142,6 +142,11 @@ watch(showRightPanel, (visible) => {
   if (visible && supCode.value) loadCounsels();
 });
 
+function toggleRightPanel() {
+  showRightPanel.value = !showRightPanel.value;
+  if (!showRightPanel.value) showForm.value = false;
+}
+
 // 상담등록 폼: 제목, 상담일, 내용, 첨부파일
 const showForm = ref(false);
 const counselForm = ref({
@@ -235,10 +240,11 @@ function formatCounselDate(val) {
               <h6 class="mb-0">지원대상자 정보</h6>
               <button
                 type="button"
-                class="btn btn-sm btn-success"
-                @click="showRightPanel = true"
+                class="btn btn-sm"
+                :class="showRightPanel ? 'btn-outline-secondary' : 'btn-success'"
+                @click="toggleRightPanel"
               >
-                상담내역 보기
+                {{ showRightPanel ? "상담내역 닫기" : "상담내역 보기" }}
               </button>
             </div>
             <div class="card-body pt-2">
