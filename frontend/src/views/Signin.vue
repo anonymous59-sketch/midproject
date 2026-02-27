@@ -42,7 +42,7 @@ const handleLogin = async () => {
     if (data.success) {
       localStorage.setItem("token", data.token);
       alert("로그인 성공!");
-      router.push("/login"); // 예: 메인페이지
+      router.push("/mypage"); // 예: 메인페이지
     } else {
       alert(data.message);
     }
