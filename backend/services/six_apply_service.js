@@ -11,6 +11,12 @@ exports.getSurveyList = async () => {
   return dataRows;
 };
 
+// ✅ 오늘 기준 유효 조사지 1건 (apply 페이지용: sver_ondate ~ sver_enddate, enddate null이면 2099-12-31)
+exports.getCurrentSurvey = async () => {
+  const rows = await query("selectCurrentSurvey");
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+};
+
 // ✅ 지원대상자 목록 (mapper query 사용)
 exports.getTargets = async () => {
   const rows = await query("selectTargets");
@@ -119,13 +125,25 @@ exports.saveTempStorage = async (supCode, categoryName, payload) => {
 };
 
 // 질문지 트리 조회 (mapper query 사용)
+// 조사지에 대분류/질문이 없으면 빈 majors로 반환 (404 대신 200)
 exports.getSurveyTree = async (sverCode) => {
   const rows = await query("selectSurveyTree", [sverCode]);
   const dataRows = Array.isArray(rows)
     ? rows.filter((r) => r && r.sver_code)
     : [];
 
-  if (dataRows.length === 0) return null;
+  if (dataRows.length === 0) {
+    const surveyRows = await query("selectSurveyBySverCode", [sverCode]);
+    const survey = Array.isArray(surveyRows) && surveyRows.length > 0 ? surveyRows[0] : null;
+    if (survey) {
+      return {
+        sver_code: survey.sver_code,
+        sv_name: survey.sv_name ?? "",
+        majors: [],
+      };
+    }
+    return null;
+  }
 
   const result = {
     sver_code: sverCode,

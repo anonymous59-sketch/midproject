@@ -16,6 +16,20 @@ router.get("/surveys", async (req, res) => {
   }
 });
 
+// ✅ 오늘 기준 유효 조사지 1건: GET /surveys/current (apply 페이지용)
+router.get("/surveys/current", async (req, res) => {
+  try {
+    const data = await sixApplyService.getCurrentSurvey();
+    return res.json(data || {});
+  } catch (err) {
+    console.error("[GET /surveys/current]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
 // ✅ 지원대상자 목록: GET /targets
 router.get("/targets", async (req, res) => {
   try {

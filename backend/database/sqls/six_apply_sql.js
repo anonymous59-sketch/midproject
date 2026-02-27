@@ -75,6 +75,23 @@ exports.selectSurveyList = `
   ORDER BY sv_time DESC
 `;
 
+// ✅ 조사지 1건 (트리 없을 때 빈 트리 반환용)
+exports.selectSurveyBySverCode = `
+  SELECT sver_code, sv_name
+  FROM survey
+  WHERE sver_code = ?
+`;
+
+// ✅ 오늘 기준 유효 조사지 1건: sver_ondate <= CURDATE() <= COALESCE(sver_enddate, '2099-12-31')
+exports.selectCurrentSurvey = `
+  SELECT sver_code, sv_name
+  FROM survey
+  WHERE sver_ondate <= CURDATE()
+    AND CURDATE() <= COALESCE(sver_enddate, '2099-12-31')
+  ORDER BY sver_ondate DESC
+  LIMIT 1
+`;
+
 // 지원신청 메인 INSERT (support)
 exports.insertSupport = `
   INSERT INTO support (
