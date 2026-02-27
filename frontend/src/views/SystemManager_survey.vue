@@ -63,7 +63,7 @@ onBeforeMount(() => {
       <button class="btn btn-primary" @click="goCreateSurvey">✏️ 조사지 등록</button>
 
       <div class="search-box">
-        <i class="bi bi-search"></i>
+        <i class="fas fa-search"></i>
         <input v-model="searchName" placeholder="검색할 조사지 이름을 입력해주세요" />
       </div>
     </div>
@@ -81,7 +81,7 @@ onBeforeMount(() => {
 
 <style scoped>
 .search-box input {
-  padding: 6px 10px 6px 30px;
+  padding: 6px 10px 6px 4px;
   border: 1px solid #cfcfcf;
   border-radius: 2px;
 

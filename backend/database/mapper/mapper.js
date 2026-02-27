@@ -47,11 +47,11 @@ const runInTransaction = async (objData) => {
 };
 query.runInTransaction = runInTransaction; // export를 query만 하니까 query에 속성을 하나 추가하는 형식
 
-/*
-여러 단계 쿼리 사이에서 이전 결과를 활용할 수 있는 트랜잭션 헬퍼
-callback 안에서 conn, sqlList를 직접 사용하면서
-부모 INSERT → PK 조회 → 자식 INSERT 같은 흐름을 구현할 수 있음.
-*/
+
+// 여러 단계 쿼리 사이에서 이전 결과를 활용할 수 있는 트랜잭션 헬퍼
+// callback 안에서 conn, sqlList를 직접 사용하면서
+// 부모 INSERT → PK 조회 → 자식 INSERT 같은 흐름을 구현할 수 있음.
+
 const runInTransactionWithContext = async (callback) => {
   let conn = null;
   try {
