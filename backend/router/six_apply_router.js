@@ -30,6 +30,21 @@ router.get("/surveys/current", async (req, res) => {
   }
 });
 
+// ✅ 상담 작성자 후보: GET /members?m_auth=a0_30 (review 상담등록 csl_writer select)
+router.get("/members", async (req, res) => {
+  try {
+    const mAuth = req.query.m_auth || "a0_30";
+    const data = await sixApplyService.getMembersByAuth(mAuth);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /members]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
 // ✅ 지원대상자 목록: GET /targets
 router.get("/targets", async (req, res) => {
   try {
@@ -74,6 +89,22 @@ router.get("/support/:supCode", async (req, res) => {
   }
 });
 
+// ✅ 수정이력 목록: GET /support/:supCode/upd-history?category_name=j0_00|j0_10|j0_20|j0_30 (지원신청서 j0_00 등)
+router.get("/support/:supCode/upd-history", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const categoryName = req.query.category_name || "j0_00";
+    const data = await sixApplyService.getUpdHistoryByTarget(supCode, categoryName);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /support/:supCode/upd-history]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
 // ✅ 조사지 질문+답변 목록: GET /support/:supCode/survey-answers (review 지원신청서)
 router.get("/support/:supCode/survey-answers", async (req, res) => {
   try {
@@ -84,6 +115,22 @@ router.get("/support/:supCode/survey-answers", async (req, res) => {
     console.error("[GET /support/:supCode/survey-answers]", err);
     return res.status(500).json({
       message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
+// ✅ 지원신청서 수정하기: PUT /support/:supCode/survey-answers (body: { answers: [{ a_code, a_content }], upd_member? })
+router.put("/support/:supCode/survey-answers", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const payload = req.body || {};
+    await sixApplyService.updateSurveyAnswers(supCode, payload);
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /support/:supCode/survey-answers]", err);
+    return res.status(500).json({
+      message: err.message || "Server error",
       error: err.message || String(err),
     });
   }
