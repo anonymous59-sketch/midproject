@@ -466,7 +466,8 @@ defineExpose({ reloadFiles: loadPlanFiles });
             :placeholder="plan_result === 'e0_99' ? '반려사유' : '보완사유'"
           ></textarea>
         </div>
-        <div class="mb-3">
+        <!-- 반려(e0_99)된 계획은 지원기간 미표시 -->
+        <div v-if="plan_result !== 'e0_99'" class="mb-3">
           <label class="form-label text-sm text-body mb-1">지원기간 : </label>
           <template v-if="!isEditing">
             <span class="text-body">{{ displayStartTime() }}</span>
