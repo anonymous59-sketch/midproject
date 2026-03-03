@@ -1,7 +1,15 @@
 <script setup>
 /**
- * 지원결과 페이지.
- * 선택된 지원계획에 대한 결과 목록 조회, 결과 추가/수정, 승인·보완·반려, 승인요청·취소 등을 처리한다.
+ * 지원결과 페이지 (SupportResult)
+ * ----------------------------------------
+ * - 역할: 한 건의 지원(sup_code) + 선택된 계획(planCode)에 대한 지원결과 목록 조회·추가·수정·승인/보완/반려
+ * - URL: /support/:supportCode?planCode=xxx (planCode 없으면 planData[0] 기준)
+ * - 데이터: Pinia supportStore의 resultData(결과 목록), planData(선택 계획), infoData(지원 기본정보)
+ * - 주요 플로우:
+ *   1) 결과추가 → 추가 폼 → 승인요청 확인 → insertResult + 첨부 업로드 → 목록 갱신
+ *   2) 상세 수정 → 수정완료 → updateResult + 첨부 삭제/추가 → 목록·해당 카드 첨부 재조회
+ *   3) 승인/보완/반려 → 사유 모달 → decideResult → 목록 갱신
+ * - openAddForm 쿼리: SupportPlan에서 결과 0건 확인 후 '네'로 진입 시 추가 폼 자동 오픈
  */
 // ========== import ==========
 import { ref, reactive, computed, onBeforeMount } from "vue";
@@ -52,9 +60,11 @@ function onResultFileChange(e) {
   }
   addResultFiles.value = files;
 }
+// "파일을 선택하세요" 영역 클릭 시 숨겨진 <input type="file">을 트리거해 파일 선택 다이얼로그 오픈
 function openResultFileDialog() {
   if (addResultFileInput.value) addResultFileInput.value.click();
 }
+// 결과 추가 폼에 선택된 파일이 있으면 파일명을 콤마로 이어 붙인 문자열, 없으면 빈 문자열 (UI 표시용)
 const addResultFileNames = computed(() =>
   addResultFiles.value.length
     ? addResultFiles.value.map((f) => f.name).join(", ")
@@ -151,7 +161,11 @@ function closeCancelModal() {
 function clearCancelRequest() {
   cancelRequestResultCode.value = null;
 }
-/** 취소 확인 모달에서 확인 시: 추가면 폼만 닫기, 상세면 해당 Detail 리셋 후 취소 완료 알림 */
+/**
+ * 취소 확인 모달에서 '네' 선택 시.
+ * - context 'add': 추가 폼만 닫고 모달 닫기.
+ * - context 'edit': 해당 SupportResultDetail의 resetToViewMode() 호출해 수정 취소 후 취소 완료 알림.
+ */
 function onCancelModalConfirm() {
   if (cancelModal.value.context === "add") {
     showAddResultForm.value = false;
@@ -175,7 +189,10 @@ function onCancelModalConfirm() {
 function updHistory() {
   showAlert("error", "알림", "구현 중입니다.");
 }
-/** 실제 파일을 서버에 업로드한다. DB INSERT + 물리 파일 저장을 한 번에 처리. */
+/**
+ * 결과 첨부파일을 서버에 업로드.
+ * POST /api/upload/file-content (file_path='result', file_category=result_code) 호출.
+ */
 async function uploadFilesToServer(files, filePath, categoryPk, uploadMem) {
   for (const f of files) {
     const formData = new FormData();
@@ -253,22 +270,17 @@ async function onReasonConfirm(reason) {
     showAlert("error", "알림", res.retMsg ?? "처리 중 오류가 발생했습니다.");
 }
 /**
- * 승인요청 확인 모달에서 확인 클릭 시 호출.
- * - source === "add"   → 새 결과 INSERT
- * - source === "detail" → 기존 결과 UPDATE
+ * 승인요청 확인 모달에서 '네' 선택 시 호출.
+ * - source "add": insertResult(supportCode, planCode, 제목, 내용) 후 새 result_code로 첨부 업로드, 목록 갱신.
+ * - source "detail": updateResult(payload.resultCode, 제목, 내용) 후 목록 갱신.
+ * planCode는 selectedPlan(현재 표시 중인 계획) 또는 URL query planCode 순으로 사용.
  */
 async function onApprovalConfirmYes() {
   const { source, payload } = approvalConfirm.value;
   closeApprovalConfirm();
 
   if (source === "add") {
-    /**
-     * planCode 계산 우선순위:
-     * 1) selectedPlan.value?.plan_code  (현재 화면에 선택된 계획)
-     * 2) planCodeFromQuery              (URL 쿼리로 넘어온 planCode)
-     * 둘 다 없으면 null.
-     * ?? 는 왼쪽 값이 null/undefined 일 때만 오른쪽 값으로 넘어가는 연산자이다.
-     */
+    /** 계획 코드: 화면 기준 계획(selectedPlan) → URL 쿼리(planCodeFromQuery) 순. ?? 는 null/undefined일 때만 다음 값 사용 */
     const planCode = selectedPlan.value?.plan_code ?? planCodeFromQuery ?? null;
     if (!planCode) {
       showAlert(
@@ -320,7 +332,11 @@ async function onApprovalConfirmYes() {
   } else if (res != null)
     showAlert("error", "알림", res.retMsg ?? "처리 중 오류가 발생했습니다.");
 }
-/** 상세 수정 완료 시 updateResult 호출 후 파일 처리, 목록 갱신 */
+/**
+ * 상세 카드에서 수정완료 시 호출.
+ * updateResult(제목·내용) 후 삭제 표시된 첨부 DELETE, 신규 첨부 file-content 업로드,
+ * 목록 재조회 및 해당 카드 reloadFiles()로 첨부 목록 즉시 반영.
+ */
 async function onEditComplete(payload) {
   if (!payload?.resultCode) return;
   const res = await updateResult(payload.resultCode, {
@@ -394,13 +410,6 @@ onBeforeMount(async () => {
     <div class="d-flex justify-content-end gap-2 mb-2">
       <button
         type="button"
-        class="btn btn-sm btn-outline-secondary"
-        @click="onLoadTempResult"
-      >
-        임시저장 불러오기
-      </button>
-      <button
-        type="button"
         class="btn btn-sm btn-outline-primary"
         @click="onAddResult"
       >
@@ -410,6 +419,22 @@ onBeforeMount(async () => {
     <!-- 결과 추가 폼: 제목, 내용, 첨부파일 -->
     <div v-if="showAddResultForm" class="card shadow-sm border-radius-lg mb-4">
       <div class="card-body">
+        <div class="d-flex justify-content-end gap-2 mb-3">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            @click="onLoadTempResult"
+          >
+            임시저장 불러오기
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-secondary"
+            @click="onTempSaveFromAddResult"
+          >
+            임시저장
+          </button>
+        </div>
         <div class="mb-3">
           <label class="form-label text-sm text-body mb-1">제목</label>
           <input
@@ -443,17 +468,12 @@ onBeforeMount(async () => {
             @click="openResultFileDialog"
           >
             <span v-if="addResultFileNames">{{ addResultFileNames }}</span>
-            <span v-else class="text-muted">파일을 선택하세요</span>
+            <span v-else class="text-muted">
+              파일을 선택하세요. 10MB 초과 불가.
+            </span>
           </button>
         </div>
         <div class="d-flex justify-content-end gap-2">
-          <button
-            type="button"
-            class="btn btn-sm btn-secondary"
-            @click="onTempSaveFromAddResult"
-          >
-            임시저장
-          </button>
           <button
             type="button"
             class="btn btn-sm btn-outline-primary"

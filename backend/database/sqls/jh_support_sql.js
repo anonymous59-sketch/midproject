@@ -1,12 +1,18 @@
-// 각자 자신이 구현하는 기능에 맞게 파일을 추가하기, 대신 파일명에 어떤 기능과 연관된 쿼리문인지 알기 쉽게 영문으로 적어주는 걸 권장
-// 백틱 사용
-// 하나의 변수를 선언해서 안에 객체로 집어넣는 형식,
-// 객체 안에 변수명 : 쿼리문 형식으로 선언해두기
-// 예시 변수명은 자유롭게 수정하면 됨
-// export하고 sqList.js에서 require부분에 해당 폴더 경로를 추가해주기
-
+/**
+ * 지원(support) 관련 SQL 모음 (jh_support_sql.js)
+ * ----------------------------------------
+ * - supportInfo: 지원 1건의 기본 정보(대상자명, 담당자, 우선순위 등). rank 승인(e0_10)된 건만.
+ * - supportPlanBySupCode: 한 지원의 계획 목록(plan_goal, plan_content, start_time, end_time, plan_tf 등). 첨부는 별도 file API.
+ * - supportPlanInsert: 계획 추가. plan_code는 DB 트리거 자동 부여. plan_tf 기본 'e0_00'(검토대기).
+ * - supportPlanUpdate: 계획 수정(제목·내용·시작일·종료일). 보완(e0_80)이면 검토대기(e0_00)로 변경.
+ * - supportPlanEnd: 계획 즉시 종료. end_time = NOW().
+ * - supportPlanDecide: 승인(e0_10)/보완(e0_80)/반려(e0_99). 반려 시 end_time = NOW().
+ * - supportResultPlanInfo: 결과 페이지 헤더용 계획 1건 정보(기간, 담당기관, 첨부 등).
+ * - supportResultByPlanCode: 한 계획에 대한 결과 목록. 결과별 첨부는 별도 file API.
+ * - supportResultInsert / supportResultUpdate / supportResultDecide: 결과 추가·수정·승인/보완/반려.
+ */
 const qry = {
-  // 지원신청의 지원자 정보 조회 (Info 영역 = support/rank 공통 구조, 우선순위 승인된 건만)
+  /** 지원 1건의 기본 정보. rank 승인(s_rank_res='e0_10')된 요청 기준 우선순위·대상자·담당자 등 */
   supportInfo: `
     SELECT
       d.mc_pn       dsbl_no,
@@ -34,6 +40,8 @@ const qry = {
       p.sup_code sup_code, 
       p.plan_goal plan_goal,
       p.plan_content plan_content,
+      p.start_time start_time,
+      p.end_time end_time,
       p.plan_date plan_date,
       p.plan_tf plan_tf,
       p.plan_cmt plan_cmt,
@@ -47,15 +55,25 @@ const qry = {
     INSERT INTO support_plan (sup_code, dsbl_no, plan_goal, start_time, end_time, plan_content, plan_date, plan_tf, plan_cmt)
     VALUES (?, ?, ?, ?, ?, ?, NOW(), 'e0_00', ?)
   `,
-  // 계획 수정 (제목, 내용만). 보완(e0_80) 상태면 수정 시 검토대기(e0_00)로 변경해 재검토 버튼 노출
+  // 계획 수정 (제목, 내용, 시작일, 종료일). 보완(e0_80) 상태면 수정 시 검토대기(e0_00)로 변경
   supportPlanUpdate: `
     UPDATE support_plan
     SET plan_goal = ?,
         plan_content = ?,
+        start_time = ?,
+        end_time = ?,
         plan_tf = IF(plan_tf = 'e0_80', 'e0_00', plan_tf)
     WHERE plan_code = ?
   `,
-  // 계획 승인/보완/반려 (plan_tf: e0_10 승인, e0_80 보완, e0_99 반려, plan_cmt에 사유, plan_updday 강제 유지. 반려(e0_99) 시 종료일 end_time을 NOW()로 갱신)
+  // 계획 즉시 종료 (end_time을 NOW()로 갱신)
+  supportPlanEnd: `
+    UPDATE support_plan SET end_time = NOW() WHERE plan_code = ?
+  `,
+  // 계획 승인/보완/반려
+  // - plan_tf: e0_10 승인, e0_80 보완, e0_99 반려
+  // - plan_cmt에 사유
+  // - plan_updday 강제 유지
+  // - 반려(e0_99) 시 종료일 end_time을 NOW()로 갱신
   supportPlanDecide: `
     UPDATE support_plan
     SET plan_tf = ?, plan_cmt = ?, plan_updday = plan_updday,

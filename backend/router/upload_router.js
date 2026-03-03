@@ -1,4 +1,14 @@
-// 파일 업로드/다운로드/삭제용 라우터
+/**
+ * 파일 업로드/다운로드/삭제 라우터 (upload_router.js)
+ * ----------------------------------------
+ * - POST /file-content: 단일 파일 업로드. multipart(form: file, file_category, file_path, upload_mem).
+ *   DB에 메타만 INSERT(server_file_name은 DB DEFAULT UUID), 조회 후 물리 파일을 uploads/<file_path>/<hex>.<ext> 로 저장.
+ * - GET /files/:categoryPk: 카테고리(plan_code 또는 result_code)별 파일 목록 조회.
+ * - DELETE /file/:fileCode: 단일 파일 삭제(DB만. 물리 파일 삭제는 선택적).
+ * - GET /download/:fileCode: 단일 파일 다운로드. Content-Disposition RFC 5987로 한글 파일명 처리.
+ * - GET /download-zip/:categoryPk: 카테고리 전체 파일을 ZIP으로 압축 다운로드.
+ * - 파일 크기 제한: 10MB. 초과 시 LIMIT_FILE_SIZE 응답.
+ */
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -8,10 +18,11 @@ const router = express.Router();
 
 const service = require("../services/svc.js");
 
-// 프로젝트 루트 기준 uploads 디렉터리
+/** 프로젝트 루트(backend 상위) 기준 uploads 디렉터리. 물리 파일 저장/다운로드 경로 기준 */
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 const UPLOAD_ROOT = path.join(PROJECT_ROOT, "uploads");
 
+/** 상대 경로(예: 'plan', 'result')를 uploads 기준 절대 경로로 변환. 'uploads/' 접두사는 제거 */
 function resolveUploadDir(relPath) {
   let p = String(relPath || "").replace(/^[\\/]+/, "");
   if (p.toLowerCase().startsWith("uploads/")) {

@@ -80,14 +80,12 @@ const handleEdit = (item) => {
   editTarget.value = item;
   editUserId.value = item.userId;
   editUserName.value = item.userName;
-  editPhone.value = item.phone;
-  editEmail.value = item.email;
-  newPassword.value = "";
-  confirmPassword.value = "";
+  editPhone.value = item.phone ?? "";
+  editEmail.value = item.email ?? "";
   isEditModalOpen.value = true;
 };
 
-const confirmEdit = () => {
+const confirmEdit = async () => {
   if (!editTarget.value) return;
 
   if (newPassword.value || confirmPassword.value) {
@@ -95,15 +93,16 @@ const confirmEdit = () => {
       alert("새 비밀번호와 확인이 일치하지 않습니다.");
       return;
     }
-    editTarget.value.password = newPassword.value;
+    editTarget.value.userName = editUserName.value;
+    editTarget.value.phone = editPhone.value;
+    editTarget.value.email = editEmail.value;
+    closeEditModal();
+    await loadManagers();
+  } catch (e) {
+    alert(e.message || "저장에 실패했습니다.");
+  } finally {
+    editSaving.value = false;
   }
-
-  editTarget.value.userId = editUserId.value;
-  editTarget.value.userName = editUserName.value;
-  editTarget.value.phone = editPhone.value;
-  editTarget.value.email = editEmail.value;
-
-  closeEditModal();
 };
 
 const closeEditModal = () => {
@@ -119,7 +118,36 @@ onMounted(() => {
 
 <template>
   <div class="container-fluid py-4">
-    <!-- ====== 테이블 ====== -->
+    <div class="row">
+      <!-- ====== 좌측: 담당자 검색 ====== -->
+      <div class="col-lg-3 mb-4">
+        <div class="card">
+          <div class="card-header pb-0">
+            <h6 class="mb-0">담당자 검색</h6>
+          </div>
+          <div class="card-body">
+            <label class="form-label text-sm">검색 조건</label>
+            <select v-model="searchBy" class="form-select form-select-sm mb-2">
+              <option value="m_nm">이름</option>
+              <option value="m_org">소속기관</option>
+              <option value="m_id">아이디</option>
+            </select>
+            <input
+              v-model="searchValue"
+              type="text"
+              class="form-control form-control-sm mb-2"
+              placeholder="검색어 입력"
+              @keyup.enter="doSearch"
+            />
+            <button class="btn btn-sm btn-success w-100 mb-0" @click="doSearch">
+              검색
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== 우측: 테이블 ====== -->
+      <div class="col-lg-9">
     <div class="card mb-4">
       <div
         class="card-header d-flex justify-content-between align-items-center pb-0"
@@ -131,7 +159,9 @@ onMounted(() => {
       </div>
 
       <div class="card-body px-0 pt-0 pb-2">
-        <div class="table-responsive p-0">
+        <p v-if="listLoading" class="text-muted text-sm mb-0 px-3">로딩 중...</p>
+        <p v-else-if="listError" class="text-danger text-sm mb-0 px-3">{{ listError }}</p>
+        <div v-else class="table-responsive p-0">
           <table class="table align-items-center mb-0">
             <thead>
               <tr>
@@ -178,6 +208,7 @@ onMounted(() => {
                 <td>{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
                 <td>{{ item.userId }}</td>
                 <td>{{ item.userName }}</td>
+                <td>{{ item.organName }}</td>
                 <td>{{ item.phone }}</td>
                 <td>{{ item.email }}</td>
                 <td class="text-center">{{ item.targetCount }}명</td>
@@ -199,6 +230,9 @@ onMounted(() => {
                     <i class="fas fa-pencil-alt"></i>
                   </a>
                 </td>
+              </tr>
+              <tr v-if="!listLoading && !listError && tableData.length === 0">
+                <td colspan="9" class="text-center text-muted py-4">담당자가 없습니다.</td>
               </tr>
             </tbody>
           </table>
@@ -241,6 +275,8 @@ onMounted(() => {
             </ul>
           </nav>
         </div>
+      </div>
+    </div>
       </div>
     </div>
 
@@ -307,12 +343,14 @@ onMounted(() => {
               <div class="d-flex justify-content-center gap-2 flex-wrap">
                 <button
                   class="btn btn-sm bg-gradient-success"
+                  :disabled="editSaving"
                   @click="confirmEdit"
                 >
-                  저장
+                  {{ editSaving ? "저장 중..." : "저장" }}
                 </button>
                 <button
                   class="btn btn-sm bg-gradient-secondary"
+                  :disabled="editSaving"
                   @click="closeEditModal"
                 >
                   취소

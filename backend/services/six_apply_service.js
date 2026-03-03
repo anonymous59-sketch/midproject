@@ -54,6 +54,46 @@ exports.getCounselBySupCode = async (supCode) => {
   return Array.isArray(rows) ? rows : [];
 };
 
+// ✅ m_auth별 회원 목록 (상담등록 csl_writer select용, 예: a0_30)
+exports.getMembersByAuth = async (mAuth) => {
+  const rows = await query("selectMembersByAuth", [mAuth]);
+  return Array.isArray(rows) ? rows.filter((r) => r && r.m_no) : [];
+};
+
+// ✅ 수정이력 목록 (his_category = sup_code, category_name = j0_00 지원신청서 | j0_10 상담 | j0_20 지원계획 | j0_30 지원결과)
+exports.getUpdHistoryByTarget = async (supCode, categoryName) => {
+  const rows = await query("selectUpdHistoryByTarget", [supCode, categoryName]);
+  return Array.isArray(rows) ? rows : [];
+};
+
+// ✅ 지원신청서 수정하기: survey_a만 업데이트 (수정이력 미사용)
+exports.updateSurveyAnswers = async (supCode, payload) => {
+  const { answers = [] } = payload || {};
+  let conn;
+  try {
+    conn = await pools.getConnection();
+    await conn.beginTransaction();
+
+    for (const item of answers) {
+      if (item.a_code && item.a_content !== undefined) {
+        await conn.query(surveySql.updateSurveyAnswerContent, [
+          String(item.a_content),
+          item.a_code,
+          supCode,
+        ]);
+      }
+    }
+
+    await conn.commit();
+    return { ok: true };
+  } catch (err) {
+    if (conn) await conn.rollback();
+    throw err;
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
 // tmp_code 형식: TMP + yyyymmdd(8자) + 4자리 순번
 const generateTmpCode = async (conn) => {
   const now = new Date();

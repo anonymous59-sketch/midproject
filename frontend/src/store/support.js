@@ -77,6 +77,20 @@ export const useSupportStore = defineStore("support", () => {
     }
   };
 
+  // 지원계획 즉시 종료 (end_time = NOW())
+  const endPlan = async (planCode) => {
+    try {
+      const res = await fetch(`/api/support/plan/${planCode}/end`, {
+        method: "PUT",
+      });
+      const data = await res.json().catch(() => ({}));
+      return data;
+    } catch (err) {
+      console.error("계획 종료 처리 중 에러", err);
+      return null;
+    }
+  };
+
   // 특정 계획의 결과 목록만 조회 (store 갱신 없이 반환만, 결과조회 전 0건 여부 확인용)
   const fetchResultListForPlan = async (supportCode, planCode) => {
     try {
@@ -184,6 +198,7 @@ export const useSupportStore = defineStore("support", () => {
     insertPlan,
     updatePlan,
     decidePlan,
+    endPlan,
     fetchResultListForPlan,
     supportResultDetail,
     insertResult,

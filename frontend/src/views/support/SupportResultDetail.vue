@@ -1,13 +1,17 @@
 <script setup>
 /**
- * 지원결과 한 건 상세/편집 카드.
- * 결과 제목·내용 표시 및 수정, 첨부파일 조회/추가/삭제/다운로드,
- * 승인/보완/반려/승인요청/취소 버튼, 수정 시 변경 없으면 API 미호출 등 결과 단건 UI를 담당한다.
+ * 지원결과 한 건 상세/편집 카드 (SupportResultDetail)
+ * ----------------------------------------
+ * - 역할: 한 건의 지원결과를 카드로 표시하고, 조회/수정/승인·보완·반려·승인요청·취소 처리
+ * - result_result(result_tf): e0_00 검토대기, e0_10 승인, e0_80 보완요청, e0_99 반려
+ * - 모드: isViewMode | isInputMode(수정 중+내용 없음→승인요청) | isEditMode(수정 중+내용 있음→수정완료)
+ * - 수정 완료 시: 제목·내용·첨부 변경이 없으면 API 호출 없이 알림만. 있으면 edit-complete로 부모가 updateResult + 첨부 DELETE/업로드
+ * - 첨부: result_code로 GET /api/upload/files/:categoryPk 조회. defineExpose({ resetToViewMode, reloadFiles }) 로 부모에서 취소/재조회 가능
  */
 // ========== import ==========
 import { ref, watch, onBeforeMount } from "vue";
 
-// ========== 변수 ==========
+// ========== props / emit ==========
 const props = defineProps({
   result_code: { type: String, default: "" },
   result_title: { type: String, default: "" },
@@ -37,27 +41,30 @@ const emit = defineEmits([
   "alert",
 ]);
 
-const isEditing = ref(false); // 수정 모드 여부
-const titleLocal = ref(props.result_title || ""); // 수정 중 제목 (로컬 임시값)
-const contentLocal = ref(props.result_content || ""); // 수정 중 내용 (로컬 임시값)
+/** 수정 모드 여부 */
+const isEditing = ref(false);
+const titleLocal = ref(props.result_title || "");
+const contentLocal = ref(props.result_content || "");
 
-// 수정 시작 시점의 원본(조회값) — 수정완료 시 변경 여부 비교에 사용
+/** 수정 시작 시점의 원본 제목·내용. 수정완료 시 변경 여부 판단용(변경 없으면 API 미호출) */
 const editStartedTitle = ref("");
 const editStartedContent = ref("");
 
-// 첨부파일 관련 상태
-const editFiles = ref([]); // 수정 모드에서 새로 선택된 파일 목록
-const editFileInput = ref(null); // 숨겨진 file input ref
-const filesForResult = ref([]); // 현재 결과의 기존 첨부파일 목록 (서버 조회)
-const fileNames = ref(""); // 파일명 표시용 문자열
-const deletedFileCodes = ref([]); // 수정 중 삭제 표시된 file_code 목록
+/** 수정 모드에서 새로 선택한 File 목록. 수정완료 시 부모가 file-content 업로드 */
+const editFiles = ref([]);
+const editFileInput = ref(null);
+/** GET /api/upload/files/:result_code 로 조회한 이 결과의 첨부파일 목록 */
+const filesForResult = ref([]);
+const fileNames = ref("");
+/** 수정 중 삭제 표시한 file_code 배열. 수정완료 시 부모가 DELETE /api/upload/file/:fileCode 호출 */
+const deletedFileCodes = ref([]);
 
-const isViewMode = () => !isEditing.value; // 조회 모드: 수정 중이 아님
-const isInputMode = () => isEditing.value && !(contentLocal.value || "").trim(); // 수정 모드 + 내용 없음 → 승인요청 버튼 표시
-const isEditMode = () => isEditing.value && (contentLocal.value || "").trim(); // 수정 모드 + 내용 있음 → 수정완료 버튼 표시
+const isViewMode = () => !isEditing.value;
+const isInputMode = () => isEditing.value && !(contentLocal.value || "").trim();
+const isEditMode = () => isEditing.value && (contentLocal.value || "").trim();
 
 // ========== 함수 ==========
-/** 수정 모드에서 파일 선택 input 값이 바뀌면 editFiles 목록 갱신 (10MB 초과 시 AlertModal로 에러 표시) */
+/** 파일 선택 시 10MB 초과 파일이 있으면 alert 이벤트(AlertModal)로 에러 표시 후 선택 취소, 아니면 editFiles 갱신 */
 function onEditFileChange(e) {
   const files = Array.from(e.target.files || []);
   const oversized = files.filter((f) => f.size > 10 * 1024 * 1024);
@@ -279,6 +286,23 @@ watch(
       <p v-if="result_updday" class="text-sm text-body mb-2 opacity-8 text-end">
         최종수정일시 | {{ result_updday }}
       </p>
+      <!-- 수정/보완하기로 편집 모드일 때만 노출 -->
+      <div v-if="isEditing" class="d-flex justify-content-end gap-2 mb-3">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="onLoadTemp"
+        >
+          임시저장 불러오기
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-secondary"
+          @click="emit('temp-save')"
+        >
+          임시저장
+        </button>
+      </div>
       <div class="detail-fields mb-4">
         <div class="mb-3">
           <label class="form-label text-sm text-body mb-1">제목</label>
@@ -498,13 +522,6 @@ watch(
               @click="onEditComplete"
             >
               승인재요청
-            </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-secondary"
-              @click="emit('temp-save')"
-            >
-              임시저장
             </button>
             <button
               type="button"

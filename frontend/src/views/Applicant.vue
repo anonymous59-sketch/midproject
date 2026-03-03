@@ -70,7 +70,7 @@ const rows = ref([
 ]);
 
 /**
- * [3] “검색” 버튼을 눌렀을 때, 실제로는 API 호출해야 함.
+ * [3] "검색" 버튼을 눌렀을 때, 실제로는 API 호출해야 함.
  * 지금은 일단 콘솔 출력만.
  */
 const onSearch = () => {
@@ -150,7 +150,7 @@ const viewResult = (row) => alert(`지원결과 보기: ${row.no}`);
 
           <div class="card-body">
             <!-- 날짜 -->
-            <label class="form-label text-sm">작성일</label>
+            <label class="form-label text-sm">지원신청일</label>
             <div class="d-flex gap-2">
               <input
                 v-model="filters.dateFrom"
@@ -167,12 +167,12 @@ const viewResult = (row) => alert(`지원결과 보기: ${row.no}`);
             <hr class="horizontal dark my-3" />
 
             <!-- 지원대상자 -->
-            <label class="form-label text-sm">지원대상자</label>
+            <label class="form-label text-sm">지원대상자명</label>
             <input
               v-model="filters.targetName"
               type="text"
               class="form-control form-control-sm"
-              placeholder="예) 홍길동"
+              placeholder="보호대상자명"
             />
 
             <div class="mt-3">
@@ -181,7 +181,7 @@ const viewResult = (row) => alert(`지원결과 보기: ${row.no}`);
                 v-model="filters.applicantName"
                 type="text"
                 class="form-control form-control-sm"
-                placeholder="예) 보호자 이름"
+                placeholder="보호자 이름"
               />
             </div>
 
@@ -191,7 +191,7 @@ const viewResult = (row) => alert(`지원결과 보기: ${row.no}`);
                 v-model="filters.managerName"
                 type="text"
                 class="form-control form-control-sm"
-                placeholder="예) 담당자 이름"
+                placeholder="담당자 이름"
               />
             </div>
 

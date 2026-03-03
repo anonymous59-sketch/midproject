@@ -21,12 +21,29 @@ router.put("/plan/:planCode/decide", async (req, res) => {
   }
 });
 
+// 계획 즉시 종료 (end_time = NOW())
+router.put("/plan/:planCode/end", async (req, res) => {
+  const { planCode } = req.params;
+  try {
+    await supportService.endPlan(planCode);
+    res.json({ retCode: "Success", retMsg: "계획이 종료되었습니다." });
+  } catch (err) {
+    console.error(err);
+    res.json({ retCode: "Error", retMsg: "종료 처리 실패" });
+  }
+});
+
 // 계획 수정
 router.put("/plan/:planCode", async (req, res) => {
   const { planCode } = req.params;
-  const { plan_goal, plan_content } = req.body || {};
+  const { plan_goal, plan_content, start_date, end_date } = req.body || {};
   try {
-    await supportService.updatePlan(planCode, { plan_goal, plan_content });
+    await supportService.updatePlan(planCode, {
+      plan_goal,
+      plan_content,
+      start_time: start_date ?? null,
+      end_time: end_date ?? null,
+    });
     res.json({ retCode: "Success", retMsg: "수정 완료" });
   } catch (err) {
     console.error(err);
