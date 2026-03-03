@@ -1,12 +1,18 @@
-// 각자 자신이 구현하는 기능에 맞게 파일을 추가하기, 대신 파일명에 어떤 기능인지 알기 쉽게 영문으로 적어주는 걸 권장
-// export하고 같은 경로의 svc.js에서 require부분에 해당 폴더 경로를 추가해주기
+/**
+ * 지원(support) 관련 서비스 (jh_support_service.js)
+ * ----------------------------------------
+ * - getPlanBySupportCode: 한 지원의 계획 목록 조회.
+ * - getSupportInfoBySupCode: 한 지원의 기본 정보(헤더용).
+ * - insertPlan: 계획 추가. 종료일 미지정 시 시작일+1년을 end_time으로 설정. 반환: 새 plan_code.
+ * - updatePlan: 계획 수정(제목·내용·시작일·종료일).
+ * - endPlan: 계획 즉시 종료(end_time = NOW()).
+ * - decidePlan: 계획 승인/보완/반려. 반려 시 end_time = NOW().
+ * - 결과 관련: getResultPlanInfo, getResultByPlanCode, insertResult, updateResult, decideResult 등.
+ */
+const query = require("../database/mapper/mapper.js");
 
-// service에서 필요에 따라 db에 접속 => mapper
-const query = require("../database/mapper/mapper.js"); // mapper가져오기. mapper.js가 모든 서비스 모여있는 곳이라서 이 경로를 가져오면 됨
-
-// 해당하는 기능을 svc라는 변수에 객체 형식으로 넣기
 const svc = {
-  // 지원신청(sup_code)에 대한 계획 조회
+  /** 지원(sup_code)에 대한 계획 목록 조회. planData 소스 */
   getPlanBySupportCode: async (supportCode) => {
     const rows = await query("supportPlanBySupCode", [supportCode]).catch(
       (err) => {
@@ -26,17 +32,30 @@ const svc = {
     return rows?.[0] ?? null;
   },
 
-  // 계획 추가 (승인요청). plan_code는 트리거 자동 부여
+  /**
+   * 계획 추가 (승인요청). plan_code는 DB 트리거 자동 부여.
+   * 종료일(end_time) 미지정이면 시작일(start_time) + 1년을 end_time으로 설정.
+   * @returns {Promise<string|null>} 새 plan_code
+   */
   insertPlan: async (
     supportCode,
     { dsbl_no, plan_goal, plan_content, start_time, end_time },
   ) => {
+    let end = end_time ?? null;
+    const start = start_time ?? null;
+    if (!end && start) {
+      const d = new Date(start);
+      if (!Number.isNaN(d.getTime())) {
+        d.setFullYear(d.getFullYear() + 1);
+        end = d.toISOString().slice(0, 10);
+      }
+    }
     await query("supportPlanInsert", [
       supportCode,
       dsbl_no ?? null,
       plan_goal ?? "",
-      start_time ?? null,
-      end_time ?? null,
+      start,
+      end,
       plan_content ?? "",
       null, // plan_cmt
     ]).catch((err) => {
@@ -53,13 +72,23 @@ const svc = {
     const last = Array.isArray(plans) ? plans[plans.length - 1] : null;
     return last?.plan_code ?? null;
   },
-  // 계획 수정 (제목, 내용만)
-  updatePlan: async (planCode, { plan_goal, plan_content }) => {
+  /** 계획 수정. 제목·내용·시작일·종료일 전부 갱신. 보완(e0_80) 상태면 검토대기(e0_00)로 변경 */
+  updatePlan: async (planCode, { plan_goal, plan_content, start_time, end_time }) => {
     await query("supportPlanUpdate", [
       plan_goal ?? "",
       plan_content ?? "",
+      start_time ?? null,
+      end_time ?? null,
       planCode,
     ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return null;
+  },
+  /** 계획 즉시 종료. end_time을 NOW()로 갱신 (supportPlanEnd 쿼리) */
+  endPlan: async (planCode) => {
+    await query("supportPlanEnd", [planCode]).catch((err) => {
       console.error(err);
       throw err;
     });

@@ -1,16 +1,23 @@
 <script setup>
 /**
- * 지원계획 한 건 상세/편집 카드.
- * 계획 제목·내용 표시 및 수정, 승인요청/승인/보완/반려/취소 버튼, 이력·결과 화면 이동을 담당한다.
+ * 지원계획 한 건 상세/편집 카드 (SupportPlanDetail)
+ * ----------------------------------------
+ * - 역할: 한 건의 지원계획을 카드 형태로 표시하고, 조회/수정/승인·보완·반려·연장·종료 등 액션 처리
+ * - plan_result(plan_tf) 코드: e0_00 검토대기, e0_10 승인, e0_80 보완요청, e0_99 반려
+ * - 모드: isViewMode(조회) | isInputMode(수정 중+내용 없음→승인요청) | isEditMode(수정 중+내용 있음→수정완료)
+ * - 첨부: plan_code로 /api/upload/files/:categoryPk 조회, 수정 시 삭제 표시·신규 선택 후 edit-complete 시 부모가 DELETE/업로드
+ * - 연장: 승인 상태이고 종료일 기준 ±30일 이내일 때만 노출. 종료: 승인 상태이고 종료일이 지나지 않았을 때만 노출
  */
 // ========== import ==========
 import { ref, watch, onBeforeMount } from "vue";
 
-// ========== 변수 ==========
+// ========== props / emit ==========
 const props = defineProps({
   plan_code: { type: String, default: "" },
   support_plan_title: { type: String, default: "" },
   support_plan_content: { type: String, default: "" },
+  start_time: { type: String, default: "" },
+  end_time: { type: String, default: "" },
   support_plan_file: { type: String, default: "" },
   file_code: { type: String, default: "" },
   support_plan_reject_comment: { type: String, default: "" },
@@ -36,28 +43,50 @@ const emit = defineEmits([
   "plan-result",
   "temp-save",
   "alert",
+  "extend",
+  "end",
 ]);
 
-const isEditing = ref(false); // 수정 모드 여부
-const titleLocal = ref(props.support_plan_title || ""); // 수정 중 제목
-const contentLocal = ref(props.support_plan_content || ""); // 수정 중 내용
+/** 수정 모드 여부. true면 제목·내용·지원기간·첨부 편집 가능 */
+const isEditing = ref(false);
+/** 수정 중 로컬 제목·내용·시작일·종료일. 수정완료 시 부모에 전달 */
+const titleLocal = ref(props.support_plan_title || "");
+const contentLocal = ref(props.support_plan_content || "");
+const startDateLocal = ref("");
+const endDateLocal = ref("");
+/** 수정 모드에서 새로 선택한 File 목록. 수정완료 시 부모가 file-content 업로드 */
 const editFiles = ref([]);
 const editFileInput = ref(null);
 const deleteExistingFile = ref(false);
+/** 서버에서 조회한 이 계획의 첨부파일 목록. GET /api/upload/files/:plan_code */
 const filesForPlan = ref([]);
 const fileNames = ref("");
+/** 수정 중 '삭제' 표시한 file_code 배열. 수정완료 시 부모가 DELETE /api/upload/file/:fileCode 호출 */
 const deletedFileCodes = ref([]);
 
-const isViewMode = () => !isEditing.value; // 조회 모드: 수정 중이 아님
-const isInputMode = () => isEditing.value && !(contentLocal.value || "").trim(); // 수정 모드 + 내용 없음 → 승인요청 버튼 표시
-const isEditMode = () => isEditing.value && (contentLocal.value || "").trim(); // 수정 모드 + 내용 있음 → 수정완료 버튼 표시
+/** 조회 모드: 수정 중이 아님. 결과조회·수정·연장·종료·승인/보완/반려 버튼 노출 기준 */
+const isViewMode = () => !isEditing.value;
+/** 입력 모드: 수정 중이지만 내용 비어 있음 → 승인요청·취소 버튼만 표시 */
+const isInputMode = () => isEditing.value && !(contentLocal.value || "").trim();
+/** 편집 모드: 수정 중이고 내용 있음 → 수정완료·임시저장·취소 버튼 표시 */
+const isEditMode = () => isEditing.value && (contentLocal.value || "").trim();
 
-// ========== 함수 ==========
+// ========== 날짜·편집·완료 함수 ==========
+/** API에서 오는 날짜(시간) 문자열을 input[type=date]용 YYYY-MM-DD로 자르기 */
+function toDateOnly(val) {
+  if (!val) return "";
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return s;
+}
+
 /** 수정 모드로 전환하고 로컬 값 초기화 후 edit 이벤트 발생 */
 function startEdit() {
   isEditing.value = true;
   titleLocal.value = props.support_plan_title || "";
   contentLocal.value = props.support_plan_content || "";
+  startDateLocal.value = toDateOnly(props.start_time);
+  endDateLocal.value = toDateOnly(props.end_time);
   editFiles.value = [];
   deleteExistingFile.value = false;
   deletedFileCodes.value = [];
@@ -68,17 +97,21 @@ function onCancel() {
   isEditing.value = false;
   titleLocal.value = props.support_plan_title || "";
   contentLocal.value = props.support_plan_content || "";
+  startDateLocal.value = toDateOnly(props.start_time);
+  endDateLocal.value = toDateOnly(props.end_time);
   editFiles.value = [];
   deleteExistingFile.value = false;
   deletedFileCodes.value = [];
   emit("cancel");
 }
-/** 수정 완료 시 부모에 planCode·제목·내용 전달 후 조회 모드로 전환 */
+/** 수정 완료 시 부모에 planCode·제목·내용·시작일·종료일 전달 후 조회 모드로 전환 */
 function onEditComplete() {
   emit("edit-complete", {
     planCode: props.plan_code,
     title: titleLocal.value?.trim() ?? "",
     content: contentLocal.value?.trim() ?? "",
+    startDate: startDateLocal.value || null,
+    endDate: endDateLocal.value || null,
     deleteFileCodes: deletedFileCodes.value.slice(),
     newFiles: editFiles.value,
   });
@@ -94,6 +127,47 @@ function updateTitle(val) {
 /** 내용 입력값을 갱신한다. */
 function updateContent(val) {
   contentLocal.value = val;
+}
+/** 조회용: 시작일/종료일 표시 문자열 (날짜만 보이게) */
+function displayStartTime() {
+  return toDateOnly(props.start_time) || "—";
+}
+function displayEndTime() {
+  return toDateOnly(props.end_time) || "—";
+}
+
+/**
+ * 연장 버튼 표시 여부: 승인(e0_10) 상태이고, 오늘이 종료일 기준 전후 30일 이내일 때만 활성화.
+ * (종료일 - 30일 <= 오늘 <= 종료일 + 30일)
+ */
+function canShowExtend() {
+  if (props.plan_result !== "e0_10" || !props.end_time) return false;
+  const endStr = toDateOnly(props.end_time);
+  if (!endStr) return false;
+  const end = new Date(endStr);
+  if (Number.isNaN(end.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const diffDays = Math.floor((today - end) / msPerDay);
+  return diffDays >= -30 && diffDays <= 30;
+}
+
+/**
+ * 종료 버튼 표시 여부: 승인(e0_10) 상태이고, 종료일이 아직 지나지 않은 경우(오늘 <= 종료일)에만 표시.
+ */
+function canShowEnd() {
+  if (props.plan_result !== "e0_10") return false;
+  if (!props.end_time) return true; // 종료일 미지정 시에도 종료 버튼 노출
+  const endStr = toDateOnly(props.end_time);
+  if (!endStr) return true;
+  const end = new Date(endStr);
+  if (Number.isNaN(end.getTime())) return true;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return today <= end;
 }
 
 /** 수정 모드에서 파일 선택 input 값이 바뀌면 editFiles 목록 갱신 (10MB 초과 시 AlertModal로 에러 표시) */
@@ -121,8 +195,7 @@ function openEditFileDialog() {
  * (예: origin="보고서", ext="pdf" → "보고서.pdf")
  */
 function formatFileName(file) {
-  const name =
-    file?.origin_file_name || file?.server_file_name || "";
+  const name = file?.origin_file_name || file?.server_file_name || "";
   const ext = file?.file_ext || "";
   if (!name) return "";
   if (ext && !name.toLowerCase().endsWith(`.${ext.toLowerCase()}`)) {
@@ -139,7 +212,10 @@ function recomputeFileNames() {
     .join(", ");
 }
 
-/** plan_code 기준으로 해당 계획의 첨부파일 목록을 서버에서 조회하고 filesForPlan 갱신 */
+/**
+ * 이 계획(plan_code)의 첨부파일 목록을 GET /api/upload/files/:plan_code 로 조회해 filesForPlan 갱신.
+ * 마운트 시·plan_code 변경 시·부모에서 reloadFiles() 호출 시 실행됨.
+ */
 async function loadPlanFiles() {
   if (!props.plan_code) {
     filesForPlan.value = [];
@@ -176,7 +252,7 @@ function removeFileForEdit(fileCode) {
   recomputeFileNames();
 }
 
-/** 단일 파일 다운로드: 새 탭에서 /api/upload/download/:fileCode 호출 */
+/** 단일 파일 다운로드: GET /api/upload/download/:fileCode 를 새 탭에서 열어 브라우저가 다운로드 처리 */
 function downloadFile(fileCode) {
   if (!fileCode) return;
   const url = `/api/upload/download/${encodeURIComponent(fileCode)}`;
@@ -186,7 +262,7 @@ function downloadFile(fileCode) {
   a.click();
 }
 
-/** 전체 파일을 ZIP으로 압축 다운로드 */
+/** 전체 첨부파일을 ZIP으로 받기: GET /api/upload/download-zip/:plan_code (현재 카드의 plan_code) */
 function downloadAllFiles() {
   if (!filesForPlan.value.length) return;
   const url = `/api/upload/download-zip/${encodeURIComponent(props.plan_code)}`;
@@ -206,13 +282,20 @@ function fileExt(file) {
 }
 
 // ========== 라이프사이클 훅 / expose / watch ==========
-// 부모에서 props(제목·내용)가 갱신되면 수정 중이 아닐 때 로컬값 동기화
+// 부모에서 props가 갱신되면 수정 중이 아닐 때 로컬값 동기화
 watch(
-  () => [props.support_plan_title, props.support_plan_content],
+  () => [
+    props.support_plan_title,
+    props.support_plan_content,
+    props.start_time,
+    props.end_time,
+  ],
   () => {
     if (!isEditing.value) {
       titleLocal.value = props.support_plan_title || "";
       contentLocal.value = props.support_plan_content || "";
+      startDateLocal.value = toDateOnly(props.start_time);
+      endDateLocal.value = toDateOnly(props.end_time);
     }
   },
 );
@@ -251,6 +334,29 @@ defineExpose({ reloadFiles: loadPlanFiles });
       >
         최종수정일시 | {{ support_plan_updday }}
       </p>
+      <!-- 수정/보완하기로 편집 모드일 때만 노출 -->
+      <div v-if="isEditing" class="d-flex justify-content-end gap-2 mb-3">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="onLoadTemp"
+        >
+          임시저장 불러오기
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-secondary"
+          @click="
+            emit('temp-save', {
+              planCode: plan_code,
+              title: titleLocal.value ?? '',
+              content: contentLocal.value ?? '',
+            })
+          "
+        >
+          임시저장
+        </button>
+      </div>
       <div class="detail-fields mb-4">
         <div class="mb-3">
           <label class="form-label text-sm text-body mb-1">제목</label>
@@ -319,10 +425,7 @@ defineExpose({ reloadFiles: loadPlanFiles });
               </span>
               <span v-else class="text-muted">파일을 선택하세요</span>
             </button>
-            <div
-              v-if="filesForPlan.length"
-              class="mt-1 d-flex flex-wrap gap-1"
-            >
+            <div v-if="filesForPlan.length" class="mt-1 d-flex flex-wrap gap-1">
               <div
                 v-for="file in filesForPlan"
                 :key="file.file_code"
@@ -352,9 +455,9 @@ defineExpose({ reloadFiles: loadPlanFiles });
           v-if="plan_result === 'e0_99' || plan_result === 'e0_80'"
           class="mb-3"
         >
-          <label class="form-label text-sm text-body mb-1">{{
-            plan_result === "e0_99" ? "반려" : "보완"
-          }}</label>
+          <label class="form-label text-sm text-body mb-1">
+            {{ plan_result === "e0_99" ? "반려" : "보완" }}
+          </label>
           <textarea
             class="form-control form-control-sm support-plan-textarea"
             rows="2"
@@ -362,6 +465,30 @@ defineExpose({ reloadFiles: loadPlanFiles });
             readonly
             :placeholder="plan_result === 'e0_99' ? '반려사유' : '보완사유'"
           ></textarea>
+        </div>
+        <!-- 반려(e0_99)된 계획은 지원기간 미표시 -->
+        <div v-if="plan_result !== 'e0_99'" class="mb-3">
+          <label class="form-label text-sm text-body mb-1">지원기간 : </label>
+          <template v-if="!isEditing">
+            <span class="text-body">{{ displayStartTime() }}</span>
+            <span class="text-body mx-1">~</span>
+            <span class="text-body">{{ displayEndTime() }}</span>
+          </template>
+          <div v-else class="d-flex align-items-center flex-wrap gap-2">
+            <input
+              v-model="startDateLocal"
+              type="date"
+              class="form-control form-control-sm"
+              style="max-width: 11rem"
+            />
+            <span class="text-body">~</span>
+            <input
+              v-model="endDateLocal"
+              type="date"
+              class="form-control form-control-sm"
+              style="max-width: 11rem"
+            />
+          </div>
         </div>
       </div>
       <div
@@ -388,6 +515,22 @@ defineExpose({ reloadFiles: loadPlanFiles });
               @click="emit('result', plan_code)"
             >
               결과조회
+            </button>
+            <button
+              v-if="canShowExtend()"
+              type="button"
+              class="btn btn-sm btn-outline-info"
+              @click="emit('extend', plan_code)"
+            >
+              연장
+            </button>
+            <button
+              v-if="canShowEnd()"
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              @click="emit('end', plan_code)"
+            >
+              종료
             </button>
             <button
               v-if="plan_result === 'e0_00'"
@@ -470,19 +613,6 @@ defineExpose({ reloadFiles: loadPlanFiles });
               @click="onEditComplete"
             >
               승인재요청
-            </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-secondary"
-              @click="
-                emit('temp-save', {
-                  planCode: plan_code,
-                  title: titleLocal.value ?? '',
-                  content: contentLocal.value ?? '',
-                })
-              "
-            >
-              임시저장
             </button>
             <button
               type="button"
