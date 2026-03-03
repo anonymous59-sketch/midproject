@@ -1,6 +1,33 @@
 const express = require("express");
 const router = express.Router();
 const adminOrganService = require("../services/admin_organ_service");
+const memberService = require("../services/member_service");
+
+// GET /admin/managers - 담당자 목록 (m_auth=a0_30), query: searchBy=m_nm|m_org|m_id, searchValue=
+router.get("/managers", async (req, res) => {
+  try {
+    const searchBy = req.query.searchBy || null;
+    const searchValue = req.query.searchValue || null;
+    const data = await memberService.getManagersList("a0_30", searchBy, searchValue);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /admin/managers]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// PUT /admin/members/:mNo - 담당자 프로필 수정 (m_nm, m_tel, m_email)
+router.put("/members/:mNo", async (req, res) => {
+  try {
+    const { mNo } = req.params;
+    const payload = req.body || {};
+    await memberService.updateManagerProfile(mNo, payload);
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /admin/members/:mNo]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
 
 // GET /admin/organs - 기관 목록 (admin 기간관리 화면용)
 router.get("/organs", async (req, res) => {

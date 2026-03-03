@@ -35,7 +35,7 @@ const routesList = [
       {
         path: "applicant",
         name: "applicant",
-        component: () => import("@/views/ApplicantDashboard.vue"),
+        component: () => import("@/views/Applicant.vue"),
       },
       {
         path: "manager",

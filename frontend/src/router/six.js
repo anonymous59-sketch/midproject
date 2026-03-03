@@ -37,4 +37,16 @@ export default [
       },
     ],
   },
+  // 3) 담당자 관리 (헤더 유지를 위해 admin 레이아웃 사용)
+  {
+    path: "/managermanage",
+    component: admin,
+    children: [
+      {
+        path: "",
+        name: "managermanage",
+        component: () => import("@/views/ManagerControl.vue"),
+      },
+    ],
+  },
 ];

@@ -1,20 +1,26 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 
 // ====== 페이징 ======
 const itemsPerPage = 10;
 const currentPage = ref(1);
 
+// ====== 담당자 검색 (좌측 사이드바) ======
+const searchBy = ref("m_nm");
+const searchValue = ref("");
+const listLoading = ref(false);
+const listError = ref(null);
+
 // ====== 모달 상태 ======
-const isModalOpen = ref(false); // 승인/반려 선택 모달
+const isModalOpen = ref(false);
 const selectedItem = ref(null);
-const isRejectModalOpen = ref(false); // 반려 사유 모달
+const isRejectModalOpen = ref(false);
 const rejectReason = ref("");
-const isEmailSentModalOpen = ref(false); // 반려 이메일 발송 완료
+const isEmailSentModalOpen = ref(false);
 const emailSentTarget = ref(null);
-const isEmailFailModalOpen = ref(false); // 반려 이메일 실패
+const isEmailFailModalOpen = ref(false);
 const emailFailTarget = ref(null);
-const isApproveModalOpen = ref(false); // 승인 완료
+const isApproveModalOpen = ref(false);
 const approveTarget = ref(null);
 
 // ====== 수정 모달 ======
@@ -24,134 +30,53 @@ const editUserId = ref("");
 const editUserName = ref("");
 const editPhone = ref("");
 const editEmail = ref("");
-const editPassword = ref("");
-const newPassword = ref("");
-const confirmPassword = ref("");
+const editSaving = ref(false);
 
-// ====== 샘플 데이터 ======
-const tableData = ref([
-  {
-    id: 1,
+// ====== 목록 (member 테이블 m_auth=a0_30 연동) ======
+const tableData = ref([]);
+
+function mapRow(r) {
+  return {
+    id: r.m_no,
     selected: false,
-    userId: "admin_master",
-    userName: "홍길동",
-    phone: "010-1234-5678",
-    email: "hong@creative.com",
-    targetCount: 1,
-    joinedAt: "20/05/24",
+    userId: r.m_id ?? "",
+    userName: r.m_nm ?? "",
+    phone: r.m_tel ?? "",
+    email: r.m_email ?? "",
+    organName: r.organ_name || r.m_org || "-",
     status: "승인",
-  },
-  {
-    id: 2,
-    selected: false,
-    userId: "user_dev_02",
-    userName: "이미영",
-    phone: "010-9876-5432",
-    email: "lee@creative.com",
-    targetCount: 3,
-    joinedAt: "21/05/24",
-    status: "대기중",
-  },
-  {
-    id: 3,
-    selected: false,
-    userId: "manager_kim",
-    userName: "김철수",
-    phone: "010-2233-4455",
-    email: "kim@creative.com",
-    targetCount: 2,
-    joinedAt: "22/05/24",
-    status: "승인",
-  },
-  {
-    id: 4,
-    selected: false,
-    userId: "support_park",
-    userName: "박지민",
-    phone: "010-5566-7788",
-    email: "park@creative.com",
-    targetCount: 4,
-    joinedAt: "23/05/24",
-    status: "반려",
-  },
-  {
-    id: 5,
-    selected: false,
-    userId: "lead_choi",
-    userName: "최유진",
-    phone: "010-8899-0011",
-    email: "choi@creative.com",
-    targetCount: 1,
-    joinedAt: "24/05/24",
-    status: "승인",
-  },
-  {
-    id: 6,
-    selected: false,
-    userId: "staff_jung",
-    userName: "정호석",
-    phone: "010-1122-3344",
-    email: "jung@creative.com",
-    targetCount: 6,
-    joinedAt: "25/05/24",
-    status: "대기중",
-  },
-  {
-    id: 7,
-    selected: false,
-    userId: "dev_lee",
-    userName: "이현우",
-    phone: "010-4455-6677",
-    email: "hwlee@creative.com",
-    targetCount: 1,
-    joinedAt: "26/05/24",
-    status: "승인",
-  },
-  {
-    id: 8,
-    selected: false,
-    userId: "hr_min",
-    userName: "민윤기",
-    phone: "010-7788-9900",
-    email: "min@creative.com",
-    targetCount: 3,
-    joinedAt: "27/05/24",
-    status: "대기중",
-  },
-  {
-    id: 9,
-    selected: false,
-    userId: "ops_kang",
-    userName: "강다니엘",
-    phone: "010-3344-5566",
-    email: "kang@creative.com",
-    targetCount: 2,
-    joinedAt: "28/05/24",
-    status: "승인",
-  },
-  {
-    id: 10,
-    selected: false,
-    userId: "design_son",
-    userName: "손흥민",
-    phone: "010-6677-8899",
-    email: "son@creative.com",
-    targetCount: 1,
-    joinedAt: "29/05/24",
-    status: "반려",
-  },
-  {
-    id: 11,
-    selected: false,
-    userId: "new_user_01",
-    userName: "이강인",
-    phone: "010-1111-2222",
-    email: "lee@creative.com",
-    targetCount: 1,
-    joinedAt: "30/05/24",
-    status: "대기중",
-  },
-]);
+  };
+}
+
+async function loadManagers() {
+  listLoading.value = true;
+  listError.value = null;
+  try {
+    const params = new URLSearchParams();
+    if (searchBy.value && searchValue.value.trim()) {
+      params.set("searchBy", searchBy.value);
+      params.set("searchValue", searchValue.value.trim());
+    }
+    const res = await fetch(`/api/admin/managers?${params}`);
+    if (!res.ok) throw new Error("담당자 목록 조회 실패");
+    const data = await res.json();
+    tableData.value = (Array.isArray(data) ? data : []).map(mapRow);
+    currentPage.value = 1;
+  } catch (e) {
+    listError.value = e.message;
+    tableData.value = [];
+  } finally {
+    listLoading.value = false;
+  }
+}
+
+function doSearch() {
+  loadManagers();
+}
+
+onMounted(() => {
+  loadManagers();
+});
 
 // ====== 페이징 계산 ======
 const totalPages = computed(() =>
@@ -237,47 +162,89 @@ const handleEdit = (item) => {
   editTarget.value = item;
   editUserId.value = item.userId;
   editUserName.value = item.userName;
-  editPhone.value = item.phone;
-  editEmail.value = item.email;
-  newPassword.value = "";
-  confirmPassword.value = "";
+  editPhone.value = item.phone ?? "";
+  editEmail.value = item.email ?? "";
   isEditModalOpen.value = true;
 };
 
-const confirmEdit = () => {
+const confirmEdit = async () => {
   if (!editTarget.value) return;
-
-  // 비밀번호 변경 확인
-  if (newPassword.value || confirmPassword.value) {
-    if (newPassword.value !== confirmPassword.value) {
-      alert("새 비밀번호와 확인이 일치하지 않습니다.");
-      return;
-    }
-    editTarget.value.password = newPassword.value;
+  const mNo = editTarget.value.id;
+  if (!mNo) {
+    alert("대상 회원 정보가 없습니다.");
+    return;
   }
-
-  editTarget.value.userId = editUserId.value;
-  editTarget.value.userName = editUserName.value;
-  editTarget.value.phone = editPhone.value;
-  editTarget.value.email = editEmail.value;
-
-  closeEditModal();
+  editSaving.value = true;
+  try {
+    const res = await fetch(`/api/admin/members/${encodeURIComponent(mNo)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        m_nm: (editUserName.value || "").trim(),
+        m_tel: (editPhone.value || "").trim(),
+        m_email: (editEmail.value || "").trim(),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "저장 실패");
+    }
+    editTarget.value.userName = editUserName.value;
+    editTarget.value.phone = editPhone.value;
+    editTarget.value.email = editEmail.value;
+    closeEditModal();
+    await loadManagers();
+  } catch (e) {
+    alert(e.message || "저장에 실패했습니다.");
+  } finally {
+    editSaving.value = false;
+  }
 };
 
 const closeEditModal = () => {
-  isEditModalOpen.value = false;
-  editTarget.value = null;
-  editUserId.value = "";
-  editUserName.value = "";
-  editPhone.value = "";
-  editEmail.value = "";
-  editPassword.value = "";
+  if (!editSaving.value) {
+    isEditModalOpen.value = false;
+    editTarget.value = null;
+    editUserId.value = "";
+    editUserName.value = "";
+    editPhone.value = "";
+    editEmail.value = "";
+  }
 };
 </script>
 
 <template>
   <div class="container-fluid py-4">
-    <!-- ====== 테이블 ====== -->
+    <div class="row">
+      <!-- ====== 좌측: 담당자 검색 ====== -->
+      <div class="col-lg-3 mb-4">
+        <div class="card">
+          <div class="card-header pb-0">
+            <h6 class="mb-0">담당자 검색</h6>
+          </div>
+          <div class="card-body">
+            <label class="form-label text-sm">검색 조건</label>
+            <select v-model="searchBy" class="form-select form-select-sm mb-2">
+              <option value="m_nm">이름</option>
+              <option value="m_org">소속기관</option>
+              <option value="m_id">아이디</option>
+            </select>
+            <input
+              v-model="searchValue"
+              type="text"
+              class="form-control form-control-sm mb-2"
+              placeholder="검색어 입력"
+              @keyup.enter="doSearch"
+            />
+            <button class="btn btn-sm btn-success w-100 mb-0" @click="doSearch">
+              검색
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== 우측: 테이블 ====== -->
+      <div class="col-lg-9">
     <div class="card mb-4">
       <div
         class="card-header d-flex justify-content-between align-items-center pb-0"
@@ -288,7 +255,9 @@ const closeEditModal = () => {
         </button>
       </div>
       <div class="card-body px-0 pt-0 pb-2">
-        <div class="table-responsive p-0">
+        <p v-if="listLoading" class="text-muted text-sm mb-0 px-3">로딩 중...</p>
+        <p v-else-if="listError" class="text-danger text-sm mb-0 px-3">{{ listError }}</p>
+        <div v-else class="table-responsive p-0">
           <table class="table align-items-center mb-0">
             <thead>
               <tr>
@@ -315,22 +284,17 @@ const closeEditModal = () => {
                 <th
                   class="text-xxs text-secondary font-weight-bolder opacity-7 ps-2"
                 >
+                  소속기관
+                </th>
+                <th
+                  class="text-xxs text-secondary font-weight-bolder opacity-7 ps-2"
+                >
                   연락처
                 </th>
                 <th
                   class="text-xxs text-secondary font-weight-bolder opacity-7 ps-2"
                 >
                   이메일
-                </th>
-                <th
-                  class="text-center text-xxs text-secondary font-weight-bolder opacity-7"
-                >
-                  지원대상자수
-                </th>
-                <th
-                  class="text-center text-xxs text-secondary font-weight-bolder opacity-7"
-                >
-                  가입일
                 </th>
                 <th
                   class="text-center text-xxs text-secondary font-weight-bolder opacity-7"
@@ -356,12 +320,9 @@ const closeEditModal = () => {
                 <td>{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
                 <td>{{ item.userId }}</td>
                 <td>{{ item.userName }}</td>
+                <td>{{ item.organName }}</td>
                 <td>{{ item.phone }}</td>
                 <td>{{ item.email }}</td>
-                <td class="text-center">
-                  {{ item.targetCount.toLocaleString() }}명
-                </td>
-                <td class="text-center">{{ item.joinedAt }}</td>
                 <td class="text-center">
                   <span
                     class="badge badge-sm cursor-pointer"
@@ -384,6 +345,9 @@ const closeEditModal = () => {
                     <i class="fas fa-pencil-alt"></i>
                   </a>
                 </td>
+              </tr>
+              <tr v-if="!listLoading && !listError && tableData.length === 0">
+                <td colspan="9" class="text-center text-muted py-4">담당자가 없습니다.</td>
               </tr>
             </tbody>
           </table>
@@ -425,6 +389,8 @@ const closeEditModal = () => {
             </ul>
           </nav>
         </div>
+      </div>
+    </div>
       </div>
     </div>
 
@@ -582,7 +548,7 @@ const closeEditModal = () => {
             </div>
             <div class="card-body p-4">
               <h6 class="text-dark mb-3 border-bottom pb-1">기본 정보</h6>
-              <!-- 아이디 -->
+              <!-- 아이디 (읽기 전용) -->
               <div
                 class="d-flex flex-column flex-md-row align-items-center mb-2"
               >
@@ -592,9 +558,11 @@ const closeEditModal = () => {
                   >아이디</label
                 >
                 <input
-                  v-model="editUserId"
-                  class="form-control flex-grow-1"
+                  :value="editUserId"
+                  type="text"
+                  class="form-control flex-grow-1 bg-light"
                   placeholder="아이디"
+                  readonly
                 />
               </div>
 
@@ -646,49 +614,18 @@ const closeEditModal = () => {
                 />
               </div>
 
-              <h6 class="text-dark mb-3 border-bottom pb-1">비밀번호 변경</h6>
-              <!-- 비밀번호 변경 -->
-              <div
-                class="d-flex flex-column flex-md-row align-items-center mb-2"
-              >
-                <label
-                  class="me-md-2 mb-1 mb-md-0"
-                  style="width: 120px; text-align: right"
-                  >새 비밀번호</label
-                >
-                <input
-                  v-model="newPassword"
-                  type="password"
-                  class="form-control flex-grow-1"
-                  placeholder="새 비밀번호"
-                />
-              </div>
-              <div
-                class="d-flex flex-column flex-md-row align-items-center mb-3"
-              >
-                <label
-                  class="me-md-2 mb-1 mb-md-0"
-                  style="width: 120px; text-align: right"
-                  >비밀번호 확인</label
-                >
-                <input
-                  v-model="confirmPassword"
-                  type="password"
-                  class="form-control flex-grow-1"
-                  placeholder="비밀번호 확인"
-                />
-              </div>
-
               <!-- 버튼 -->
               <div class="d-flex justify-content-center gap-2 flex-wrap">
                 <button
                   class="btn btn-sm bg-gradient-success"
+                  :disabled="editSaving"
                   @click="confirmEdit"
                 >
-                  저장
+                  {{ editSaving ? "저장 중..." : "저장" }}
                 </button>
                 <button
                   class="btn btn-sm bg-gradient-secondary"
+                  :disabled="editSaving"
                   @click="closeEditModal"
                 >
                   취소
