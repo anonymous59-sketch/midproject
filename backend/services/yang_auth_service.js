@@ -80,6 +80,17 @@ const svc = {
     }
   },
 
+  // 이메일 존재 여부 체크 / psw수정
+  checkEmailExists: async (m_email) => {
+    try {
+      const rows = await query("checkEmailExists", [m_email]);
+      return rows && rows.length > 0;
+    } catch (err) {
+      console.error("checkEmailExists 오류:", err);
+      return false;
+    }
+  },
+
   // 기관 목록 조회
   getOrganList: async () => {
     try {

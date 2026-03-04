@@ -51,7 +51,7 @@ onBeforeUnmount(() => {
 });
 
 const goToLogin = () => routes.push("/signin");
-
+const goToResetPassword = () => routes.push("/find-password");
 // 인증번호 발송
 const sendVerificationCode = async () => {
   if (!name.value || !email.value) {
@@ -119,7 +119,8 @@ const confirmVerificationCode = async () => {
     }
   } catch (err) {
     authMessage.value =
-      err.response?.data?.message || "인증번호가 일치하지 않습니다.";
+      err.response?.data?.message ||
+      "인증번호가 일치하지 않습니다 인증 번호를 다시 발급받아주세요.";
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;
@@ -267,11 +268,22 @@ const confirmVerificationCode = async () => {
                         fullWidth
                         variant="outline"
                         color="secondary"
-                        class="rounded-0 py-2"
+                        class="rounded-0 mb-3 py-2"
                         size="lg"
                         @click="goToLogin"
                       >
                         로그인 화면으로
+                      </argon-button>
+                      <argon-button
+                        type="button"
+                        fullWidth
+                        variant="outline"
+                        color="secondary"
+                        class="rounded-0 mb-3 py-2"
+                        size="lg"
+                        @click="goToResetPassword"
+                      >
+                        비밀번호 재설정
                       </argon-button>
                     </div>
                   </form>

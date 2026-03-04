@@ -30,6 +30,127 @@ exports.getDsblPrsByGdnNo = async (gdnNo) => {
   return Array.isArray(rows) ? rows.filter((r) => r && r.mc_pn) : [];
 };
 
+// ✅ 마이페이지: 회원 프로필 조회 (m_no) — 단일 객체 반환 (mysql2 [rows,fields] 대응)
+exports.getMemberByMno = async (mNo) => {
+  const raw = await query("selectMemberByMno", [mNo]);
+  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  return Array.isArray(rows) && rows.length > 0 && rows[0] ? rows[0] : null;
+};
+
+// ✅ 마이페이지: 회원 본인 프로필 수정 (m_tel, m_email, m_add)
+exports.updateMemberProfileByMno = async (mNo, payload) => {
+  const { m_tel = "", m_email = "", m_add = "" } = payload || {};
+  await query("updateMemberProfileByMno", [m_tel, m_email, m_add, mNo]);
+  return { ok: true };
+};
+
+// ✅ 기관관리자 마이페이지: organ 1건 조회
+const getOrganByOrganNo = async (organNo) => {
+  if (!organNo) return null;
+  const raw = await query("selectOrganByOrganNo", [organNo]);
+  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  return Array.isArray(rows) && rows.length > 0 && rows[0] ? rows[0] : null;
+};
+
+// ✅ 기관관리자 마이페이지: 해당 기관의 a0_30 담당자 수
+const countManagersByOrganNo = async (organNo) => {
+  if (!organNo) return 0;
+  const raw = await query("countManagersByOrganNo", [organNo]);
+  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : raw;
+  const cnt = row?.cnt ?? 0;
+  return Number(cnt);
+};
+
+// 프로필 전용 조회 (sqlList 충돌 회피: selectMemberProfileByMno 사용)
+const getMemberProfileByMno = async (mNo) => {
+  const raw = await query("selectMemberProfileByMno", [mNo]);
+  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  return Array.isArray(rows) && rows.length > 0 && rows[0] ? rows[0] : null;
+};
+
+// ✅ 기관관리자 마이페이지: 회원 + 기관 + 담당자 수 한 번에
+exports.getOrganManagerMypage = async (mNo) => {
+  const member = await getMemberProfileByMno(mNo);
+  if (!member) return null;
+  const mOrg = member.m_org || null;
+  const organ = mOrg ? await getOrganByOrganNo(mOrg) : null;
+  const managerCount = mOrg ? await countManagersByOrganNo(mOrg) : 0;
+  return { member, organ, managerCount };
+};
+
+// ✅ 기관관리자 마이페이지: 기관 정보 수정 (기관명, 주소, 메일, 대표전화)
+exports.updateOrganProfileByOrganNo = async (organNo, payload) => {
+  const { organ_name = "", organ_address = "", organ_mail = "", organ_tel = "" } = payload || {};
+  await query("updateOrganProfileByOrganNo", [
+    (organ_name || "").trim(),
+    (organ_address || "").trim(),
+    (organ_mail || "").trim(),
+    (organ_tel || "").trim(),
+    organNo,
+  ]);
+  return { ok: true };
+};
+
+// mc_pn 생성: DSBL + YYYYMMDD + 4자리 (마이페이지 지원대상자 등록)
+const formatYmdForMcPn = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}`;
+};
+
+// ✅ 마이페이지: 지원대상자(dsbl_prs) 수정 (gdn_no 일치 시에만)
+exports.updateDsblPrs = async (mcPn, gdnNo, payload) => {
+  const row = await query("selectDsblPrsByMcPn", [mcPn]);
+  const one = Array.isArray(row) && row.length > 0 ? row[0] : null;
+  if (!one || (one.gdn_no || "") !== (gdnNo || "")) {
+    const err = new Error("해당 지원대상자를 수정할 수 없습니다.");
+    err.code = "FORBIDDEN";
+    throw err;
+  }
+  const { mc_nm, mc_bd, mc_gender, mc_address, mc_type, mc_submitdate } = payload || {};
+  await query("updateDsblPrsByMcPn", [
+    mc_nm ?? one.mc_nm,
+    mc_bd ?? one.mc_bd,
+    mc_gender ?? one.mc_gender,
+    mc_address ?? one.mc_address,
+    mc_type ?? one.mc_type,
+    mc_submitdate ?? one.mc_submitdate,
+    mcPn,
+    gdnNo,
+  ]);
+  return { ok: true };
+};
+
+// ✅ 마이페이지: 지원대상자(dsbl_prs) 신규 등록 — 등록일은 오늘 날짜로 고정
+exports.createDsblPrs = async (gdnNo, payload) => {
+  const now = new Date();
+  const prefix = `DSBL${formatYmdForMcPn(now)}`;
+  const raw = await query("selectMaxMcPnByDate", [`${prefix}%`]);
+  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  let next = 1;
+  if (Array.isArray(rows) && rows.length > 0 && rows[0] && rows[0].mc_pn) {
+    const last = String(rows[0].mc_pn);
+    const num = parseInt(last.slice(-4), 10);
+    if (!Number.isNaN(num)) next = num + 1;
+  }
+  const mc_pn = `${prefix}${String(next).padStart(4, "0")}`;
+  const { mc_nm, mc_bd, mc_gender, mc_address, mc_type } = payload || {};
+  const mc_submitdate = formatYmdForMcPn(now); // 등록일: 항상 오늘(today) 고정
+  await query("insertDsblPrs", [
+    mc_pn,
+    (mc_nm || "").trim(),
+    mc_bd || null,
+    mc_gender === "b0_10" ? "b0_10" : "b0_00",
+    (mc_address || "").trim(),
+    (mc_type || "").trim(),
+    gdnNo,
+    mc_submitdate,
+  ]);
+  return { ok: true, mc_pn };
+};
+
 // ✅ 지원자(mem_no)별 지원신청 목록 — /applicant 대시보드 (support.mem_no = m_no, 본인 신청 건만)
 exports.getApplicantSupportList = async (mNo) => {
   if (!mNo) return [];

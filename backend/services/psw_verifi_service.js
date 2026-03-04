@@ -62,7 +62,7 @@ const svc = {
     sendJoinMail: async (email) => {
 
     // 회원가입은 아직 m_no가 없을 수 있으므로 null
-    return await createAndSendVerification(email, null, "i0_00");
+    return await createAndSendVerification(email, null, "i0_10");
 },
 
 //    6. 아이디 찾기 인증번호 발송
@@ -98,10 +98,11 @@ verifyCode: async (email, code, purpose) => {
     // 1) 메일 + 용도 기준으로 가장 최근 "미인증(h0_00)" 건 조회
     const result = await query(
         "selectLatestPendingVerification",
-        [email, purpose]
+        [email, purpose, code]
     );
+    console.log("검증 결과:", result);
 
-    if (!result || result.length === 0) {
+    if (!result || result.length == 0) {
         throw new Error("인증번호가 올바르지 않거나 만료되었습니다.");
     }
 
@@ -119,7 +120,7 @@ verifyCode: async (email, code, purpose) => {
     // 인증번호 미일치 → 실패(h0_99)로 변경
     if (String(code) !== String(verifi_num)) {
         await query("updateVerificationFailByNo", [verifi_no]);
-        throw new Error("인증번호가 일치하지 않습니다.");
+        throw new Error("인증번호가 일치하지 않습니다 인증 번호를 다시 발급받아주세요.");
     }
 
     // 여기까지 왔으면 인증 성공 → h0_10
@@ -127,7 +128,7 @@ verifyCode: async (email, code, purpose) => {
 
     const res = { message: "인증 성공" };
     if (purpose === "i0_20" && m_no) {
-        const member = await query("selectMemberByMno", [m_no]);
+        const member = await query("psw_selectMemberByMno", [m_no]);
         if (member && member[0]) res.m_id = member[0].m_id;
     }
     if (purpose === "i0_30" && m_no) {

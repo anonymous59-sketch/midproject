@@ -28,13 +28,14 @@ const isEmailVerified = ref(false);
 const authCodeInput = ref("");
 const showAuthSection = ref(false); // 인증번호 발송 후 입력 칸 표시
 const authMessage = ref(""); // 성공/실패 메시지 (작은 글씨)
+const emailErrorMessage = ref(""); // 이메일 중복 경고
 const isSendingCode = ref(false); // 발송 중 로딩
 const isVerifying = ref(false); // 인증 중 로딩
 
 const tel = ref("");
 const bd = ref("");
 const address = ref("");
-const userType = ref("");
+const userType = ref("일반회원");
 const org = ref("");
 
 const organList = ref([]);
@@ -58,9 +59,9 @@ const filteredOrganList = computed(() => {
 });
 
 const authCodeMap = {
-  일반회원: "a0_20",
-  기관담당자: "a0_30",
-  기관관리자: "a0_40",
+  일반회원: "a0_21",
+  기관담당자: "a0_31",
+  기관관리자: "a0_41",
 };
 
 const showModal = ref(false);
@@ -192,9 +193,20 @@ const sendEmailVerification = async () => {
     showModal.value = true;
     return;
   }
+  emailErrorMessage.value = "";
   authMessage.value = "";
   isSendingCode.value = true;
   try {
+    // 0) 이메일 중복 체크 (member.email unique)
+    const check = await axios.get("/api/auth/check-email", {
+      params: { email: email.value },
+    });
+    if (check.data?.exists) {
+      emailErrorMessage.value = "해당 이메일은 이미 가입되어있습니다.";
+      showAuthSection.value = false;
+      return;
+    }
+
     // 재인증 시도를 위해 기존 상태 초기화
     isEmailVerified.value = false;
     authCodeInput.value = "";
@@ -239,7 +251,7 @@ const confirmAuthCode = async () => {
     const res = await axios.post("/api/verifi/verify", {
       email: email.value,
       code: authCodeInput.value,
-      purpose: "i0_00",
+      purpose: "i0_10",
     });
     authMessage.value = res.data.message || "인증이 완료되었습니다.";
     isEmailVerified.value = true;
@@ -250,7 +262,8 @@ const confirmAuthCode = async () => {
     }
   } catch (err) {
     authMessage.value =
-      err.response?.data?.message || "인증번호가 일치하지 않습니다.";
+      err.response?.data?.message ||
+      "인증번호가 일치하지 않습니다 인증 번호를 다시 발급받아주세요.";
     // 인증 실패 시 타이머 종료 → 재인증 버튼 활성화
     if (timerInterval) {
       clearInterval(timerInterval);
@@ -277,6 +290,11 @@ const handleSignUp = async () => {
     showModal.value = true;
     return;
   }
+  if (!address.value.trim() || !detailAddress.value.trim()) {
+    modalMessage.value = "주소를 입력해주세요.";
+    showModal.value = true;
+    return;
+  }
   if (password.value !== confirmPassword.value) {
     alert("비밀번호 확인 요망");
     return;
@@ -288,13 +306,13 @@ const handleSignUp = async () => {
       m_pw: password.value,
       m_nm: name.value,
       m_email: email.value,
-      m_tel: tel.value,
+      m_tel: tel.value.replace(/\D/g, ""), // 숫자만 추출, 하이픈이나 다른 문자, 공백 전부 제거
       m_bd: bd.value,
       m_add: `(${zipCode.value}) ${address.value} ${detailAddress.value}`
         .replace(/\s+/g, " ")
         .trim(), // (우편번호) 기본주소 상세주소 형식
       // 우편번호 기준으로 가까운 기관 선택할 거라 필요함
-      m_auth: authCodeMap[userType.value] || "a0_20",
+      m_auth: authCodeMap[userType.value] || "a0_21", // 기본값은 일반회원
       m_org: org.value || null,
     };
 
@@ -371,6 +389,7 @@ const searchAddress = () => {
             <!-- 수정: 회원 유형 버튼 선택 시 색상 표시 -->
             <div class="row px-xl-5 px-sm-4 px-3 mb-4 text-center">
               <div class="col-4 px-1">
+                <!-- 기본적으로 일반회원이 선택되게 설정 -->
                 <argon-button
                   :variant="userType === '일반회원' ? 'gradient' : 'outline'"
                   :color="userType === '일반회원' ? 'success' : 'secondary'"
@@ -492,6 +511,18 @@ const searchAddress = () => {
                       placeholder="이메일"
                       size="lg"
                       class="rounded-0 flex-grow-1 mb-0"
+                      @input="
+                        emailErrorMessage = '';
+                        isEmailVerified = false;
+                        showAuthSection = false;
+                        authCodeInput = '';
+                        authMessage = '';
+                        countdown = 0;
+                        if (timerInterval) {
+                          clearInterval(timerInterval);
+                          timerInterval = null;
+                        }
+                      "
                     />
                     <argon-button
                       type="button"
@@ -505,6 +536,12 @@ const searchAddress = () => {
                       {{ emailButtonLabel }}
                     </argon-button>
                   </div>
+                  <p
+                    v-if="emailErrorMessage"
+                    class="text-danger text-xs mt-1 mb-0 ps-1"
+                  >
+                    {{ emailErrorMessage }}
+                  </p>
                   <!-- 인증번호 입력 (발송 후 표시) -->
                   <div v-if="showAuthSection && !isEmailVerified" class="mt-2">
                     <div class="d-flex gap-2">
@@ -552,32 +589,39 @@ const searchAddress = () => {
 
                 <!-- 연락처 -->
                 <div class="mb-3">
-                  <argon-input
+                  <input
                     v-model="tel"
                     type="tel"
-                    placeholder="연락처"
+                    maxlength="11"
+                    placeholder="연락처 (숫자만 입력해주세요)"
                     size="lg"
-                    class="rounded-0"
+                    class="rounded-3 form-control form-control-lg mb-3"
                   />
                 </div>
 
                 <!-- 생년월일 -->
-                <div class="mb-3">
-                  <argon-input
-                    v-model="bd"
-                    type="date"
-                    size="lg"
-                    class="rounded-0"
-                  />
-                </div>
+                <input
+                  v-model="bd"
+                  type="text"
+                  placeholder="생년월일을 선택해주세요"
+                  size="lg"
+                  class="rounded-3 form-control form-control-lg mb-3"
+                  @focus="(e) => (e.target.type = 'date')"
+                  @blur="
+                    (e) => {
+                      if (!bd) e.target.type = 'text';
+                    }
+                  "
+                />
 
                 <!-- 주소 -->
                 <div class="mb-3">
                   <div class="d-flex gap-2 mb-2">
-                    <argon-input
+                    <input
                       v-model="zipCode"
                       placeholder="우편번호"
                       readonly
+                      class="form-control"
                     />
 
                     <argon-button
@@ -592,11 +636,11 @@ const searchAddress = () => {
                     </argon-button>
                   </div>
 
-                  <argon-input
+                  <input
                     v-model="address"
                     placeholder="기본 주소"
                     readonly
-                    class="mb-2"
+                    class="mb-2 form-control form-control-lg"
                   />
 
                   <argon-input

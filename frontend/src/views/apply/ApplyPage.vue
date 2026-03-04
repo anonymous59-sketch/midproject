@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import axios from "axios";
 import { useAuthStore } from "@/store/auth";
 
+const authStore = useAuthStore();
+
 // ✅ 프론트(devServer) 프록시 기준: /api/apply/xxx → 백엔드 /apply/xxx
 const API_PREFIX = "/api/apply";
 const authStore = useAuthStore();
@@ -112,17 +114,17 @@ const apiGet = (path) => axios.get(`${API_PREFIX}${path}`);
 const apiPost = (path, body) => axios.post(`${API_PREFIX}${path}`, body);
 
 // ===== API =====
-/** 본인이 담당하는 장애인만 조회 (dsbl_prs.gdn_no = 로그인한 회원 m_no) */
+/** 로그인 사용자(gdn_no)의 지원대상자만 조회 */
 const loadTargets = async () => {
-  const gdnNo = loginMNo.value;
+  const gdnNo = authStore.user?.m_no;
+  if (!gdnNo) {
+    targets.value = [];
+    selectedMcPn.value = "";
+    targetLoading.value = false;
+    return;
+  }
   targetLoading.value = true;
   try {
-    if (!gdnNo) {
-      targets.value = [];
-      selectedMcPn.value = "";
-      targetLoading.value = false;
-      return;
-    }
     const { data } = await apiGet(`/dsbl-prs?gdn_no=${encodeURIComponent(gdnNo)}`);
     targets.value = Array.isArray(data) ? data : [];
     selectedMcPn.value = targets.value.length ? targets.value[0].mc_pn : "";
@@ -211,9 +213,9 @@ const onSave = async () => {
       return;
     }
 
-    const memNo = loginMNo.value || ""; // 지원자(신청자) = 로그인한 회원 → support.mem_no, survey_a.ans_no
+    const memNo = authStore.user?.m_no;
     if (!memNo) {
-      alert("로그인 후 이용해 주세요.");
+      alert("로그인 정보가 없습니다. 다시 로그인해 주세요.");
       return;
     }
     const reqYn = "e0_00"; // 부코드(판정 상태) 기본값

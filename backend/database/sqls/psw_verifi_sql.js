@@ -16,6 +16,7 @@ const qry = {
     WHERE verifi_mail = ?
       AND verifi_purpose = ?
       AND verifi_success = 'h0_00'
+      AND verifi_num = ?
     ORDER BY verifi_create_at DESC
     LIMIT 1
   `,
@@ -53,7 +54,7 @@ const qry = {
     WHERE m_no = ?
   `,
 
-  selectMemberByMno: `
+  psw_selectMemberByMno: `
     SELECT m_no, m_id, m_nm, m_email
     FROM member
     WHERE m_no = ?

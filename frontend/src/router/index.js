@@ -13,7 +13,7 @@ import six from "./six";
 import yang from "./yang";
 
 /** 로그인이 필요한 경로 (접두어) */
-const AUTH_REQUIRED_PATHS = ["/applicant", "/manager", "/organmanager", "/admin", "/managermanage", "/applicantmanage", "/organmanagermanage"];
+const AUTH_REQUIRED_PATHS = ["/applicant", "/manager", "/organmanager", "/admin", "/managermanage", "/applicantmanage", "/organmanagermanage", "/apply", "/mypage"];
 function requiresAuth(path) {
   return AUTH_REQUIRED_PATHS.some((p) => path === p || path.startsWith(p + "/"));
 }
