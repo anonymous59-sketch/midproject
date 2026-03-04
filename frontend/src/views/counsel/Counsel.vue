@@ -50,6 +50,11 @@ async function loadSupport() {
     const data = await res.json();
     support.value = data.support || null;
     dsblPrs.value = data.dsbl_prs || null;
+    // sup_code 기준 상태(req_yn)에 따라 우선순위/계획 탭 선로딩
+    // - req_yn = e0_10 이면 우선순위 탭에서 사용할 rankData를 먼저 조회
+    if (support.value?.req_yn === "e0_10") {
+      await loadRankTab();
+    }
   } catch (e) {
     dsblError.value = e.message;
     support.value = null;
@@ -73,6 +78,9 @@ const leftTab = ref("application");
 // ─── 지원계획 / 지원결과 (store 연동) ───
 const authStore = useAuthStore();
 const supportStore = useSupportStore();
+const userAuth = computed(() => authStore.user?.m_auth || "");
+const isApplicant = computed(() => userAuth.value === "a0_20");
+const isManager = computed(() => userAuth.value === "a0_30");
 const { planData, resultData, infoData } = storeToRefs(supportStore);
 
 const { historyModal, openHistoryModal: _openHistoryModal, closeHistoryModal, insertHistory } = useHistory();
@@ -667,7 +675,8 @@ async function onRankApprovalRequest({ s_rank_code, apply_for, prev_req_code }) 
       body: JSON.stringify({
         sup_code: code,
         s_rank_code,
-        mgr_no: infoData.value?.mgr_no ?? null,
+        // 우선순위 신청자 = 로그인한 기관담당자
+        mgr_no: authStore.user?.m_no ?? null,
         apply_for: apply_for ?? "",
         prev_req_code: prev_req_code ?? null,
       }),
@@ -1041,6 +1050,62 @@ async function saveCounsel() {
   }
 }
 
+// 기관담당자용: 신청접수(접수/반려) 및 탭 노출 제어
+const hasCounsel = computed(() => counselList.value.length > 0);
+const reqYn = computed(() => support.value?.req_yn || "");
+const rankApproved = computed(() => rankData.value?.s_rank_res === "e0_10");
+
+// 상태별 탭 노출 규칙 (sup_code 기준 req_yn / 우선순위 판정)
+// - req_yn = e0_00: 지원신청서 + 신청접수, 나머지 비노출
+// - req_yn = e0_10: 지원신청서 + 우선순위 (우선순위 미승인)
+// - req_yn = e0_10 && 우선순위 s_rank_res = e0_10: 지원신청서 + 우선순위 + 지원계획
+const showReceiptTab = computed(
+  () => isManager.value && hasCounsel.value && reqYn.value === "e0_00",
+);
+const showRankTab = computed(() => reqYn.value === "e0_10");
+const showPlanTab = computed(
+  () => reqYn.value === "e0_10" && rankApproved.value,
+);
+const showResultTab = computed(
+  () =>
+    reqYn.value === "e0_10" &&
+    rankApproved.value &&
+    (selectedPlanCode.value || resultData.value.length > 0),
+);
+
+async function updateReqYn(decision) {
+  const code = supCode.value;
+  if (!code) return;
+  try {
+    const res = await fetch(
+      `/api/apply/support/${encodeURIComponent(code)}/req-yn`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ req_yn: decision }),
+      },
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "신청 상태 변경에 실패했습니다.");
+    await loadSupport();
+    const label = decision === "e0_10" ? "신청이 접수되었습니다." : "신청이 반려되었습니다.";
+    showAlert("success", "알림", label);
+    if (decision === "e0_10") {
+      leftTab.value = "rank";
+    }
+  } catch (e) {
+    showAlert("error", "알림", e.message || "신청 상태 변경 중 오류가 발생했습니다.");
+  }
+}
+
+function onReceiptAccept() {
+  updateReqYn("e0_10");
+}
+
+function onReceiptReject() {
+  updateReqYn("e0_99");
+}
+
 const contentPreview = (text, max = 30) => {
   if (!text) return "";
   return text.length <= max ? text : text.slice(0, max) + "...";
@@ -1148,7 +1213,19 @@ function formatCounselDate(val) {
             >
               지원신청서
             </button>
+            <!-- 기관담당자용 신청접수: 상담내역이 있고 req_yn=e0_00 일 때 -->
             <button
+              v-if="showReceiptTab"
+              type="button"
+              class="btn btn-link btn-sm p-0 me-3 text-decoration-none"
+              :class="leftTab === 'receipt' ? 'fw-bold text-dark' : 'text-muted'"
+              @click="leftTab = 'receipt'"
+            >
+              신청접수
+            </button>
+            <!-- 우선순위: 신청접수 후(접수 상태 등) 사용 -->
+            <button
+              v-if="showRankTab"
               type="button"
               class="btn btn-link btn-sm p-0 me-3 text-decoration-none"
               :class="leftTab === 'rank' ? 'fw-bold text-dark' : 'text-muted'"
@@ -1157,6 +1234,7 @@ function formatCounselDate(val) {
               우선순위
             </button>
             <button
+              v-if="showPlanTab"
               type="button"
               class="btn btn-link btn-sm p-0 me-3 text-decoration-none"
               :class="leftTab === 'plan' ? 'fw-bold text-dark' : 'text-muted'"
@@ -1165,6 +1243,7 @@ function formatCounselDate(val) {
               지원계획
             </button>
             <button
+              v-if="showResultTab"
               type="button"
               class="counsel-tab-btn rounded px-2 py-1 text-decoration-none border-0"
               :class="
@@ -1294,7 +1373,7 @@ function formatCounselDate(val) {
                   </template>
                 </div>
                 <div class="mt-3 pt-2 border-top d-flex align-items-center justify-content-end flex-wrap gap-2">
-                  <div v-if="!applicationEditMode" class="d-flex gap-2">
+                  <div v-if="!applicationEditMode && isApplicant" class="d-flex gap-2">
                     <button
                       type="button"
                       class="btn btn-sm btn-outline-primary"
@@ -1303,7 +1382,7 @@ function formatCounselDate(val) {
                       수정하기
                     </button>
                   </div>
-                  <div v-else class="d-flex gap-2">
+                  <div v-else-if="applicationEditMode && isApplicant" class="d-flex gap-2">
                     <button
                       type="button"
                       class="btn btn-sm btn-primary"
@@ -1323,6 +1402,42 @@ function formatCounselDate(val) {
                   </div>
                 </div>
               </template>
+              <!-- 신청수리 (기관담당자) -->
+              <template v-else-if="leftTab === 'receipt'">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <h6 class="text-sm text-uppercase text-muted mb-0">신청수리</h6>
+                  <span class="text-sm text-muted">
+                    상담일지 {{ counselList.length }}건 /
+                    현재 상태:
+                    {{ support?.req_name || support?.req_yn || '-' }}
+                  </span>
+                </div>
+                <p v-if="!hasCounsel" class="text-muted text-sm mb-0">
+                  상담일지가 한 건 이상 존재할 때 신청수리를 진행할 수 있습니다.
+                </p>
+                <div v-else class="text-sm">
+                  <p class="text-muted">
+                    상담내역을 검토한 뒤, 이 신청을 접수하거나 반려할 수 있습니다.
+                  </p>
+                  <div class="d-flex gap-2 mt-3">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-success"
+                      @click="onReceiptAccept"
+                    >
+                      신청 접수
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-danger"
+                      @click="onReceiptReject"
+                    >
+                      신청 반려
+                    </button>
+                  </div>
+                </div>
+              </template>
+
               <!-- 우선순위 -->
               <template v-else-if="leftTab === 'rank'">
                 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -1847,5 +1962,13 @@ function formatCounselDate(val) {
 }
 .counsel-tab-active {
   background: rgba(0, 0, 0, 0.08) !important;
+}
+/* 비활성화된 탭/버튼 공통 스타일 */
+.counsel-tab-btn:disabled,
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 </style>

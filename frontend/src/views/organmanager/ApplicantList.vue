@@ -44,6 +44,12 @@ const rows = ref([]);
 const listLoading = ref(false);
 const listError = ref("");
 
+// 기관 내 담당자 목록 (배정용)
+const managers = ref([]);
+const managersLoading = ref(false);
+const assigningSupCode = ref("");
+const assigningMgrNo = ref("");
+
 function formatApplyDate(val) {
   if (!val) return "";
   const d = typeof val === "string" ? new Date(val) : val;
@@ -94,6 +100,61 @@ async function loadOrganManagerList() {
   }
 }
 
+// 기관 내 담당자 목록 조회 (a0_30, m_org=로그인 기관)
+async function loadManagersForOrg() {
+  const mOrg = authStore.user?.m_org;
+  if (!mOrg) {
+    managers.value = [];
+    return;
+  }
+  managersLoading.value = true;
+  try {
+    const params = new URLSearchParams();
+    params.set("m_org", mOrg);
+    const res = await fetch(`/api/admin/managers?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "담당자 목록 조회 실패");
+    managers.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error("[loadManagersForOrg] error:", e);
+    managers.value = [];
+  } finally {
+    managersLoading.value = false;
+  }
+}
+
+function beginAssignManager(row) {
+  if (!row?.sup_code) return;
+  assigningSupCode.value = row.sup_code;
+  assigningMgrNo.value = "";
+  if (managers.value.length === 0 && !managersLoading.value) {
+    loadManagersForOrg();
+  }
+}
+
+async function confirmAssignManager() {
+  if (!assigningSupCode.value || !assigningMgrNo.value) return;
+  try {
+    const res = await fetch(`/api/apply/support/${encodeURIComponent(assigningSupCode.value)}/manager`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mgr_no: assigningMgrNo.value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "담당자 배정에 실패했습니다.");
+    assigningSupCode.value = "";
+    assigningMgrNo.value = "";
+    await loadOrganManagerList();
+  } catch (e) {
+    alert(e.message || "담당자 배정에 실패했습니다.");
+  }
+}
+
+function cancelAssignManager() {
+  assigningSupCode.value = "";
+  assigningMgrNo.value = "";
+}
+
 /**
  * [3] “검색” 버튼을 눌렀을 때, 실제로는 API 호출해야 함.
  * 지금은 일단 콘솔 출력만.
@@ -136,7 +197,9 @@ const filteredRows = computed(() => {
   });
 });
 
-onMounted(() => loadOrganManagerList());
+onMounted(() => {
+  loadOrganManagerList();
+});
 
 const viewApply = (row) => {
   if (row.sup_code) router.push(`/review/${encodeURIComponent(row.sup_code)}`);
@@ -381,7 +444,51 @@ const viewResult = (row) => {
                     </td>
 
                     <td class="text-center text-sm">
-                      {{ row.managerName || "-" }}
+                      <template v-if="row.managerName">
+                        {{ row.managerName }}
+                      </template>
+                      <template v-else>
+                        <div v-if="assigningSupCode === row.sup_code">
+                          <div class="d-flex align-items-center gap-1">
+                            <select
+                              v-model="assigningMgrNo"
+                              class="form-select form-select-sm"
+                              style="min-width: 140px"
+                            >
+                              <option value="" disabled>담당자 선택</option>
+                              <option
+                                v-for="m in managers"
+                                :key="m.m_no || m.id"
+                                :value="m.m_no || m.id"
+                              >
+                                {{ m.m_nm }} ({{ m.organ_name || m.m_org || "" }})
+                              </option>
+                            </select>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-primary"
+                              @click="confirmAssignManager"
+                            >
+                              배정
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-secondary"
+                              @click="cancelAssignManager"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          v-else
+                          type="button"
+                          class="btn btn-link btn-sm p-0 text-danger text-decoration-none"
+                          @click="beginAssignManager(row)"
+                        >
+                          미배정
+                        </button>
+                      </template>
                     </td>
                     <td class="text-center text-sm">{{ row.stage }}</td>
 

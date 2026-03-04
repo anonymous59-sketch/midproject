@@ -1,9 +1,14 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import axios from "axios";
+import { useAuthStore } from "@/store/auth";
 
 // ✅ 프론트(devServer) 프록시 기준: /api/apply/xxx → 백엔드 /apply/xxx
 const API_PREFIX = "/api/apply";
+const authStore = useAuthStore();
+
+/** 로그인한 회원 m_no = dsbl_prs.gdn_no(보호자) → 본인이 담당하는 장애인만 선택 가능 */
+const loginMNo = computed(() => authStore.user?.m_no ?? "");
 
 // ===== 상태 =====
 const loading = ref(true);
@@ -107,11 +112,19 @@ const apiGet = (path) => axios.get(`${API_PREFIX}${path}`);
 const apiPost = (path, body) => axios.post(`${API_PREFIX}${path}`, body);
 
 // ===== API =====
+/** 본인이 담당하는 장애인만 조회 (dsbl_prs.gdn_no = 로그인한 회원 m_no) */
 const loadTargets = async () => {
+  const gdnNo = loginMNo.value;
   targetLoading.value = true;
   try {
-    const { data } = await apiGet("/targets");
-    targets.value = data || [];
+    if (!gdnNo) {
+      targets.value = [];
+      selectedMcPn.value = "";
+      targetLoading.value = false;
+      return;
+    }
+    const { data } = await apiGet(`/dsbl-prs?gdn_no=${encodeURIComponent(gdnNo)}`);
+    targets.value = Array.isArray(data) ? data : [];
     selectedMcPn.value = targets.value.length ? targets.value[0].mc_pn : "";
   } catch (err) {
     console.error("[loadTargets] error:", err);
@@ -157,6 +170,9 @@ onMounted(async () => {
   try {
     setToday();
     await loadTargets();
+    if (!loginMNo.value) {
+      setTimeout(() => { if (loginMNo.value) loadTargets(); }, 300);
+    }
     await loadCurrentSurvey();
 
     if (!currentSurvey.value?.sver_code) {
@@ -195,12 +211,17 @@ const onSave = async () => {
       return;
     }
 
-    // TODO: 로그인/담당자 연동 후 실제 값으로 교체
-    const memNo = "MEM202602240023"; // 지원자(신청자)
+    const memNo = loginMNo.value || ""; // 지원자(신청자) = 로그인한 회원 → support.mem_no, survey_a.ans_no
+    if (!memNo) {
+      alert("로그인 후 이용해 주세요.");
+      return;
+    }
     const reqYn = "e0_00"; // 부코드(판정 상태) 기본값
 
+    // support INSERT: mc_pn(지원대상자 dsbl_prs.mc_pn), mem_no(로그인 회원) → PK sup_code
+    // survey_a INSERT: 조사지 답변, ans_no=mem_no, sup_code(support PK) 함께 저장
     const payload = {
-      mc_pn: selectedMcPn.value,
+      mc_pn: selectedMcPn.value, // 지원대상자 선택값 → support.mc_pn
       sver_code: selectedSurveyCode.value,
       write_date: writeDate.value,
       mem_no: memNo,
@@ -208,8 +229,11 @@ const onSave = async () => {
       answers: answers.value,
     };
 
-    await apiPost("/applications", payload);
+    const { data } = await apiPost("/applications", payload);
     alert("저장되었습니다.");
+    if (data?.sup_code) {
+      // 필요 시 상담/리뷰 페이지로 이동 등 처리 가능
+    }
   } catch (err) {
     console.error("[onSave] submit error:", err);
     alert("저장 중 오류가 발생했습니다. 콘솔을 확인해 주세요.");
@@ -240,7 +264,10 @@ const onCancel = () => alert("취소(더미)");
       <div class="col-lg-3 mb-4">
         <div class="card">
           <div class="card-header pb-0">
-            <h6 class="mb-0">지원자 선택</h6>
+            <h6 class="mb-0">지원대상자 선택</h6>
+            <p class="text-xs text-muted mb-0 mt-1">
+              로그인한 회원이 담당하는 장애인만 표시됩니다.
+            </p>
           </div>
           <div class="card-body">
             <div v-if="targetLoading" class="text-center text-muted py-3">
@@ -248,12 +275,15 @@ const onCancel = () => alert("취소(더미)");
             </div>
 
             <template v-else>
-              <div v-if="targets.length === 0" class="text-sm text-muted">
-                등록된 지원대상자가 없습니다. (dsbl_prs 확인)
+              <div v-if="!loginMNo" class="text-sm text-muted">
+                로그인한 회원이 담당하는 장애인만 선택할 수 있습니다. 로그인 후 이용해 주세요.
+              </div>
+              <div v-else-if="targets.length === 0" class="text-sm text-muted">
+                본인이 담당하는 지원대상자(장애인)가 없습니다. (마이페이지에서 등록 후 이용)
               </div>
 
               <template v-else>
-                <label class="form-label text-sm">지원자명</label>
+                <label class="form-label text-sm">지원대상자(장애인)명</label>
                 <select
                   class="form-select form-select-sm"
                   v-model="selectedMcPn"

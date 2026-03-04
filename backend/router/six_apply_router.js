@@ -289,7 +289,7 @@ router.get("/surveys/:sverCode", async (req, res) => {
   }
 });
 
-// 지원신청 저장
+// 지원신청 저장: support INSERT(지원대상자 mc_pn, 로그인 회원 mem_no) → PK(sup_code) → survey_a INSERT(ans_no=mem_no, sup_code)
 router.post("/applications", async (req, res) => {
   try {
     const { mc_pn, sver_code, write_date, mem_no, req_yn, answers } = req.body;
@@ -300,10 +300,7 @@ router.post("/applications", async (req, res) => {
 
     const result = await sixApplyService.createApplication({
       mc_pn,
-      sver_code,
-      write_date,
       mem_no,
-      mgr_no,
       req_yn,
       answers,
     });
@@ -311,6 +308,7 @@ router.post("/applications", async (req, res) => {
     return res.status(201).json({
       message: "ok",
       sup_code: result.sup_code,
+      a_codes: result.a_codes || [],
     });
   } catch (err) {
     if (err.message === "FK_REFERENCE_MISSING" && err.fkDetail) {
@@ -329,6 +327,44 @@ router.post("/applications", async (req, res) => {
     }
     console.error("[POST /apply/applications] error:", err);
     return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ✅ 기관관리자: 지원신청 담당자 배정/변경 (support.mgr_no)
+router.put("/support/:supCode/manager", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const { mgr_no } = req.body || {};
+    if (!supCode) {
+      return res.status(400).json({ message: "sup_code가 없습니다." });
+    }
+    await sixApplyService.updateSupportManager(supCode, mgr_no || null);
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /support/:supCode/manager]", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message || String(err) });
+  }
+});
+
+// ✅ 기관담당자: 신청 접수/반려 (support.req_yn 변경)
+router.put("/support/:supCode/req-yn", async (req, res) => {
+  try {
+    const { supCode } = req.params;
+    const { req_yn } = req.body || {};
+    if (!supCode || !req_yn) {
+      return res
+        .status(400)
+        .json({ message: "sup_code와 req_yn이 필요합니다." });
+    }
+    await sixApplyService.updateSupportReqYn(supCode, req_yn);
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /support/:supCode/req-yn]", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message || String(err) });
   }
 });
 

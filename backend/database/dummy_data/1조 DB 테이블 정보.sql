@@ -134,7 +134,7 @@ CREATE TABLE `support` (
   `mem_no` VARCHAR(20) NOT NULL,
   `mc_pn` VARCHAR(20) NOT NULL,
   `sup_day` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `mgr_no` VARCHAR(20) NOT NULL,
+  `mgr_no` VARCHAR(20) NULL,
   `req_yn` VARCHAR(30) NOT NULL COMMENT '부코드 FK',
   `res_time` DATETIME NULL,
   `supt_rej_cmt` VARCHAR(200) NULL,
