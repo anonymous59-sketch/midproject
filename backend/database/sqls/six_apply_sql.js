@@ -181,7 +181,7 @@ exports.selectSurveyBySverCode = `
 exports.selectCurrentSurvey = `
   SELECT sver_code, sv_name
   FROM survey
-  WHERE sver_ondate <= CURDATE()
+  WHERE sver_ondate <= CURDATE() + INTERVAL 1 DAY
     AND CURDATE() <= COALESCE(sver_enddate, '2099-12-31')
   ORDER BY sver_ondate DESC
   LIMIT 1

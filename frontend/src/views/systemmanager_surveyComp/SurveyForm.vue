@@ -42,7 +42,6 @@ const majorForm = ref({
 
 const subForm = ref({
   name: "", // 항목내용
-  note: "", // 비고
 });
 
 const questionForm = ref({
@@ -216,7 +215,6 @@ const buildPayload = () => {
     id: subC.id,
     majorId: subC.majorId,
     name: subC.name,
-    note: subC.note || "",
   }));
 
   const mapAnswerTypeToCode = (type) => {
@@ -356,7 +354,6 @@ const openSubEdit = (sub) => {
   subModalMode.value = "edit";
   editingSubId.value = sub.id;
   subForm.value.name = sub.name;
-  subForm.value.note = sub.note || ""; // 비고
   showSubModal.value = true;
 };
 
@@ -371,7 +368,6 @@ const saveSub = () => {
       id: newId,
       majorId: selectedMajorId.value,
       name: subForm.value.name.trim(),
-      note: subForm.value.note.trim(),
     });
     // 방금 만든 소분류 선택
     selectedSubId.value = newId;
@@ -381,7 +377,6 @@ const saveSub = () => {
     );
     if (idx !== -1) {
       subCategories.value[idx].name = subForm.value.name.trim();
-      subCategories.value[idx].note = subForm.value.note.trim();
     }
   }
   showSubModal.value = false;
@@ -591,9 +586,6 @@ onBeforeMount(() => {
               >
                 <div class="category-text">
                   <div class="category-name">{{ sub.name }}</div>
-                  <div v-if="sub.note" class="category-note">
-                    {{ sub.note }}
-                  </div>
                 </div>
                 <button
                   class="btn btn-xs btn-outline-secondary ms-2"
@@ -623,9 +615,6 @@ onBeforeMount(() => {
                 <p class="section-subtitle mb-0">
                   <template v-if="selectedSub">
                     <span class="me-2">{{ selectedSub.name }}</span>
-                    <small v-if="selectedSub.note" class="text-muted">
-                      {{ selectedSub.note }}
-                    </small>
                   </template>
                   <template v-else>
                     소분류를 선택하면 질문을 작성할 수 있습니다.
@@ -820,15 +809,6 @@ onBeforeMount(() => {
                 type="text"
                 class="form-control"
                 placeholder="제목을 입력하세요"
-              />
-            </div>
-            <div class="mb-2">
-              <label class="form-label">비고</label>
-              <input
-                v-model="subForm.note"
-                type="text"
-                class="form-control"
-                placeholder="필수가 아닙니다."
               />
             </div>
           </div>

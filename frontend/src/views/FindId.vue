@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onBeforeMount, ref } from "vue";
+import { onBeforeUnmount, onBeforeMount, ref, computed } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import axios from "axios";
@@ -18,10 +18,20 @@ const authMessage = ref(""); // 인증 성공/실패 메시지
 const foundId = ref(""); // 인증 성공 시 찾은 아이디
 const isSending = ref(false);
 const isVerifying = ref(false);
+const hasSentOnce = ref(false); // 한 번이라도 발송한 적 있으면 true (재인증 라벨용)
 
 // 인증번호 타이머
 const countdown = ref(0);
 let timerInterval = null;
+
+const sendButtonLabel = computed(() => {
+  if (isSending.value) return "발송중...";
+  if (hasSentOnce.value && countdown.value === 0) return "재인증";
+  return "인증번호 발송";
+});
+const sendButtonDisabled = computed(
+  () => isSending.value || (hasSentOnce.value && countdown.value > 0),
+);
 onBeforeMount(() => {
   store.state.hideConfigButton = true;
   store.state.showNavbar = false;
@@ -52,12 +62,15 @@ const sendVerificationCode = async () => {
   authMessage.value = "";
   isSending.value = true;
   try {
+    // 재인증 시도를 위해 기존 상태 초기화
+    authCode.value = "";
+    foundId.value = "";
     await axios.post("/api/verifi/find-id", {
       name: name.value,
       email: email.value,
     });
     authMessage.value = "인증번호가 발송되었습니다.";
-
+    hasSentOnce.value = true;
     startTimer();
   } catch (err) {
     memberError.value =
@@ -107,6 +120,11 @@ const confirmVerificationCode = async () => {
   } catch (err) {
     authMessage.value =
       err.response?.data?.message || "인증번호가 일치하지 않습니다.";
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+    countdown.value = 0;
   } finally {
     isVerifying.value = false;
   }
@@ -172,10 +190,10 @@ const confirmVerificationCode = async () => {
                           size="sm"
                           class="rounded-0 text-nowrap px-3"
                           style="height: 46px"
-                          :disabled="isSending"
+                          :disabled="sendButtonDisabled"
                           @click="sendVerificationCode"
                         >
-                          {{ isSending ? "발송중..." : "인증번호 발송" }}
+                          {{ sendButtonLabel }}
                         </argon-button>
                       </div>
                       <p
