@@ -7,7 +7,7 @@
  * - 모드: isViewMode | isInputMode(수정 중+내용 없음→승인요청) | isEditMode(수정 중+내용 있음→수정완료)
  * - 수정 완료 시: 제목·내용·첨부 변경이 없으면 API 호출 없이 알림만. 있으면 edit-complete로 부모가 updateResult + 첨부 DELETE/업로드
  * - 첨부: result_code로 GET /api/upload/files/:categoryPk 조회. defineExpose({ resetToViewMode, reloadFiles }) 로 부모에서 취소/재조회 가능
- * - 권한: userAuth(담당자 a0_30·a0_40, 관리자 a0_99)만 승인/보완/반려 버튼 노출. 수정·승인요청 등은 권한 무관.
+ * - 권한: 기관관리자(a0_40)만 승인/보완/반려 버튼 노출. 수정·승인요청 등은 권한 무관.
  */
 // ========== import ==========
 import { ref, watch, onBeforeMount, computed } from "vue";
@@ -15,8 +15,8 @@ import { useAuthStore } from "@/store/auth";
 
 // ========== auth (버튼 노출 권한) ==========
 const authStore = useAuthStore();
-/** 관리자(a0_99)일 때만 true. 승인/보완/반려는 관리자만 노출(담당자 제외). getter 직접 참조로 Counsel 등 조건부 마운트에서도 최신 권한 반영 */
-const canManageResult = computed(() => authStore.isAdmin);
+/** 기관관리자(a0_40)일 때만 true. 승인/보완/반려는 기관관리자만 노출(일반 이용자/기관담당자/시스템관리자 제외) */
+const canManageResult = computed(() => authStore.user?.m_auth === "a0_40");
 
 // ========== props / emit ==========
 const props = defineProps({

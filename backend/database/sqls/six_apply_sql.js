@@ -35,11 +35,22 @@ exports.selectTargets = `
   ORDER BY mc_submitdate DESC
 `;
 
-// ✅ support 1건 조회 (sup_code)
+// ✅ support 1건 조회 (sup_code) — 신청상태(req_yn) 한글명(sub_code.s_name) 포함
 exports.selectSupportBySupCode = `
-  SELECT sup_code, mem_no, mc_pn, sup_day, mgr_no, req_yn, res_time, supt_rej_cmt, rank_res
-  FROM support
-  WHERE sup_code = ?
+  SELECT
+    s.sup_code,
+    s.mem_no,
+    s.mc_pn,
+    s.sup_day,
+    s.mgr_no,
+    s.req_yn,
+    sc.s_name AS req_name,
+    s.res_time,
+    s.supt_rej_cmt,
+    s.rank_res
+  FROM support s
+  LEFT JOIN sub_code sc ON s.req_yn = sc.s_code
+  WHERE s.sup_code = ?
 `;
 
 // ✅ 지원자(mem_no)별 지원신청 목록 — applicant 대시보드용 (support + dsbl_prs + rank 진행 + 계획/결과 존재 여부)
@@ -65,8 +76,8 @@ exports.selectApplicantSupportList = `
   FROM support s
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
-  INNER JOIN member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN sub_code sc      ON s.req_yn = sc.s_code
+  LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
+  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
   WHERE s.mem_no = ?
   ORDER BY s.sup_day DESC
 `;
@@ -94,13 +105,13 @@ exports.selectManagerSupportList = `
   FROM support s
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
-  INNER JOIN member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN sub_code sc      ON s.req_yn = sc.s_code
+  LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
+  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
   WHERE s.mgr_no = ?
   ORDER BY s.sup_day DESC
 `;
 
-// ✅ 기관(m_org)별 지원신청 목록 — organmanager 홈용 (담당자 소속기관 = 로그인 기관관리자 m_org)
+// ✅ 기관(m_org)별 지원신청 목록 — organmanager 홈용 (지원자 소속기관 = 로그인 기관관리자 m_org)
 exports.selectOrganManagerSupportList = `
   SELECT
     s.sup_code,
@@ -123,9 +134,9 @@ exports.selectOrganManagerSupportList = `
   FROM support s
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
-  INNER JOIN member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN sub_code sc      ON s.req_yn = sc.s_code
-  WHERE m_mgr.m_org = ?
+  LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
+  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
+  WHERE m_app.m_org = ?
   ORDER BY s.sup_day DESC
 `;
 
@@ -258,6 +269,20 @@ exports.insertSurveyAnswer = `
     sup_code
   )
   VALUES (?, ?, ?, ?, ?)
+`;
+
+// ✅ support 담당자 배정/변경
+exports.updateSupportManager = `
+  UPDATE support
+  SET mgr_no = ?
+  WHERE sup_code = ?
+`;
+
+// ✅ support 신청 상태(req_yn) 변경
+exports.updateSupportReqYn = `
+  UPDATE support
+  SET req_yn = ?
+  WHERE sup_code = ?
 `;
 
 // ✅ sup_code별 조사지 질문+답변 (review 지원신청서) — major_name, sub_name, a_code, q_type 포함 (수정하기용)

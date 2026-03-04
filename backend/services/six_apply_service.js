@@ -176,6 +176,19 @@ exports.getOrganManagerSupportList = async (mOrg) => {
   return Array.isArray(rows) ? rows : [];
 };
 
+// ✅ support.mgr_no 지정/변경 (기관관리자가 담당자 배정)
+exports.updateSupportManager = async (supCode, mgrNo) => {
+  if (!supCode) throw new Error("sup_code is required");
+  await query("updateSupportManager", [mgrNo || null, supCode]);
+};
+
+// ✅ support.req_yn 변경 (기관담당자 신청 접수/반려)
+exports.updateSupportReqYn = async (supCode, reqYn) => {
+  if (!supCode) throw new Error("sup_code is required");
+  if (!reqYn) throw new Error("req_yn is required");
+  await query("updateSupportReqYn", [reqYn, supCode]);
+};
+
 // ✅ sup_code로 support + dsbl_prs 조회 (review 화면)
 exports.getSupportWithDsbl = async (supCode) => {
   const supRows = await query("selectSupportBySupCode", [supCode]);
@@ -422,18 +435,20 @@ exports.createCounsel = async (supCode, payload) => {
   }
 };
 
+// 지원신청 저장: support INSERT(mc_pn=지원대상자, mem_no=로그인 회원) → sup_code(PK) → survey_a INSERT(ans_no=mem_no, sup_code), a_code(PK) 수집 반환
 exports.createApplication = async ({ mc_pn, mem_no, req_yn, answers }) => {
   let conn;
   let supCode;
+  const aCodes = [];
   try {
     conn = await pools.getConnection();
     supCode = await generateSupCode(conn);
 
-    // 1) support INSERT 후 즉시 커밋 → FK에서 참조 가능하도록 함
+    // 1) support INSERT: 지원대상자 mc_pn, 로그인 회원 mem_no → PK(sup_code) 저장
     await conn.query(surveySql.insertSupport, [supCode, mem_no, mc_pn, req_yn]);
     await conn.commit();
 
-    // 2) survey_a INSERT (위에서 커밋된 sup_code 기준으로 FK 통과)
+    // 2) survey_a INSERT: 조사지 답변, ans_no=로그인 회원(mem_no), sup_code(support PK) 함께 저장
     const now = new Date();
     const datePrefix = formatYmd(now);
     const aCodeRows = await conn.query(
@@ -462,9 +477,10 @@ exports.createApplication = async ({ mc_pn, mem_no, req_yn, answers }) => {
         ansVal,
         supCode,
       ]);
+      aCodes.push(ansCode);
     }
 
-    return { sup_code: supCode };
+    return { sup_code: supCode, a_codes: aCodes };
   } catch (err) {
     // survey_a 단계에서 실패한 경우, 이미 넣은 support 행 정리
     if (conn && supCode) {
