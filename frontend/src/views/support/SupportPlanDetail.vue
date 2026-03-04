@@ -7,9 +7,23 @@
  * - 모드: isViewMode(조회) | isInputMode(수정 중+내용 없음→승인요청) | isEditMode(수정 중+내용 있음→수정완료)
  * - 첨부: plan_code로 /api/upload/files/:categoryPk 조회, 수정 시 삭제 표시·신규 선택 후 edit-complete 시 부모가 DELETE/업로드
  * - 연장: 승인 상태이고 종료일 기준 ±30일 이내일 때만 노출. 종료: 승인 상태이고 종료일이 지나지 않았을 때만 노출
+ * - 권한: userAuth(담당자 a0_30·a0_40, 관리자 a0_99)만 승인/보완/반려/연장/종료 버튼 노출. 수정·승인요청 등은 권한 무관.
  */
 // ========== import ==========
-import { ref, watch, onBeforeMount } from "vue";
+import { ref, watch, onBeforeMount, computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useAuthStore } from "../../store/auth.js";
+
+// ========== auth (버튼 노출 권한) ==========
+const authStore = useAuthStore();
+const { userAuth } = storeToRefs(authStore);
+/** 담당자(a0_30, a0_40) 또는 관리자(a0_99)일 때만 true. 승인/보완/반려/연장/종료 버튼에 사용 */
+const canManagePlan = computed(
+  () =>
+    userAuth.value === "a0_99" ||
+    userAuth.value === "a0_40" ||
+    userAuth.value === "a0_30",
+);
 
 // ========== props / emit ==========
 const props = defineProps({
@@ -517,7 +531,7 @@ defineExpose({ reloadFiles: loadPlanFiles });
               결과조회
             </button>
             <button
-              v-if="canShowExtend()"
+              v-if="canManagePlan && canShowExtend()"
               type="button"
               class="btn btn-sm btn-outline-info"
               @click="emit('extend', plan_code)"
@@ -525,7 +539,7 @@ defineExpose({ reloadFiles: loadPlanFiles });
               연장
             </button>
             <button
-              v-if="canShowEnd()"
+              v-if="canManagePlan && canShowEnd()"
               type="button"
               class="btn btn-sm btn-outline-secondary"
               @click="emit('end', plan_code)"
@@ -549,7 +563,7 @@ defineExpose({ reloadFiles: loadPlanFiles });
               보완하기
             </button>
             <button
-              v-if="plan_result === 'e0_00'"
+              v-if="canManagePlan && plan_result === 'e0_00'"
               type="button"
               class="btn btn-sm btn-success"
               @click="emit('approve', plan_code)"
@@ -557,7 +571,7 @@ defineExpose({ reloadFiles: loadPlanFiles });
               승인
             </button>
             <button
-              v-if="plan_result === 'e0_00'"
+              v-if="canManagePlan && plan_result === 'e0_00'"
               type="button"
               class="btn btn-sm btn-warning"
               @click="emit('supple', plan_code)"
@@ -565,7 +579,7 @@ defineExpose({ reloadFiles: loadPlanFiles });
               보완
             </button>
             <button
-              v-if="plan_result === 'e0_00'"
+              v-if="canManagePlan && plan_result === 'e0_00'"
               type="button"
               class="btn btn-sm btn-danger"
               @click="emit('reject', plan_code)"

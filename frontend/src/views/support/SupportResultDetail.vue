@@ -7,9 +7,23 @@
  * - 모드: isViewMode | isInputMode(수정 중+내용 없음→승인요청) | isEditMode(수정 중+내용 있음→수정완료)
  * - 수정 완료 시: 제목·내용·첨부 변경이 없으면 API 호출 없이 알림만. 있으면 edit-complete로 부모가 updateResult + 첨부 DELETE/업로드
  * - 첨부: result_code로 GET /api/upload/files/:categoryPk 조회. defineExpose({ resetToViewMode, reloadFiles }) 로 부모에서 취소/재조회 가능
+ * - 권한: userAuth(담당자 a0_30·a0_40, 관리자 a0_99)만 승인/보완/반려 버튼 노출. 수정·승인요청 등은 권한 무관.
  */
 // ========== import ==========
-import { ref, watch, onBeforeMount } from "vue";
+import { ref, watch, onBeforeMount, computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useAuthStore } from "../../store/auth.js";
+
+// ========== auth (버튼 노출 권한) ==========
+const authStore = useAuthStore();
+const { userAuth } = storeToRefs(authStore);
+/** 담당자(a0_30, a0_40) 또는 관리자(a0_99)일 때만 true. 승인/보완/반려 버튼에 사용 */
+const canManageResult = computed(
+  () =>
+    userAuth.value === "a0_99" ||
+    userAuth.value === "a0_40" ||
+    userAuth.value === "a0_30",
+);
 
 // ========== props / emit ==========
 const props = defineProps({
@@ -458,7 +472,7 @@ watch(
               보완하기
             </button>
             <button
-              v-if="result_result === 'e0_00'"
+              v-if="canManageResult && result_result === 'e0_00'"
               type="button"
               class="btn btn-sm btn-success"
               @click="emit('approve', result_code)"
@@ -466,7 +480,7 @@ watch(
               승인
             </button>
             <button
-              v-if="result_result === 'e0_00'"
+              v-if="canManageResult && result_result === 'e0_00'"
               type="button"
               class="btn btn-sm btn-warning"
               @click="emit('supple', result_code)"
@@ -474,7 +488,7 @@ watch(
               보완
             </button>
             <button
-              v-if="result_result === 'e0_00'"
+              v-if="canManageResult && result_result === 'e0_00'"
               type="button"
               class="btn btn-sm btn-danger"
               @click="emit('reject', result_code)"
