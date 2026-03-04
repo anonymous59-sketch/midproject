@@ -25,7 +25,7 @@ async function sendAuthMail(email, code) {
 
     await transporter.sendMail({
         from: process.env.EMAIL_USER,
-        to: "swpark9659@naver.com",  //  테스트 용 (실제 사용 시 입력 이메일로 발송)
+        to: email,
         subject: "인증번호 안내",
         html: `
             <h3>인증번호 안내 ${email}</h3>
@@ -62,7 +62,7 @@ const svc = {
     sendJoinMail: async (email) => {
 
     // 회원가입은 아직 m_no가 없을 수 있으므로 null
-    return await createAndSendVerification(email, null, "i0_10");
+    return await createAndSendVerification(email, null, "i0_00");
 },
 
 //    6. 아이디 찾기 인증번호 발송
@@ -95,25 +95,35 @@ sendResetPwMail: async (id, email) => {
 
 //    8. 인증번호 검증
 verifyCode: async (email, code, purpose) => {
-
+    // 1) 메일 + 용도 기준으로 가장 최근 "미인증(h0_00)" 건 조회
     const result = await query(
-        "selectValidVerification",
-        [email, code, purpose]
+        "selectLatestPendingVerification",
+        [email, purpose]
     );
 
-    if (!result || result.length == 0) {
+    if (!result || result.length === 0) {
         throw new Error("인증번호가 올바르지 않거나 만료되었습니다.");
     }
 
     const verifiRow = result[0];
-    const m_no = verifiRow.m_no;
+    const { verifi_no, verifi_num, verifi_end_at, m_no } = verifiRow;
 
-    // 성공 처리 (verifi_success = 'h0_10')
-    await query("updateVerificationSuccess", [
-        email,
-        code,
-        purpose
-    ]);
+    // JS에서 만료 여부 체크 (3분 지나면 실패(h0_99)로 변경)
+    const now = new Date();
+    const endAt = new Date(verifi_end_at);
+    if (now > endAt) {
+        await query("updateVerificationFailByNo", [verifi_no]);
+        throw new Error("인증시간이 만료되었습니다. 다시 요청해주세요.");
+    }
+
+    // 인증번호 미일치 → 실패(h0_99)로 변경
+    if (String(code) !== String(verifi_num)) {
+        await query("updateVerificationFailByNo", [verifi_no]);
+        throw new Error("인증번호가 일치하지 않습니다.");
+    }
+
+    // 여기까지 왔으면 인증 성공 → h0_10
+    await query("updateVerificationSuccessByNo", [verifi_no]);
 
     const res = { message: "인증 성공" };
     if (purpose === "i0_20" && m_no) {

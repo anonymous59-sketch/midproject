@@ -38,6 +38,24 @@ const userType = ref("");
 const org = ref("");
 
 const organList = ref([]);
+// 주소(도시명: 대구/부산 등) 기반 기관 필터링용
+const filteredOrganList = computed(() => {
+  // 회원이 선택한 주소에서 도시명 추출
+  const userCity = extractCityFromAddress(address.value);
+
+  // 아직 주소가 없거나 도시명을 못 뽑으면 전체 목록 노출
+  if (!userCity) {
+    return organList.value;
+  }
+
+  return organList.value.filter((orgItem) => {
+    const orgAddr = orgItem?.organ_address;
+    if (typeof orgAddr !== "string") return false;
+
+    const orgCity = extractCityFromAddress(orgAddr);
+    return orgCity === userCity;
+  });
+});
 
 const authCodeMap = {
   일반회원: "a0_20",
@@ -50,10 +68,50 @@ const modalMessage = ref("");
 const countdown = ref(0);
 let timerInterval = null;
 
-const goToSignin = () => router.push("/signin");
+// 이메일 인증 버튼 라벨: 인증완료 → 발송중 → (발송 후 만료/실패 시) 재인증 → 이메일 인증
+const emailButtonLabel = computed(() => {
+  if (isEmailVerified.value) return "인증완료";
+  if (isSendingCode.value) return "발송중...";
+  // 인증 발송한 적 있고, 만료/실패로 재인증 가능한 상태
+  if (showAuthSection.value && countdown.value === 0) return "재인증";
+  return "이메일 인증";
+});
 
+// 발송 후 카운트다운 중에는 버튼 비활성화, 만료/실패 시에만 재인증 버튼 활성화
+const emailButtonDisabled = computed(
+  () =>
+    isEmailVerified.value ||
+    isSendingCode.value ||
+    (showAuthSection.value && countdown.value > 0),
+);
+
+const goToSignin = () => router.push("/signin");
+// 주소검색관련
 const zipCode = ref("");
 const institutions = ref([]);
+// 상세주소
+const detailAddress = ref("");
+
+// "(우편번호) 대구 남구 ..." 또는 "대구 남구 ..." 형식의 주소에서
+// 앞의 도시명(예: "대구", "부산")만 추출
+const extractCityFromAddress = (addr) => {
+  if (!addr || typeof addr !== "string") return "";
+
+  // 앞에 붙은 "(12345)" 형태의 우편번호 제거
+  const noZip = addr.replace(/^\(\d+\)\s*/, "");
+
+  // 공백 기준으로 자르기
+  const parts = noZip.split(" ").filter(Boolean);
+  if (!parts.length) return "";
+
+  const firstToken = parts[0]; // 예: "대구", "대구광역시", "부산광역시"
+
+  // "대구광역시" → "대구", "부산광역시" → "부산" 정도로 단순 정규화
+  return firstToken.replace(/광역시|특별시|시$/, "").slice(0, 2);
+};
+
+// 주소검색관련
+
 // --- [라이프사이클] ---
 
 onMounted(async () => {
@@ -137,6 +195,9 @@ const sendEmailVerification = async () => {
   authMessage.value = "";
   isSendingCode.value = true;
   try {
+    // 재인증 시도를 위해 기존 상태 초기화
+    isEmailVerified.value = false;
+    authCodeInput.value = "";
     const res = await axios.post("/api/verifi/join", { email: email.value });
     authMessage.value = res.data.message || "인증번호가 발송되었습니다.";
     showAuthSection.value = true;
@@ -166,11 +227,6 @@ const startTimer = () => {
   }, 1000);
 };
 
-// 타이머 종료 시 인증번호 입력란 비활성화
-if (countdown.value === 0) {
-  showAuthSection.value = false;
-}
-
 // 인증번호 확인
 const confirmAuthCode = async () => {
   if (!authCodeInput.value) {
@@ -183,7 +239,7 @@ const confirmAuthCode = async () => {
     const res = await axios.post("/api/verifi/verify", {
       email: email.value,
       code: authCodeInput.value,
-      purpose: "i0_10",
+      purpose: "i0_00",
     });
     authMessage.value = res.data.message || "인증이 완료되었습니다.";
     isEmailVerified.value = true;
@@ -195,6 +251,12 @@ const confirmAuthCode = async () => {
   } catch (err) {
     authMessage.value =
       err.response?.data?.message || "인증번호가 일치하지 않습니다.";
+    // 인증 실패 시 타이머 종료 → 재인증 버튼 활성화
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+    countdown.value = 0;
   } finally {
     isVerifying.value = false;
   }
@@ -228,7 +290,10 @@ const handleSignUp = async () => {
       m_email: email.value,
       m_tel: tel.value,
       m_bd: bd.value,
-      m_add: address.value,
+      m_add: `(${zipCode.value}) ${address.value} ${detailAddress.value}`
+        .replace(/\s+/g, " ")
+        .trim(), // (우편번호) 기본주소 상세주소 형식
+      // 우편번호 기준으로 가까운 기관 선택할 거라 필요함
       m_auth: authCodeMap[userType.value] || "a0_20",
       m_org: org.value || null,
     };
@@ -434,16 +499,10 @@ const searchAddress = () => {
                       color="success"
                       class="rounded-0 text-nowrap"
                       style="height: 46px"
-                      :disabled="isEmailVerified || isSendingCode"
+                      :disabled="emailButtonDisabled"
                       @click="sendEmailVerification"
                     >
-                      {{
-                        isEmailVerified
-                          ? "인증완료"
-                          : isSendingCode
-                            ? "발송중..."
-                            : "이메일 인증"
-                      }}
+                      {{ emailButtonLabel }}
                     </argon-button>
                   </div>
                   <!-- 인증번호 입력 (발송 후 표시) -->
@@ -514,16 +573,13 @@ const searchAddress = () => {
 
                 <!-- 주소 -->
                 <div class="mb-3">
-                  <div class="d-flex gap-2">
+                  <div class="d-flex gap-2 mb-2">
                     <argon-input
                       v-model="zipCode"
                       placeholder="우편번호"
+                      readonly
                     />
 
-                    <argon-input
-                      v-model="address"
-                      placeholder="주소"
-                    />
                     <argon-button
                       type="button"
                       variant="outline"
@@ -531,9 +587,22 @@ const searchAddress = () => {
                       class="rounded-0 text-nowrap"
                       style="height: 46px"
                       @click="searchAddress"
-                      >주소 검색</argon-button
                     >
+                      주소 검색
+                    </argon-button>
                   </div>
+
+                  <argon-input
+                    v-model="address"
+                    placeholder="기본 주소"
+                    readonly
+                    class="mb-2"
+                  />
+
+                  <argon-input
+                    v-model="detailAddress"
+                    placeholder="상세 주소를 입력해주세요"
+                  />
                 </div>
 
                 <!-- 기관 선택 -->
@@ -545,7 +614,7 @@ const searchAddress = () => {
                   <option disabled value="">기관을 선택해주세요</option>
 
                   <option
-                    v-for="item in organList"
+                    v-for="item in filteredOrganList"
                     :key="item.organ_no"
                     :value="item.organ_no"
                   >
