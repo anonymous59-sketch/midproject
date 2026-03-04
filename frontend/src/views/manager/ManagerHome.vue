@@ -22,6 +22,22 @@ const filters = ref({
   },
 });
 
+/** 검색 버튼/엔터 시에만 적용 */
+const appliedFilters = ref({
+  dateFrom: "",
+  dateTo: "",
+  targetName: "",
+  applicantName: "",
+  managerName: "",
+  stage: "전체",
+  progress: {
+    review: false,
+    approve: false,
+    reject: false,
+    done: false,
+  },
+});
+
 const rows = ref([]);
 const listLoading = ref(false);
 const listError = ref("");
@@ -75,7 +91,10 @@ async function loadManagerList() {
   }
 }
 
-const onSearch = () => loadManagerList();
+const onSearch = () => {
+  appliedFilters.value = JSON.parse(JSON.stringify(filters.value));
+  loadManagerList();
+};
 
 const onReset = () => {
   filters.value.targetName = "";
@@ -86,10 +105,11 @@ const onReset = () => {
   filters.value.progress.approve = false;
   filters.value.progress.reject = false;
   filters.value.progress.done = false;
+  appliedFilters.value = JSON.parse(JSON.stringify(filters.value));
 };
 
 const filteredRows = computed(() => {
-  const f = filters.value;
+  const f = appliedFilters.value;
   return rows.value.filter((r) => {
     if (f.dateFrom && r.applyDate && r.applyDate < f.dateFrom.replace(/-/g, ".")) return false;
     if (f.dateTo && r.applyDate && r.applyDate > f.dateTo.replace(/-/g, ".")) return false;
@@ -133,7 +153,7 @@ const viewResult = (row) => {
           <div class="card-header pb-0">
             <h6 class="mb-0">상세 검색</h6>
           </div>
-          <div class="card-body">
+          <form class="card-body" @submit.prevent="onSearch">
             <label class="form-label text-sm">지원신청일</label>
             <div class="d-flex gap-2">
               <input v-model="filters.dateFrom" type="date" class="form-control form-control-sm" />
@@ -178,10 +198,10 @@ const viewResult = (row) => {
               <label class="form-check-label text-sm" for="m-p4">결과</label>
             </div>
             <div class="mt-4 d-grid gap-2">
-              <button class="btn btn-success mb-0" @click="onSearch">검색</button>
-              <button class="btn btn-outline-secondary mb-0" @click="onReset">초기화</button>
+              <button type="submit" class="btn btn-success mb-0">검색</button>
+              <button type="button" class="btn btn-outline-secondary mb-0" @click="onReset">초기화</button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
 

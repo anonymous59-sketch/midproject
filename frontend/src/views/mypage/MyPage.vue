@@ -1,34 +1,128 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { useAuthStore } from "@/store/auth";
 
-/* ================= 회원 정보 ================= */
+const authStore = useAuthStore();
+
+/* ================= 회원 정보 (백엔드 연동) ================= */
 const member = ref({
-  m_id: "kkkk",
-  m_bd: "1990-01-01",
-  m_phone: "010-1234-5678",
-  m_email: "kkkk@test.com",
-  m_address: "대구광역시 수성구",
-  m_joindate: "2024-01-15",
+  m_no: "",
+  m_id: "",
+  m_bd: "",
+  m_tel: "",
+  m_email: "",
+  m_add: "",
 });
-
+const memberLoading = ref(false);
 const isEditMode = ref(false);
 
 const editForm = ref({
-  m_phone: member.value.m_phone,
-  m_email: member.value.m_email,
+  m_tel: "",
+  m_email: "",
+  m_add: "",
 });
 
+/** 회원정보: 백엔드 m_bd, m_tel, m_add 사용. 로그인 정보로 보강 */
+async function loadMemberProfile() {
+  const u = authStore.user;
+  const mNo = u?.m_no;
+  if (!mNo) return;
+  member.value = {
+    m_no: u.m_no ?? "",
+    m_id: u.m_id ?? "",
+    m_bd: u.m_bd ?? "",
+    m_tel: u.m_tel ?? "",
+    m_email: u.m_email ?? "",
+    m_add: u.m_add ?? "",
+  };
+  memberLoading.value = true;
+  try {
+    const res = await fetch(
+      `/api/apply/mypage/profile?m_no=${encodeURIComponent(mNo)}`,
+    );
+    const data = await res.json();
+    if (res.ok && data && data.m_no) {
+      member.value.m_no = data.m_no ?? member.value.m_no;
+      member.value.m_id = data.m_id ?? member.value.m_id;
+      member.value.m_bd = data.m_bd ?? member.value.m_bd;
+      member.value.m_tel = data.m_tel ?? member.value.m_tel;
+      member.value.m_email = data.m_email ?? member.value.m_email;
+      member.value.m_add = data.m_add ?? member.value.m_add;
+    }
+    editForm.value.m_tel = member.value.m_tel ?? "";
+    editForm.value.m_email = member.value.m_email ?? "";
+    editForm.value.m_add = member.value.m_add ?? "";
+  } catch (e) {
+    editForm.value.m_tel = member.value.m_tel ?? "";
+    editForm.value.m_email = member.value.m_email ?? "";
+    editForm.value.m_add = member.value.m_add ?? "";
+  } finally {
+    memberLoading.value = false;
+  }
+}
+
 const startEdit = () => {
-  editForm.value.m_phone = member.value.m_phone;
-  editForm.value.m_email = member.value.m_email;
+  editForm.value.m_tel = member.value.m_tel ?? "";
+  editForm.value.m_email = member.value.m_email ?? "";
+  editForm.value.m_add = member.value.m_add ?? "";
   isEditMode.value = true;
 };
 
-const saveEdit = () => {
-  member.value.m_phone = editForm.value.m_phone;
-  member.value.m_email = editForm.value.m_email;
-  isEditMode.value = false;
-  alert("회원 정보가 수정되었습니다.");
+/** 회원정보 저장 (skipClose: true면 blur 시 자동 저장, 알림/모드 전환 없음) */
+const saveEdit = async (skipClose = false) => {
+  const mNo = member.value.m_no || authStore.user?.m_no;
+  if (!mNo) {
+    if (!skipClose) alert("로그인 정보가 없습니다.");
+    return;
+  }
+  const tel = (editForm.value.m_tel ?? "").trim();
+  const email = (editForm.value.m_email ?? "").trim();
+  const add = (editForm.value.m_add ?? "").trim();
+  try {
+    const res = await fetch("/api/apply/mypage/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        m_no: mNo,
+        m_tel: tel,
+        m_email: email,
+        m_add: add,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "저장에 실패했습니다.");
+    }
+    member.value.m_tel = tel;
+    member.value.m_email = email;
+    member.value.m_add = add;
+    if (authStore.user) {
+      authStore.user.m_tel = tel;
+      authStore.user.m_email = email;
+      authStore.user.m_add = add;
+    }
+    if (!skipClose) {
+      isEditMode.value = true;
+      alert("변경사항이 저장되었습니다.");
+    }
+  } catch (e) {
+    if (!skipClose) alert(e.message || "저장에 실패했습니다.");
+  }
+};
+
+/** 수정 모드에서 입력 필드 blur 시 값이 변동된 경우에만 백엔드 저장 */
+const onProfileFieldBlur = () => {
+  if (!isEditMode.value) return;
+  const t = (editForm.value.m_tel ?? "").trim();
+  const e = (editForm.value.m_email ?? "").trim();
+  const a = (editForm.value.m_add ?? "").trim();
+  if (
+    t !== (member.value.m_tel ?? "").trim() ||
+    e !== (member.value.m_email ?? "").trim() ||
+    a !== (member.value.m_add ?? "").trim()
+  ) {
+    saveEdit(true);
+  }
 };
 
 const cancelEdit = () => {
@@ -41,59 +135,47 @@ const withdrawMember = () => {
   }
 };
 
-/* ================= 지원자 ================= */
-const applicants = ref([
-  {
-    mc_pn: "DSBL20240101",
-    mc_nm: "김민수",
-    mc_bd: "2010-03-01",
-    mc_gender: "남",
-    mc_address: "대구 달서구",
-    mc_type: "지체장애",
-    mc_submitdate: "2024-02-01",
-  },
-  {
-    mc_pn: "DSBL20240102",
-    mc_nm: "이서연",
-    mc_bd: "2011-07-15",
-    mc_gender: "여",
-    mc_address: "대구 수성구",
-    mc_type: "시각장애",
-    mc_submitdate: "2024-02-10",
-  },
-  {
-    mc_pn: "DSBL20240103",
-    mc_nm: "박준호",
-    mc_bd: "2009-11-22",
-    mc_gender: "남",
-    mc_address: "대구 북구",
-    mc_type: "지적장애",
-    mc_submitdate: "2024-02-18",
-  },
-  {
-    mc_pn: "DSBL20240104",
-    mc_nm: "최지우",
-    mc_bd: "2012-05-03",
-    mc_gender: "여",
-    mc_address: "대구 동구",
-    mc_type: "자폐성장애",
-    mc_submitdate: "2024-02-25",
-  },
-]);
+/* ================= 지원대상자 (dsbl_prs, 백엔드 연동) ================= */
+const applicants = ref([]);
+const applicantsLoading = ref(false);
+
+async function loadApplicants() {
+  const gdnNo = authStore.user?.m_no;
+  if (!gdnNo) return;
+  applicantsLoading.value = true;
+  try {
+    const res = await fetch(
+      `/api/apply/dsbl-prs?gdn_no=${encodeURIComponent(gdnNo)}`,
+    );
+    const data = await res.json();
+    applicants.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    applicants.value = [];
+  } finally {
+    applicantsLoading.value = false;
+  }
+}
 
 const selectedApplicant = ref(null);
 const totalCount = computed(() => applicants.value.length);
 
 const isApplicantEditMode = ref(false);
+const applicantSaving = ref(false);
 
 const applicantEditForm = ref({
   mc_nm: "",
   mc_bd: "",
-  mc_gender: "남",
+  mc_gender: "b0_00",
   mc_address: "",
   mc_type: "",
   mc_submitdate: "",
 });
+
+/** 성별 코드 → 표시: b0_00 남자, b0_10 여자 */
+function genderLabel(code) {
+  if (code === "b0_10") return "여자";
+  return "남자";
+}
 
 const selectApplicant = (a) => {
   selectedApplicant.value = a;
@@ -104,36 +186,71 @@ const isSelectedApplicant = (a) => selectedApplicant.value?.mc_pn === a?.mc_pn;
 
 const startApplicantEdit = () => {
   if (!selectedApplicant.value) return;
-
+  const a = selectedApplicant.value;
   applicantEditForm.value = {
-    mc_nm: selectedApplicant.value.mc_nm,
-    mc_bd: selectedApplicant.value.mc_bd,
-    mc_gender: selectedApplicant.value.mc_gender,
-    mc_address: selectedApplicant.value.mc_address,
-    mc_type: selectedApplicant.value.mc_type,
-    mc_submitdate: selectedApplicant.value.mc_submitdate,
+    mc_nm: a.mc_nm ?? "",
+    mc_bd: (a.mc_bd && String(a.mc_bd).slice(0, 10)) ?? "",
+    mc_gender: a.mc_gender === "b0_10" ? "b0_10" : "b0_00",
+    mc_address: a.mc_address ?? "",
+    mc_type: a.mc_type ?? "",
+    mc_submitdate:
+      (a.mc_submitdate && String(a.mc_submitdate).slice(0, 10)) ?? "",
   };
-
   isApplicantEditMode.value = true;
 };
 
-const saveApplicantEdit = () => {
-  if (!selectedApplicant.value) return;
-
-  selectedApplicant.value.mc_nm = applicantEditForm.value.mc_nm;
-  selectedApplicant.value.mc_bd = applicantEditForm.value.mc_bd;
-  selectedApplicant.value.mc_gender = applicantEditForm.value.mc_gender;
-  selectedApplicant.value.mc_address = applicantEditForm.value.mc_address;
-  selectedApplicant.value.mc_type = applicantEditForm.value.mc_type;
-  selectedApplicant.value.mc_submitdate = applicantEditForm.value.mc_submitdate;
-
-  isApplicantEditMode.value = false;
-  alert("지원자 정보가 수정되었습니다.");
+const saveApplicantEdit = async () => {
+  const a = selectedApplicant.value;
+  const gdnNo = authStore.user?.m_no;
+  if (!a?.mc_pn || !gdnNo) return;
+  applicantSaving.value = true;
+  try {
+    const res = await fetch(
+      `/api/apply/dsbl-prs/${encodeURIComponent(a.mc_pn)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gdn_no: gdnNo,
+          mc_nm: (applicantEditForm.value.mc_nm ?? "").trim(),
+          mc_bd: applicantEditForm.value.mc_bd || null,
+          mc_gender:
+            applicantEditForm.value.mc_gender === "b0_10" ? "b0_10" : "b0_00",
+          mc_address: (applicantEditForm.value.mc_address ?? "").trim(),
+          mc_type: (applicantEditForm.value.mc_type ?? "").trim(),
+          mc_submitdate: applicantEditForm.value.mc_submitdate || null,
+        }),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "저장에 실패했습니다.");
+    }
+    Object.assign(a, {
+      mc_nm: applicantEditForm.value.mc_nm,
+      mc_bd: applicantEditForm.value.mc_bd,
+      mc_gender: applicantEditForm.value.mc_gender,
+      mc_address: applicantEditForm.value.mc_address,
+      mc_type: applicantEditForm.value.mc_type,
+      mc_submitdate: applicantEditForm.value.mc_submitdate,
+    });
+    isApplicantEditMode.value = false;
+    alert("지원대상자 정보가 수정되었습니다.");
+  } catch (e) {
+    alert(e.message || "저장에 실패했습니다.");
+  } finally {
+    applicantSaving.value = false;
+  }
 };
 
 const cancelApplicantEdit = () => {
   isApplicantEditMode.value = false;
 };
+
+onMounted(() => {
+  loadMemberProfile();
+  loadApplicants();
+});
 
 /* ================= 모달 ================= */
 const showModal = ref(false);
@@ -141,7 +258,7 @@ const showModal = ref(false);
 const newApplicant = ref({
   mc_nm: "",
   mc_bd: "",
-  mc_gender: "남",
+  mc_gender: "b0_00",
   mc_address: "",
   mc_types: [""],
   mc_submitdate: "",
@@ -162,8 +279,10 @@ const removeDisabilityTypeField = (idx) => {
   newApplicant.value.mc_types.splice(idx, 1);
 };
 
-const addApplicant = () => {
-  if (!newApplicant.value.mc_nm) {
+const addApplicantSaving = ref(false);
+
+const addApplicant = async () => {
+  if (!newApplicant.value.mc_nm?.trim()) {
     alert("이름을 입력하세요.");
     return;
   }
@@ -177,30 +296,61 @@ const addApplicant = () => {
     return;
   }
 
-  applicants.value.push({
-    mc_pn: "DSBL" + Date.now(),
-    mc_nm: newApplicant.value.mc_nm,
-    mc_bd: newApplicant.value.mc_bd,
-    mc_gender: newApplicant.value.mc_gender,
-    mc_address: newApplicant.value.mc_address,
-    mc_type: disabilityTypes.join(", "),
-    mc_submitdate: newApplicant.value.mc_submitdate,
-  });
+  const gdnNo = authStore.user?.m_no;
+  if (!gdnNo) {
+    alert("로그인 정보가 없습니다.");
+    return;
+  }
 
-  newApplicant.value = {
-    mc_nm: "",
-    mc_bd: "",
-    mc_gender: "남",
-    mc_address: "",
-    mc_types: [""],
-    mc_submitdate: "",
-  };
-
-  showModal.value = false;
+  addApplicantSaving.value = true;
+  try {
+    const res = await fetch("/api/apply/dsbl-prs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gdn_no: gdnNo,
+        mc_nm: newApplicant.value.mc_nm.trim(),
+        mc_bd: newApplicant.value.mc_bd || null,
+        mc_gender: newApplicant.value.mc_gender === "b0_10" ? "b0_10" : "b0_00",
+        mc_address: (newApplicant.value.mc_address ?? "").trim(),
+        mc_type: disabilityTypes.join(", "),
+        mc_submitdate: newApplicant.value.mc_submitdate || null,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "등록에 실패했습니다.");
+    }
+    await loadApplicants();
+    newApplicant.value = {
+      mc_nm: "",
+      mc_bd: "",
+      mc_gender: "b0_00",
+      mc_address: "",
+      mc_types: [""],
+      mc_submitdate: "",
+    };
+    showModal.value = false;
+    alert("지원대상자가 등록되었습니다.");
+  } catch (e) {
+    alert(e.message || "등록에 실패했습니다.");
+  } finally {
+    addApplicantSaving.value = false;
+  }
 };
 
+/** 주소찾기: 회원가입(Signup)과 동일하게 다음(다움) 주소 API 사용 */
 const findAddress = () => {
-  alert("주소찾기 API 연결 예정");
+  if (typeof window.daum === "undefined" || !window.daum.Postcode) {
+    alert("주소 검색 서비스를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    return;
+  }
+  new window.daum.Postcode({
+    oncomplete: function (data) {
+      newApplicant.value.mc_address =
+        data.roadAddress || data.jibunAddress || "";
+    },
+  }).open();
 };
 </script>
 
@@ -217,39 +367,59 @@ const findAddress = () => {
           <div class="card-body pt-3">
             <div class="info-box">
               <div class="info-label">아이디</div>
-              <div class="info-value">{{ member.m_id }}</div>
+              <div class="info-value">{{ member.m_id || "—" }}</div>
             </div>
 
             <div class="info-box">
               <div class="info-label">생년월일</div>
-              <div class="info-value">{{ member.m_bd }}</div>
-            </div>
-
-            <div class="info-box">
-              <div class="info-label">연락처</div>
-              <div v-if="!isEditMode" class="info-value">
-                {{ member.m_phone }}
+              <div class="info-value">
+                {{ member.m_bd ? String(member.m_bd).slice(0, 10) : "—" }}
               </div>
-              <input v-else v-model="editForm.m_phone" class="form-control" />
             </div>
 
-            <div class="info-box">
-              <div class="info-label">이메일</div>
-              <div v-if="!isEditMode" class="info-value">
-                {{ member.m_email }}
+            <div v-if="memberLoading" class="text-muted text-sm">
+              로딩 중...
+            </div>
+            <template v-else>
+              <div class="info-box">
+                <div class="info-label">연락처</div>
+                <div v-if="!isEditMode" class="info-value">
+                  {{ member.m_tel || "—" }}
+                </div>
+                <input
+                  v-else
+                  v-model="editForm.m_tel"
+                  class="form-control"
+                  @blur="onProfileFieldBlur"
+                />
               </div>
-              <input v-else v-model="editForm.m_email" class="form-control" />
-            </div>
 
-            <div class="info-box">
-              <div class="info-label">주소</div>
-              <div class="info-value">{{ member.m_address }}</div>
-            </div>
+              <div class="info-box">
+                <div class="info-label">이메일</div>
+                <div v-if="!isEditMode" class="info-value">
+                  {{ member.m_email || "—" }}
+                </div>
+                <input
+                  v-else
+                  v-model="editForm.m_email"
+                  class="form-control"
+                  @blur="onProfileFieldBlur"
+                />
+              </div>
 
-            <div class="info-box">
-              <div class="info-label">가입일</div>
-              <div class="info-value">{{ member.m_joindate }}</div>
-            </div>
+              <div class="info-box">
+                <div class="info-label">주소</div>
+                <div v-if="!isEditMode" class="info-value">
+                  {{ member.m_add || "—" }}
+                </div>
+                <input
+                  v-else
+                  v-model="editForm.m_add"
+                  class="form-control"
+                  @blur="onProfileFieldBlur"
+                />
+              </div>
+            </template>
 
             <div class="mt-3">
               <button
@@ -296,6 +466,9 @@ const findAddress = () => {
           </div>
 
           <div class="card-body">
+            <p v-if="applicantsLoading" class="text-muted text-sm mb-2">
+              로딩 중...
+            </p>
             <button
               class="btn bg-gradient-success w-100 mb-3"
               @click="openModal"
@@ -351,13 +524,19 @@ const findAddress = () => {
 
                 <div class="info-box">
                   <div class="info-label">생년월일</div>
-                  <div class="info-value">{{ selectedApplicant.mc_bd }}</div>
+                  <div class="info-value">
+                    {{
+                      selectedApplicant.mc_bd
+                        ? String(selectedApplicant.mc_bd).slice(0, 10)
+                        : "—"
+                    }}
+                  </div>
                 </div>
 
                 <div class="info-box">
                   <div class="info-label">성별</div>
                   <div class="info-value">
-                    {{ selectedApplicant.mc_gender }}
+                    {{ genderLabel(selectedApplicant.mc_gender) }}
                   </div>
                 </div>
 
@@ -376,7 +555,11 @@ const findAddress = () => {
                 <div class="info-box">
                   <div class="info-label">신청일</div>
                   <div class="info-value">
-                    {{ selectedApplicant.mc_submitdate }}
+                    {{
+                      selectedApplicant.mc_submitdate
+                        ? String(selectedApplicant.mc_submitdate).slice(0, 10)
+                        : "—"
+                    }}
                   </div>
                 </div>
               </div>
@@ -405,18 +588,18 @@ const findAddress = () => {
                     <label class="me-3 mb-0">
                       <input
                         type="radio"
-                        value="남"
+                        value="b0_00"
                         v-model="applicantEditForm.mc_gender"
                       />
-                      남
+                      남자
                     </label>
                     <label class="mb-0">
                       <input
                         type="radio"
-                        value="여"
+                        value="b0_10"
                         v-model="applicantEditForm.mc_gender"
                       />
-                      여
+                      여자
                     </label>
                   </div>
                 </div>
@@ -449,9 +632,10 @@ const findAddress = () => {
                 <div class="d-flex gap-2 mt-3">
                   <button
                     class="btn bg-gradient-success w-100"
+                    :disabled="applicantSaving"
                     @click="saveApplicantEdit"
                   >
-                    저장
+                    {{ applicantSaving ? "저장 중..." : "저장" }}
                   </button>
                   <button
                     class="btn btn-outline-secondary w-100"
@@ -497,18 +681,18 @@ const findAddress = () => {
               <label class="me-3">
                 <input
                   type="radio"
-                  value="남"
+                  value="b0_00"
                   v-model="newApplicant.mc_gender"
                 />
-                남
+                남자
               </label>
               <label>
                 <input
                   type="radio"
-                  value="여"
+                  value="b0_10"
                   v-model="newApplicant.mc_gender"
                 />
-                여
+                여자
               </label>
             </div>
           </div>
@@ -569,8 +753,12 @@ const findAddress = () => {
         </div>
 
         <div class="d-flex gap-2 mt-4">
-          <button class="btn bg-gradient-success w-100" @click="addApplicant">
-            등록
+          <button
+            class="btn bg-gradient-success w-100"
+            :disabled="addApplicantSaving"
+            @click="addApplicant"
+          >
+            {{ addApplicantSaving ? "등록 중..." : "등록" }}
           </button>
           <button class="btn btn-outline-secondary w-100" @click="closeModal">
             취소

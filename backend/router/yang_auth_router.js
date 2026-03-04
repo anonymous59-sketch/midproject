@@ -22,7 +22,7 @@ router.post("/sign-in", async (req, res) => {
       return res.json({ success: false, message: "비밀번호 틀림" });
     }
 
-    // JWT 없이 로그인 성공 처리
+    // JWT 없이 로그인 성공 처리 (m_org로 organ 조인한 organ_name 포함)
     return res.json({
       success: true,
       message: "로그인 성공!",
@@ -36,6 +36,7 @@ router.post("/sign-in", async (req, res) => {
         m_add: user.m_add,
         m_auth: user.m_auth,
         m_org: user.m_org,
+        organ_name: user.organ_name ?? null,
       },
     });
   } catch (err) {

@@ -7,7 +7,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 /**
- * [1] 좌측 검색(필터) 상태값
+ * [1] 좌측 검색(필터) 입력값
  */
 const filters = ref({
   dateFrom: "",
@@ -15,12 +15,28 @@ const filters = ref({
   targetName: "",
   applicantName: "",
   managerName: "",
-  stage: "전체", // 대기단계: 전체/검토중/대기/긴급/종결 등
+  stage: "전체",
   progress: {
-    review: false, // 검토
-    approve: false, // 승인
-    reject: false, // 반려
-    done: false, // 결과(완료)
+    review: false,
+    approve: false,
+    reject: false,
+    done: false,
+  },
+});
+
+/** 검색 버튼/엔터 시에만 적용 */
+const appliedFilters = ref({
+  dateFrom: "",
+  dateTo: "",
+  targetName: "",
+  applicantName: "",
+  managerName: "",
+  stage: "전체",
+  progress: {
+    review: false,
+    approve: false,
+    reject: false,
+    done: false,
   },
 });
 
@@ -82,7 +98,10 @@ async function loadOrganManagerList() {
  * [3] “검색” 버튼을 눌렀을 때, 실제로는 API 호출해야 함.
  * 지금은 일단 콘솔 출력만.
  */
-const onSearch = () => loadOrganManagerList();
+const onSearch = () => {
+  appliedFilters.value = JSON.parse(JSON.stringify(filters.value));
+  loadOrganManagerList();
+};
 
 const onReset = () => {
   filters.value.targetName = "";
@@ -93,10 +112,11 @@ const onReset = () => {
   filters.value.progress.approve = false;
   filters.value.progress.reject = false;
   filters.value.progress.done = false;
+  appliedFilters.value = JSON.parse(JSON.stringify(filters.value));
 };
 
 const filteredRows = computed(() => {
-  const f = filters.value;
+  const f = appliedFilters.value;
   return rows.value.filter((r) => {
     if (f.dateFrom && r.applyDate && r.applyDate < f.dateFrom.replace(/-/g, ".")) return false;
     if (f.dateTo && r.applyDate && r.applyDate > f.dateTo.replace(/-/g, ".")) return false;
@@ -149,7 +169,7 @@ const viewResult = (row) => {
             </div>
           </div>
 
-          <div class="card-body">
+          <form class="card-body" @submit.prevent="onSearch">
             <!-- 날짜 -->
             <label class="form-label text-sm">작성일</label>
             <div class="d-flex gap-2">
@@ -300,14 +320,14 @@ const viewResult = (row) => {
             </div>
 
             <div class="mt-4 d-grid gap-2">
-              <button class="btn btn-success mb-0" @click="onSearch">
+              <button type="submit" class="btn btn-success mb-0">
                 검색
               </button>
-              <button class="btn btn-outline-secondary mb-0" @click="onReset">
+              <button type="button" class="btn btn-outline-secondary mb-0" @click="onReset">
                 초기화
               </button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
 

@@ -12,17 +12,15 @@ const svc = {
     }
 
     try {
-      //  쿼리 이름 psw_login 사용
-      const list = await query("psw_login", [m_id]);
+      const list = await query("psw_login_with_organ", [m_id]);
 
       if (!list || list.length === 0) return null;
 
-      // 단순 문자열 비교용 비밀번호 필드 포함
       const user = list[0];
       return {
         m_no: user.m_no,
         m_id: user.m_id,
-        m_pw: user.m_pw, //  여기서 비밀번호 가져오기
+        m_pw: user.m_pw,
         m_nm: user.m_nm,
         m_email: user.m_email,
         m_tel: user.m_tel,
@@ -30,6 +28,7 @@ const svc = {
         m_add: user.m_add,
         m_auth: user.m_auth,
         m_org: user.m_org,
+        organ_name: user.organ_name ?? null,
       };
     } catch (err) {
       console.error("psw_login 오류:", err);

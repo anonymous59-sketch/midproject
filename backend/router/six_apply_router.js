@@ -59,7 +59,7 @@ router.get("/targets", async (req, res) => {
   }
 });
 
-// ✅ 보호자별 지원대상자 목록: GET /dsbl-prs?gdn_no=xxx (review 화면)
+// ✅ 보호자별 지원대상자 목록: GET /dsbl-prs?gdn_no=xxx (review 화면, 마이페이지)
 router.get("/dsbl-prs", async (req, res) => {
   try {
     const gdnNo = req.query.gdn_no || "";
@@ -71,6 +71,74 @@ router.get("/dsbl-prs", async (req, res) => {
       message: "Server error",
       error: err.message || String(err),
     });
+  }
+});
+
+// ✅ 마이페이지: 회원 프로필 조회 GET /mypage/profile?m_no=xxx
+router.get("/mypage/profile", async (req, res) => {
+  try {
+    const mNo = req.query.m_no || "";
+    const data = await sixApplyService.getMemberByMno(mNo);
+    return res.json(data || {});
+  } catch (err) {
+    console.error("[GET /mypage/profile]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ 마이페이지: 회원 프로필 수정 PUT /mypage/profile (body: m_no, m_tel, m_email, m_add)
+router.put("/mypage/profile", async (req, res) => {
+  try {
+    const { m_no, m_tel, m_email, m_add } = req.body || {};
+    if (!m_no) return res.status(400).json({ message: "m_no 필요" });
+    await sixApplyService.updateMemberProfileByMno(m_no, { m_tel, m_email, m_add });
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /mypage/profile]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ 마이페이지: 지원대상자 수정 PUT /dsbl-prs/:mcPn (body: gdn_no, mc_nm, mc_bd, mc_gender, mc_address, mc_type, mc_submitdate)
+router.put("/dsbl-prs/:mcPn", async (req, res) => {
+  try {
+    const mcPn = req.params.mcPn || "";
+    const { gdn_no, mc_nm, mc_bd, mc_gender, mc_address, mc_type, mc_submitdate } = req.body || {};
+    if (!mcPn || !gdn_no) return res.status(400).json({ message: "mc_pn, gdn_no 필요" });
+    await sixApplyService.updateDsblPrs(mcPn, gdn_no, {
+      mc_nm,
+      mc_bd,
+      mc_gender,
+      mc_address,
+      mc_type,
+      mc_submitdate,
+    });
+    return res.json({ message: "ok" });
+  } catch (err) {
+    if (err.code === "FORBIDDEN")
+      return res.status(403).json({ message: err.message });
+    console.error("[PUT /dsbl-prs/:mcPn]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ 마이페이지: 지원대상자 신규 등록 POST /dsbl-prs (body: gdn_no, mc_nm, mc_bd, mc_gender, mc_address, mc_type, mc_submitdate)
+router.post("/dsbl-prs", async (req, res) => {
+  try {
+    const { gdn_no, mc_nm, mc_bd, mc_gender, mc_address, mc_type, mc_submitdate } = req.body || {};
+    if (!gdn_no || !mc_nm) return res.status(400).json({ message: "gdn_no, mc_nm 필요" });
+    const result = await sixApplyService.createDsblPrs(gdn_no, {
+      mc_nm,
+      mc_bd,
+      mc_gender,
+      mc_address,
+      mc_type,
+      mc_submitdate,
+    });
+    return res.status(201).json({ message: "ok", mc_pn: result.mc_pn });
+  } catch (err) {
+    console.error("[POST /dsbl-prs]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 

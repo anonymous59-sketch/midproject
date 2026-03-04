@@ -132,28 +132,34 @@ const onDeleteSelected = async () => {
 };
 
 /**
- * [1] 좌측 검색 상태값 (기관명)
+ * [1] 좌측 검색 입력값 (기관명)
  */
 const filters = ref({
+  orgName: "",
+});
+
+/** 검색 버튼/엔터 시에만 적용 (실시간 반영 안 함) */
+const appliedFilters = ref({
   orgName: "",
 });
 
 /** [2] 기관 목록 (DB organ 테이블 연동) */
 const rows = ref([]);
 
-/** [3] 검색/초기화 (클라이언트 필터) */
+/** [3] 검색: 버튼 클릭 또는 엔터 시에만 적용 */
 const onSearch = () => {
-  /* filteredRows가 filters.orgName으로 자동 필터 */
+  appliedFilters.value.orgName = filters.value.orgName;
 };
 const onReset = () => {
   filters.value.orgName = "";
+  appliedFilters.value.orgName = "";
 };
 
 /**
- * [4] 화면 필터링(computed)
+ * [4] 화면 필터링(computed) — appliedFilters 기준
  */
 const filteredRows = computed(() => {
-  const q = filters.value.orgName.trim();
+  const q = (appliedFilters.value.orgName || "").trim();
   if (!q) return rows.value;
 
   return rows.value.filter((r) => r.orgName.includes(q));
@@ -349,7 +355,7 @@ const submitCreate = async () => {
             <h6 class="mb-0">검색</h6>
           </div>
 
-          <div class="card-body">
+          <form class="card-body" @submit.prevent="onSearch">
             <label class="form-label text-sm">기관명</label>
             <input
               v-model="filters.orgName"
@@ -359,14 +365,14 @@ const submitCreate = async () => {
             />
 
             <div class="mt-3 d-grid gap-2">
-              <button class="btn btn-primary mb-0" @click="onSearch">
+              <button type="submit" class="btn btn-primary mb-0">
                 검색
               </button>
-              <button class="btn btn-outline-secondary mb-0" @click="onReset">
+              <button type="button" class="btn btn-outline-secondary mb-0" @click="onReset">
                 초기화
               </button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
 

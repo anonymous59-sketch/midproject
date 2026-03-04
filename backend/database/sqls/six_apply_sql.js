@@ -136,7 +136,7 @@ exports.selectDsblPrsByMcPn = `
   WHERE mc_pn = ?
 `;
 
-// ✅ 보호자(gdn_no)별 지원대상자 목록 (review 화면용)
+// ✅ 보호자(gdn_no)별 지원대상자 목록 (review 화면용, 마이페이지용)
 exports.selectDsblPrsByGdnNo = `
   SELECT
     mc_pn,
@@ -150,6 +150,39 @@ exports.selectDsblPrsByGdnNo = `
   FROM dsbl_prs
   WHERE gdn_no = ?
   ORDER BY mc_submitdate DESC
+`;
+
+// ✅ 마이페이지: 회원 본인 프로필 조회 (m_no)
+exports.selectMemberByMno = `
+  SELECT m_no, m_id, m_nm, m_email, m_tel, m_bd, m_add
+  FROM member WHERE m_no = ?
+`;
+
+// ✅ 마이페이지: 회원 본인 프로필 수정 (m_tel, m_email, m_add)
+exports.updateMemberProfileByMno = `
+  UPDATE member SET m_tel = ?, m_email = ?, m_add = ?
+  WHERE m_no = ?
+`;
+
+// ✅ 마이페이지: 지원대상자(dsbl_prs) 수정 — gdn_no 일치 시에만
+exports.updateDsblPrsByMcPn = `
+  UPDATE dsbl_prs
+  SET mc_nm = ?, mc_bd = ?, mc_gender = ?, mc_address = ?, mc_type = ?, mc_submitdate = ?
+  WHERE mc_pn = ? AND gdn_no = ?
+`;
+
+// ✅ 당일 최대 mc_pn 조회 (DSBL+YYYYMMDD+시퀀스 생성용)
+exports.selectMaxMcPnByDate = `
+  SELECT mc_pn FROM dsbl_prs
+  WHERE mc_pn LIKE ?
+  ORDER BY mc_pn DESC
+  LIMIT 1
+`;
+
+// ✅ 마이페이지: 지원대상자(dsbl_prs) 신규 등록
+exports.insertDsblPrs = `
+  INSERT INTO dsbl_prs (mc_pn, mc_nm, mc_bd, mc_gender, mc_address, mc_type, gdn_no, mc_submitdate)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 // ✅ 상담 작성자 후보: member 중 m_auth = a0_30 (counsel form csl_writer select용)

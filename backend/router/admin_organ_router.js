@@ -3,16 +3,92 @@ const router = express.Router();
 const adminOrganService = require("../services/admin_organ_service");
 const memberService = require("../services/member_service");
 
-// GET /admin/managers - 담당자 목록 (m_auth=a0_30), query: searchBy, searchValue, m_org(기관관리자일 때 동일 기관만)
+// GET /admin/managers - 담당자 목록 (a0_30 승인됨 + a0_31 승인요청), query: searchBy, searchValue, m_org
 router.get("/managers", async (req, res) => {
   try {
     const searchBy = req.query.searchBy || null;
     const searchValue = req.query.searchValue || null;
     const mOrg = req.query.m_org || null;
-    const data = await memberService.getManagersList("a0_30", searchBy, searchValue, mOrg);
+    const data = await memberService.getManagersList("a0_30", searchBy, searchValue, mOrg, true);
     return res.json(data);
   } catch (err) {
     console.error("[GET /admin/managers]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// GET /admin/applicants - 지원자 목록 (a0_20 승인됨 + a0_21 승인요청), query: searchBy, searchValue, m_org(기관관리자용)
+router.get("/applicants", async (req, res) => {
+  try {
+    const searchBy = req.query.searchBy || null;
+    const searchValue = req.query.searchValue || null;
+    const mOrg = req.query.m_org || null;
+    const data = await memberService.getMembersByAuthIn(["a0_20", "a0_21"], searchBy, searchValue, mOrg);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /admin/applicants]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// GET /admin/organ-managers-list - 기관관리자 목록 (a0_40 승인됨 + a0_41 승인요청)
+router.get("/organ-managers-list", async (req, res) => {
+  try {
+    const searchBy = req.query.searchBy || null;
+    const searchValue = req.query.searchValue || null;
+    const data = await memberService.getMembersByAuthIn(["a0_40", "a0_41"], searchBy, searchValue, null);
+    return res.json(data);
+  } catch (err) {
+    console.error("[GET /admin/organ-managers-list]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// PUT /admin/members/:mNo/approve - 승인요청(a0_31) → 승인(a0_30)
+router.put("/members/:mNo/approve", async (req, res) => {
+  try {
+    const { mNo } = req.params;
+    await memberService.approveManager(mNo);
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /admin/members/:mNo/approve]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// PUT /admin/members/:mNo/approve-applicant - 승인요청(a0_21) → 승인(a0_20)
+router.put("/members/:mNo/approve-applicant", async (req, res) => {
+  try {
+    const { mNo } = req.params;
+    await memberService.updateMemberAuth(mNo, "a0_21", "a0_20");
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /admin/members/:mNo/approve-applicant]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// PUT /admin/members/:mNo/approve-organ-manager - 승인요청(a0_41) → 승인(a0_40)
+router.put("/members/:mNo/approve-organ-manager", async (req, res) => {
+  try {
+    const { mNo } = req.params;
+    await memberService.updateMemberAuth(mNo, "a0_41", "a0_40");
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /admin/members/:mNo/approve-organ-manager]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// DELETE /admin/members/:mNo - 회원 삭제 (반려 시 등), body: { reject_reason } (향후 m_email 발송용)
+router.delete("/members/:mNo", async (req, res) => {
+  try {
+    const { mNo } = req.params;
+    const rejectReason = (req.body && req.body.reject_reason) || "";
+    await memberService.deleteMember(mNo, rejectReason);
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[DELETE /admin/members/:mNo]", err);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 });

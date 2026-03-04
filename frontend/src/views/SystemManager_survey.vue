@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onBeforeMount, watch } from "vue";
+import { ref, onBeforeMount } from "vue";
 import { useRouter } from "vue-router";
 import SurveyTable from "./systemmanager_surveyComp/SurveyTable.vue";
 import axios from "axios";
@@ -45,10 +45,10 @@ const handleEdit = (data) => {
   });
 };
 
-// searchName 값 변경 시 자동 검색
-watch(searchName, () => {
+// 검색: 버튼 클릭 또는 엔터 시에만 조회
+const onSearch = () => {
   fetchSurveys();
-});
+};
 
 // 페이지 로딩 시 전체 조회
 onBeforeMount(() => {
@@ -62,9 +62,16 @@ onBeforeMount(() => {
     <div class="top-bar d-flex justify-content-between align-items-center mb-3">
       <button class="btn btn-primary" @click="goCreateSurvey">✏️ 조사지 등록</button>
 
-      <div class="search-box">
+      <div class="search-box d-flex align-items-center gap-2">
         <i class="fas fa-search"></i>
-        <input v-model="searchName" placeholder="검색할 조사지 이름을 입력해주세요" />
+        <input
+          v-model="searchName"
+          placeholder="검색할 조사지 이름을 입력해주세요"
+          @keyup.enter="onSearch"
+        />
+        <button type="button" class="btn btn-sm btn-primary" @click="onSearch">
+          검색
+        </button>
       </div>
     </div>
 

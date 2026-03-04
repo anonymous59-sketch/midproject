@@ -487,13 +487,15 @@ function formatCounselDate(val) {
             </div>
           </div>
 
-          <!-- 이동 링크: 지원신청서 | 지원계획 | 지원결과 -->
-          <div class="mb-2">
+          <!-- 이동 링크: 지원신청서 | 지원계획 | 지원결과 (현재 탭 음영) -->
+          <div class="mb-2 d-flex gap-1 flex-wrap">
             <button
               type="button"
-              class="btn btn-link btn-sm p-0 me-3 text-decoration-none"
+              class="counsel-tab-btn rounded px-2 py-1 text-decoration-none border-0"
               :class="
-                leftTab === 'application' ? 'fw-bold text-dark' : 'text-muted'
+                leftTab === 'application'
+                  ? 'counsel-tab-active fw-bold text-dark'
+                  : 'text-muted bg-transparent'
               "
               @click="leftTab = 'application'"
             >
@@ -501,16 +503,24 @@ function formatCounselDate(val) {
             </button>
             <button
               type="button"
-              class="btn btn-link btn-sm p-0 me-3 text-decoration-none"
-              :class="leftTab === 'plan' ? 'fw-bold text-dark' : 'text-muted'"
+              class="counsel-tab-btn rounded px-2 py-1 text-decoration-none border-0"
+              :class="
+                leftTab === 'plan'
+                  ? 'counsel-tab-active fw-bold text-dark'
+                  : 'text-muted bg-transparent'
+              "
               @click="leftTab = 'plan'; loadPlanTab()"
             >
               지원계획
             </button>
             <button
               type="button"
-              class="btn btn-link btn-sm p-0 text-decoration-none"
-              :class="leftTab === 'result' ? 'fw-bold text-dark' : 'text-muted'"
+              class="counsel-tab-btn rounded px-2 py-1 text-decoration-none border-0"
+              :class="
+                leftTab === 'result'
+                  ? 'counsel-tab-active fw-bold text-dark'
+                  : 'text-muted bg-transparent'
+              "
               @click="leftTab = 'result'"
             >
               지원결과
@@ -980,5 +990,14 @@ function formatCounselDate(val) {
 }
 .counsel-survey-list .counsel-survey-item:last-child {
   border-bottom: none !important;
+}
+/* 탭 제목: 현재 작업 중인 화면 음영 */
+.counsel-tab-btn {
+  font-size: 0.875rem;
+  background: transparent;
+  cursor: pointer;
+}
+.counsel-tab-active {
+  background: rgba(0, 0, 0, 0.08) !important;
 }
 </style>

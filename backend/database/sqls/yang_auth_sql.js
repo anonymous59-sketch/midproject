@@ -16,6 +16,24 @@ const qry = {
     FROM member
     WHERE m_id = ?
   `,
+  // 로그인용 + 기관명 조인 (organ_name 표시용)
+  psw_login_with_organ: `
+    SELECT 
+      m.m_no,
+      m.m_id,
+      m.m_pw,
+      m.m_nm,
+      m.m_email,
+      m.m_tel,
+      m.m_bd,
+      m.m_add,
+      m.m_auth,
+      m.m_org,
+      o.organ_name
+    FROM member m
+    LEFT JOIN organ o ON o.organ_no = m.m_org
+    WHERE m.m_id = ?
+  `,
   // 회원 가입용 (비밀번호 포함)
   signUpUser: `
     INSERT INTO member

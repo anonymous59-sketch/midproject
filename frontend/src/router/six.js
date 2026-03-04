@@ -70,4 +70,28 @@ export default [
       },
     ],
   },
+  // 4) 지원자 관리 (a0_20, a0_21)
+  {
+    path: "/applicantmanage",
+    component: admin,
+    children: [
+      {
+        path: "",
+        name: "applicantmanage",
+        component: () => import("@/views/ApplicantControl.vue"),
+      },
+    ],
+  },
+  // 5) 관리자 관리 (a0_40, a0_41)
+  {
+    path: "/organmanagermanage",
+    component: admin,
+    children: [
+      {
+        path: "",
+        name: "organmanagermanage",
+        component: () => import("@/views/OrganManagerManage.vue"),
+      },
+    ],
+  },
 ];

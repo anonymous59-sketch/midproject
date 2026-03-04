@@ -12,7 +12,10 @@ const searchValue = ref("");
 const listLoading = ref(false);
 const listError = ref("");
 
+/** m_auth: a0_30 → 승인됨, a0_31 → 승인요청 */
 function mapRow(item, index) {
+  const auth = item.m_auth || "";
+  const status = auth === "a0_31" ? "승인요청" : "승인됨";
   return {
     id: item.m_no || index + 1,
     selected: false,
@@ -21,7 +24,8 @@ function mapRow(item, index) {
     phone: item.m_tel || "",
     email: item.m_email || "",
     organName: item.organ_name || item.m_org || "",
-    status: "승인",
+    status,
+    m_auth: auth,
   };
 }
 
@@ -65,10 +69,84 @@ const paginatedData = computed(() => {
 
 // ====== 상태별 배지 ======
 const statusBadge = (status) => ({
-  "bg-gradient-success": status === "승인",
+  "bg-gradient-success": status === "승인됨",
+  "bg-gradient-warning": status === "승인요청",
   "bg-gradient-secondary": status === "대기중",
   "bg-gradient-danger": status === "반려",
 });
+
+// ====== 승인/반려 모달 (승인요청 클릭 시) ======
+const approvalModalOpen = ref(false);
+const approvalTarget = ref(null);
+const rejectReason = ref("");
+const approvalStep = ref("choice"); // 'choice' | 'reject'
+const approvalSaving = ref(false);
+
+const openApprovalModal = (item) => {
+  if (item.status !== "승인요청") return;
+  approvalTarget.value = item;
+  rejectReason.value = "";
+  approvalStep.value = "choice";
+  approvalModalOpen.value = true;
+};
+
+const closeApprovalModal = () => {
+  if (!approvalSaving.value) {
+    approvalModalOpen.value = false;
+    approvalTarget.value = null;
+    rejectReason.value = "";
+    approvalStep.value = "choice";
+  }
+};
+
+/** 승인: a0_31 → a0_30 */
+const doApprove = async () => {
+  const target = approvalTarget.value;
+  if (!target) return;
+  approvalSaving.value = true;
+  try {
+    const res = await fetch(`/api/admin/members/${encodeURIComponent(target.id)}/approve`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error("승인 처리에 실패했습니다.");
+    approvalSaving.value = false;
+    alert("승인되었습니다.");
+    closeApprovalModal();
+    await loadManagers();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    approvalSaving.value = false;
+  }
+};
+
+/** 반려: 1단계에서 반려 클릭 시 textarea 단계로 */
+const showRejectForm = () => {
+  approvalStep.value = "reject";
+};
+
+/** 반려 제출: DELETE + 반려사유 (향후 m_email 발송용) */
+const doReject = async () => {
+  const target = approvalTarget.value;
+  if (!target) return;
+  approvalSaving.value = true;
+  try {
+    const res = await fetch(`/api/admin/members/${encodeURIComponent(target.id)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reject_reason: rejectReason.value || "" }),
+    });
+    if (!res.ok) throw new Error("반려 처리에 실패했습니다.");
+    approvalSaving.value = false;
+    closeApprovalModal();
+    await loadManagers();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    approvalSaving.value = false;
+  }
+};
 
 // ====== 선택 삭제 ======
 const deleteSelected = () => {
@@ -244,6 +322,15 @@ onMounted(() => loadManagers());
                 <td>{{ item.email }}</td>
                 <td class="text-center">
                   <span
+                    v-if="item.status === '승인요청'"
+                    class="badge badge-sm cursor-pointer"
+                    :class="statusBadge(item.status)"
+                    @click="openApprovalModal(item)"
+                  >
+                    {{ item.status }}
+                  </span>
+                  <span
+                    v-else
                     class="badge badge-sm"
                     :class="statusBadge(item.status)"
                   >
@@ -390,11 +477,86 @@ onMounted(() => loadManagers());
         </div>
       </div>
     </div>
+
+    <!-- ====== 승인/반려 모달 (승인요청 클릭 시) ====== -->
+    <div v-if="approvalModalOpen">
+      <div
+        class="modal fade show d-block"
+        tabindex="-1"
+        style="background: rgba(0, 0, 0, 0.5)"
+      >
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content card shadow-lg border-0">
+            <div class="card-header text-center bg-transparent pb-0">
+              <h6 class="font-weight-bolder text-dark">사용승인여부</h6>
+            </div>
+            <div class="card-body p-4">
+              <template v-if="approvalStep === 'choice'">
+                <p class="text-sm text-muted mb-3">
+                  {{ approvalTarget?.userName }} ({{ approvalTarget?.userId }}) 담당자에 대해 승인 또는 반려를 선택하세요.
+                </p>
+                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                  <button
+                    class="btn btn-sm bg-gradient-success"
+                    :disabled="approvalSaving"
+                    @click="doApprove"
+                  >
+                    승인
+                  </button>
+                  <button
+                    class="btn btn-sm bg-gradient-danger"
+                    :disabled="approvalSaving"
+                    @click="showRejectForm"
+                  >
+                    반려
+                  </button>
+                  <button
+                    class="btn btn-sm bg-gradient-secondary"
+                    :disabled="approvalSaving"
+                    @click="closeApprovalModal"
+                  >
+                    취소
+                  </button>
+                </div>
+              </template>
+              <template v-else>
+                <label class="form-label text-sm">반려사유 (선택, 향후 이메일 발송 예정)</label>
+                <textarea
+                  v-model="rejectReason"
+                  class="form-control form-control-sm mb-3"
+                  rows="4"
+                  placeholder="반려 사유를 입력하세요"
+                />
+                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                  <button
+                    class="btn btn-sm bg-gradient-danger"
+                    :disabled="approvalSaving"
+                    @click="doReject"
+                  >
+                    {{ approvalSaving ? "처리 중..." : "반려 제출" }}
+                  </button>
+                  <button
+                    class="btn btn-sm bg-gradient-secondary"
+                    :disabled="approvalSaving"
+                    @click="approvalStep = 'choice'"
+                  >
+                    뒤로
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .card {
   border-radius: 1.25rem;
+}
+.cursor-pointer {
+  cursor: pointer;
 }
 </style>

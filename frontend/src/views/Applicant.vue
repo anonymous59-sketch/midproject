@@ -7,9 +7,25 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 /**
- * [1] 좌측 검색(필터) 상태값
+ * [1] 좌측 검색(필터) 입력값
  */
 const filters = ref({
+  dateFrom: "",
+  dateTo: "",
+  targetName: "",
+  applicantName: "",
+  managerName: "",
+  stage: "전체",
+  progress: {
+    review: false,
+    approve: false,
+    reject: false,
+    done: false,
+  },
+});
+
+/** 검색 버튼/엔터 시에만 적용되는 필터 (실시간 반영 안 함) */
+const appliedFilters = ref({
   dateFrom: "",
   dateTo: "",
   targetName: "",
@@ -80,10 +96,9 @@ async function loadApplicantList() {
   }
 }
 
-/**
- * [3] 검색: 현재는 클라이언트 필터만 (필터 조건으로 filteredRows에서 걸러짐)
- */
+/** 검색: 버튼 클릭 또는 엔터 시에만 적용 */
 const onSearch = () => {
+  appliedFilters.value = JSON.parse(JSON.stringify(filters.value));
   loadApplicantList();
 };
 
@@ -96,6 +111,7 @@ const onReset = () => {
   filters.value.progress.approve = false;
   filters.value.progress.reject = false;
   filters.value.progress.done = false;
+  appliedFilters.value = JSON.parse(JSON.stringify(filters.value));
 };
 
 /**
@@ -103,7 +119,7 @@ const onReset = () => {
  * - 실제 서비스면 서버검색(API)로 바꾸는 게 일반적
  */
 const filteredRows = computed(() => {
-  const f = filters.value;
+  const f = appliedFilters.value;
 
   return rows.value.filter((r) => {
     if (f.dateFrom && r.applyDate && r.applyDate < f.dateFrom.replace(/-/g, ".")) return false;
@@ -159,7 +175,7 @@ const viewResult = (row) => {
             </div>
           </div>
 
-          <div class="card-body">
+          <form class="card-body" @submit.prevent="onSearch">
             <!-- 날짜 -->
             <label class="form-label text-sm">지원신청일</label>
             <div class="d-flex gap-2">
@@ -186,7 +202,7 @@ const viewResult = (row) => {
               placeholder="보호대상자명"
             />
 
-            <div class="mt-3">
+            <div v-if="authStore.user?.m_auth !== 'a0_20'" class="mt-3">
               <label class="form-label text-sm">지원자명</label>
               <input
                 v-model="filters.applicantName"
@@ -310,14 +326,14 @@ const viewResult = (row) => {
             </div>
 
             <div class="mt-4 d-grid gap-2">
-              <button class="btn btn-success mb-0" @click="onSearch">
+              <button type="submit" class="btn btn-success mb-0">
                 검색
               </button>
-              <button class="btn btn-outline-secondary mb-0" @click="onReset">
+              <button type="button" class="btn btn-outline-secondary mb-0" @click="onReset">
                 초기화
               </button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
 
