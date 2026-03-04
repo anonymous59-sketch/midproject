@@ -127,7 +127,7 @@ const confirmVerification = async () => {
     }
   } catch (err) {
     authMessage.value =
-      err.response?.data?.message || "인증번호가 일치하지 않습니다.";
+      err.response?.data?.message || "인증번호가 일치하지 않습니다 인증 번호를 다시 발급받아주세요.";
     if (timerInterval) {
       clearInterval(timerInterval);
       timerInterval = null;

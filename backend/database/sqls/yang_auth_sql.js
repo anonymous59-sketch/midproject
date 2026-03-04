@@ -47,6 +47,13 @@ const qry = {
   WHERE m_id = ?
   LIMIT 1
 `,
+  // 이메일 중복 확인용 psw수정
+  checkEmailExists: `
+  SELECT 1
+  FROM member
+  WHERE m_email = ?
+  LIMIT 1
+`,
   // 기관 리스트 조회용
   getOrganList: `
   SELECT organ_no, organ_name, organ_address, organ_mail, organ_tel, start_time, end_time, org_status

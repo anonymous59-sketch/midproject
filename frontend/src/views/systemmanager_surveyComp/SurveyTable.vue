@@ -52,7 +52,7 @@ const surveysWithVersion = computed(() => {
         <tr v-for="data in surveysWithVersion" :key="data.sver_code">
           <td>{{ data.displayVersion }}</td>
           <td>{{ data.sv_name }}</td>
-          <td>{{ data.writer_name }}</td>
+          <td>{{ data.writer_name || "-" }}</td>
           <td>{{ data.sv_time }}</td>
           <td>{{ data.sver_ondate }}</td>
           <td>{{ data.sver_enddate == null ? "2999-12-31" : data.sver_enddate }}</td>

@@ -27,6 +27,10 @@ const goToResetPassword = () => router.push("/find-password");
 // 로그인 저장소 피니아
 const authStore = useAuthStore();
 
+// 모달 상태
+const showModal = ref(false);
+const modalMessage = ref("");
+
 // 로그인 처리
 const handleLogin = async () => {
   if (!userId.value || !password.value) {
@@ -44,13 +48,25 @@ const handleLogin = async () => {
     const data = await res.json();
 
     if (data.success) {
+      switch (data.user.m_auth) {
+        case "a0_21":
+        case "a0_31":
+        case "a0_41":
+          modalMessage.value = "가입 승인 대기 상태입니다.";
+          showModal.value = true;
+          return; // 🔥 여기서 종료
+      }
       // ✅ Pinia에 전체 user + token 저장
       authStore.setAuth({
         token: data.token,
         user: data.user,
       });
 
-      // localStorage 저장 (자동로그인용)
+      // 새로고침 유지용(탭 단위): sessionStorage에는 항상 저장
+      sessionStorage.setItem("token", data.token || "");
+      sessionStorage.setItem("user", JSON.stringify(data.user));
+
+      // localStorage 저장 (자동로그인용: rememberMe 체크 시)
       if (rememberMe.value) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
@@ -60,11 +76,6 @@ const handleLogin = async () => {
 
       // ✅ 권한별 분기
       switch (data.user.m_auth) {
-        case "a0_10":
-          alert("가입 승인 대기 상태입니다.");
-          // router.push("/waiting");
-          break;
-
         case "a0_20":
           router.push("/applicant");
           break;
@@ -245,6 +256,32 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </section>
+    <!-- 모달: 알림 -->
+    <div
+      v-if="showModal"
+      class="modal fade show d-block"
+      style="background: rgba(0, 0, 0, 0.5); z-index: 9999"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-0 border-0 shadow-lg">
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title font-weight-bolder">알림</h5>
+          </div>
+          <div class="modal-body py-4 text-center text-dark font-weight-bold">
+            {{ modalMessage }}
+          </div>
+          <div class="modal-footer border-0 pt-0 justify-content-center">
+            <argon-button
+              color="success"
+              variant="gradient"
+              class="rounded-0 px-5"
+              @click="showModal = false"
+              >확인</argon-button
+            >
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 화면 맨 아래 고정되는 외부 링크 바 -->
     <div class="position-absolute bottom-0 start-0 w-100 z-index-3 pb-4">

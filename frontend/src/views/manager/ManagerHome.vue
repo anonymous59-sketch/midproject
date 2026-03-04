@@ -1,8 +1,9 @@
 <!-- 담당자(a0_30) 홈: 로그인한 담당자 m_no = support.mgr_no 로 담당 지원 목록 표시 -->
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
+import TablePagination from "@/views/components/TablePagination.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -151,6 +152,23 @@ const filteredRows = computed(() => {
     }
     return true;
   });
+});
+
+// 페이징: 10건씩, 번호는 최근 건일수록 크게
+const page = ref(1);
+const pageSize = 10;
+const totalRows = computed(() => filteredRows.value.length);
+const pagedRows = computed(() => {
+  const start = (page.value - 1) * pageSize;
+  return filteredRows.value.slice(start, start + pageSize);
+});
+
+const rowDisplayNo = (indexInPage) => {
+  return totalRows.value - ((page.value - 1) * pageSize + indexInPage);
+};
+
+watch(filteredRows, () => {
+  page.value = 1;
 });
 
 onMounted(() => {
@@ -377,10 +395,12 @@ const viewResult = (row) => {
                   </tr>
                   <tr
                     v-else
-                    v-for="row in filteredRows"
+                    v-for="(row, idx) in pagedRows"
                     :key="row.sup_code || row.no"
                   >
-                    <td class="text-center text-sm">{{ row.no }}</td>
+                    <td class="text-center text-sm">
+                      {{ rowDisplayNo(idx) }}
+                    </td>
                     <td class="text-center text-sm">{{ row.targetName }}</td>
                     <td class="text-center text-sm">
                       {{ row.applicantName || "-" }}
@@ -395,7 +415,7 @@ const viewResult = (row) => {
                       </button>
                     </td>
                     <td class="text-center text-sm">
-                      {{ row.managerName || "-" }}
+                      {{ row.managerName || "미배정" }}
                     </td>
                     <td class="text-center text-sm">{{ row.stage }}</td>
                     <td class="text-center text-sm">
@@ -463,6 +483,13 @@ const viewResult = (row) => {
                 </tbody>
               </table>
             </div>
+
+            <TablePagination
+              v-if="totalRows > pageSize"
+              v-model:page="page"
+              :total="totalRows"
+              :page-size="pageSize"
+            />
           </div>
         </div>
       </div>

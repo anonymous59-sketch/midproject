@@ -16,6 +16,7 @@ const qry = {
     WHERE verifi_mail = ?
       AND verifi_purpose = ?
       AND verifi_success = 'h0_00'
+      AND verifi_num = ?
     ORDER BY verifi_create_at DESC
     LIMIT 1
   `,

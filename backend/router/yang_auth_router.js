@@ -65,6 +65,15 @@ router.post("/sign-up", async (req, res) => {
     if (existUser)
       return res.json({ success: false, message: "이미 존재하는 아이디" });
 
+    // Email 중복 확인 /psw 수정
+    const emailExists = await authService.checkEmailExists(userInfo.m_email);
+    if (emailExists) {
+      return res.json({
+        success: false,
+        message: "해당 이메일은 이미 가입되어있습니다.",
+      });
+    }
+
     // 회원가입
     const result = await authService.signUpUser(userInfo);
     return res.json(result);
@@ -89,6 +98,21 @@ router.get("/check-id/:m_id", async (req, res) => {
     res.json({ exists });
   } catch (err) {
     console.error("ID 중복 체크 오류:", err);
+    res.json({ exists: false });
+  }
+});
+
+// 이메일 중복 체크 API
+// GET /api/auth/check-email?email=xxx
+router.get("/check-email", async (req, res) => {
+  const email = (req.query?.email ?? "").toString().trim();
+  if (!email) return res.json({ exists: false });
+
+  try {
+    const exists = await authService.checkEmailExists(email);
+    res.json({ exists });
+  } catch (err) {
+    console.error("Email 중복 체크 오류:", err);
     res.json({ exists: false });
   }
 });

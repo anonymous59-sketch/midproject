@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
+import TablePagination from "@/views/components/TablePagination.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -156,6 +157,23 @@ const filteredRows = computed(() => {
     }
     return true;
   });
+});
+
+// 페이징: 10건씩, 번호는 최근 건일수록 크게
+const page = ref(1);
+const pageSize = 10;
+const totalRows = computed(() => filteredRows.value.length);
+const pagedRows = computed(() => {
+  const start = (page.value - 1) * pageSize;
+  return filteredRows.value.slice(start, start + pageSize);
+});
+
+const rowDisplayNo = (indexInPage) => {
+  return totalRows.value - ((page.value - 1) * pageSize + indexInPage);
+};
+
+watch(filteredRows, () => {
+  page.value = 1;
 });
 
 onMounted(() => {
@@ -396,8 +414,10 @@ const viewResult = (row) => {
                       {{ rows.length === 0 ? "본인이 신청한 지원신청이 없습니다." : "검색 조건에 맞는 결과가 없습니다." }}
                     </td>
                   </tr>
-                  <tr v-else v-for="row in filteredRows" :key="row.sup_code || row.no">
-                    <td class="text-center text-sm">{{ row.no }}</td>
+                  <tr v-else v-for="(row, idx) in pagedRows" :key="row.sup_code || row.no">
+                    <td class="text-center text-sm">
+                      {{ rowDisplayNo(idx) }}
+                    </td>
                     <td class="text-center text-sm">{{ row.targetName }}</td>
                     <td class="text-center text-sm">
                       {{ row.applicantName || "-" }}
@@ -414,7 +434,7 @@ const viewResult = (row) => {
                     </td>
 
                     <td class="text-center text-sm">
-                      {{ row.managerName || "-" }}
+                      {{ row.managerName || "미배정" }}
                     </td>
                     <td class="text-center text-sm">{{ row.stage }}</td>
 
@@ -491,7 +511,12 @@ const viewResult = (row) => {
               </table>
             </div>
 
-            <!-- (선택) 페이지네이션은 다음 단계에서 붙이자 -->
+            <TablePagination
+              v-if="totalRows > pageSize"
+              v-model:page="page"
+              :total="totalRows"
+              :page-size="pageSize"
+            />
           </div>
         </div>
       </div>

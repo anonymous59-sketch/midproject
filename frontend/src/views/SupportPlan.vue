@@ -466,36 +466,32 @@ const {
   openLoadModal: openTempLoadModal,
   applyItem: applyTempItem,
   deleteSelectedTemp: deleteTempAfterInsert,
-} = useTempStorage(
-  () => supportCode,
-  "j0_20",
-  {
-    getPayload: () => {
-      if (_tempPayloadOverride) return _tempPayloadOverride;
-      return {
-        save_title: (addForm.title ?? "").trim(),
-        save_content: JSON.stringify({ content: addForm.content ?? "" }),
-      };
-    },
-    setPayload: (item) => {
-      if (!item) return;
-      addForm.title = item.save_title ?? "";
-      try {
-        const o = JSON.parse(item.save_content || "{}");
-        addForm.content = o.content ?? item.save_content ?? "";
-      } catch {
-        addForm.content = item.save_content ?? "";
-      }
-    },
-    validate: (payload) => {
-      if (!(payload.save_title && payload.save_title.trim())) {
-        return { valid: false, message: "제목을 입력해주세요." };
-      }
-      return { valid: true };
-    },
-    onAlert: showAlert,
+} = useTempStorage(() => supportCode, "j0_20", {
+  getPayload: () => {
+    if (_tempPayloadOverride) return _tempPayloadOverride;
+    return {
+      save_title: (addForm.title ?? "").trim(),
+      save_content: JSON.stringify({ content: addForm.content ?? "" }),
+    };
   },
-);
+  setPayload: (item) => {
+    if (!item) return;
+    addForm.title = item.save_title ?? "";
+    try {
+      const o = JSON.parse(item.save_content || "{}");
+      addForm.content = o.content ?? item.save_content ?? "";
+    } catch {
+      addForm.content = item.save_content ?? "";
+    }
+  },
+  validate: (payload) => {
+    if (!(payload.save_title && payload.save_title.trim())) {
+      return { valid: false, message: "제목을 입력해주세요." };
+    }
+    return { valid: true };
+  },
+  onAlert: showAlert,
+});
 
 /** 추가 폼 — 임시저장 버튼 */
 function onTempSaveFromAdd() {

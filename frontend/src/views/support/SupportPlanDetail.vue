@@ -7,7 +7,7 @@
  * - 모드: isViewMode(조회) | isInputMode(수정 중+내용 없음→승인요청) | isEditMode(수정 중+내용 있음→수정완료)
  * - 첨부: plan_code로 /api/upload/files/:categoryPk 조회, 수정 시 삭제 표시·신규 선택 후 edit-complete 시 부모가 DELETE/업로드
  * - 연장: 승인 상태이고 종료일 기준 ±30일 이내일 때만 노출. 종료: 승인 상태이고 종료일이 지나지 않았을 때만 노출
- * - 권한: userAuth(담당자 a0_30·a0_40, 관리자 a0_99)만 승인/보완/반려/연장/종료 버튼 노출. 수정·승인요청 등은 권한 무관.
+ * - 권한: 기관관리자(a0_40)만 승인/보완/반려/연장/종료 버튼 노출. 수정·승인요청 등은 권한 무관.
  */
 // ========== import ==========
 import { ref, watch, onBeforeMount, computed } from "vue";
@@ -15,8 +15,8 @@ import { useAuthStore } from "@/store/auth";
 
 // ========== auth (버튼 노출 권한) ==========
 const authStore = useAuthStore();
-/** 관리자(a0_99)일 때만 true. 승인/보완/반려/연장/종료는 관리자만 노출(담당자 제외). getter 직접 참조로 Counsel 등 조건부 마운트에서도 최신 권한 반영 */
-const canManagePlan = computed(() => authStore.isAdmin);
+/** 기관관리자(a0_40)일 때만 true. 승인/보완/반려/연장/종료는 기관관리자만 노출(일반 이용자/기관담당자/시스템관리자 제외) */
+const canManagePlan = computed(() => authStore.user?.m_auth === "a0_40");
 
 // ========== props / emit ==========
 const props = defineProps({

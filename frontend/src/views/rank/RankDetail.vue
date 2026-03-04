@@ -2,8 +2,15 @@
 /**
  * 우선순위 한 건 상세 카드.
  * 계획/중점/긴급 pill 선택, 신청 사유 입력, 승인요청/승인/보완/반려 버튼을 제공하며, 상태(e0_00/e0_80 등)에 따라 읽기 전용·편집 가능을 구분한다.
+ * - 권한: 기관관리자(a0_40)만 승인/보완/반려 버튼 노출. 승인요청/취소는 담당자도 사용.
  */
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
+import { useAuthStore } from "@/store/auth";
+
+// ========== auth (버튼 노출 권한) ==========
+const authStore = useAuthStore();
+/** 기관관리자(a0_40)일 때만 true. 승인/보완/반려는 기관관리자만 노출 */
+const canManageRank = computed(() => authStore.user?.m_auth === "a0_40");
 
 // ========== 변수 ==========
 const props = defineProps({
@@ -213,9 +220,9 @@ function onCancel() {
           </button>
         </template>
 
-        <!-- 승인요청 상태(e0_00): 승인 / 보완 / 반려만 활성 -->
+        <!-- 승인요청 상태(e0_00): 승인 / 보완 / 반려만 활성 (기관관리자 전용) -->
         <button
-          v-if="s_rank_res === 'e0_00'"
+          v-if="canManageRank && s_rank_res === 'e0_00'"
           type="button"
           class="btn btn-sm btn-success"
           @click="emit('approve')"
@@ -223,7 +230,7 @@ function onCancel() {
           승인
         </button>
         <button
-          v-if="s_rank_res === 'e0_00'"
+          v-if="canManageRank && s_rank_res === 'e0_00'"
           type="button"
           class="btn btn-sm btn-warning"
           @click="emit('supple')"
@@ -231,7 +238,7 @@ function onCancel() {
           보완
         </button>
         <button
-          v-if="s_rank_res === 'e0_00'"
+          v-if="canManageRank && s_rank_res === 'e0_00'"
           type="button"
           class="btn btn-sm btn-danger"
           @click="emit('reject')"

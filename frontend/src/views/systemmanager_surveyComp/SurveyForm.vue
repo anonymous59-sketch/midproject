@@ -3,6 +3,7 @@
 import { ref, computed, onBeforeMount, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import axios from "axios";
+import { useAuthStore } from "@/store/auth";
 // 라우터에 있는 정보를 가지고 와서 사용
 const route = useRoute();
 // 라우터에 정보를 입력하고 그 라우터로 이동
@@ -11,6 +12,22 @@ const router = useRouter();
 const mode = computed(() => (route.query.mode == "edit" ? "edit" : "create"));
 
 const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD 형식으로 오늘 날짜 구하기
+
+// 로그인 사용자 정보 (Pinia 우선, 없으면 localStorage fallback)
+const authStore = useAuthStore();
+const currentUser = computed(() => {
+  if (authStore.user) return authStore.user;
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+});
+
+// 작성자(회원번호/이름)
+const writerNo = computed(() => currentUser.value?.m_no || "");
+const writerName = computed(() => currentUser.value?.m_nm || "");
 
 const form = ref({
   sver_code: "",
@@ -238,7 +255,9 @@ const buildPayload = () => {
     majors: majorList,
     subs: subList,
     questions: questionList,
-    writer: "",
+    // backend에서 writer는 member.m_no(작성자 번호)로 사용됨
+    writer: writerNo.value,
+    writer_name: writerName.value,
   };
 };
 
@@ -265,6 +284,11 @@ const previewStructure = computed(() => {
 
 // 전체저장 클릭 → 미리보기 모달 열기
 const openPreviewModal = () => {
+  // create 모드에서는 작성자(로그인 사용자)가 없으면 저장 막기
+  if (mode.value == "create" && !writerNo.value) {
+    alert("로그인 정보를 찾지 못했습니다. 다시 로그인 후 시도해주세요.");
+    return;
+  }
   pendingPreviewPayload.value = buildPayload();
   showPreviewModal.value = true;
 };
@@ -496,6 +520,15 @@ onBeforeMount(() => {
             <label class="form-label mb-1">조사지 Ver</label>
             <input
               v-model="form.sver_code"
+              type="text"
+              class="form-control form-control-sm"
+              readonly
+            />
+          </div>
+          <div class="me-3">
+            <label class="form-label mb-1">작성자</label>
+            <input
+              :value="writerName || '(로그인 필요)'"
               type="text"
               class="form-control form-control-sm"
               readonly
