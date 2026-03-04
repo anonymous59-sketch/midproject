@@ -152,10 +152,19 @@ exports.selectDsblPrsByGdnNo = `
   ORDER BY mc_submitdate DESC
 `;
 
-// ✅ 마이페이지: 회원 본인 프로필 조회 (m_no)
+// ✅ 마이페이지: 회원 본인 프로필 조회 (m_no) — 담당자용 기관명 포함 (alias 충돌 회피용 별도 키)
+exports.selectMemberProfileByMno = `
+  SELECT m.m_no, m.m_id, m.m_nm, m.m_email, m.m_tel, m.m_bd, m.m_add, m.m_org, o.organ_name
+  FROM member m
+  LEFT JOIN organ o ON o.organ_no = m.m_org
+  WHERE m.m_no = ?
+`;
+// (selectMemberByMno는 psw_verifi_sql에서 덮어쓰므로, 프로필 전용은 selectMemberProfileByMno 사용)
 exports.selectMemberByMno = `
-  SELECT m_no, m_id, m_nm, m_email, m_tel, m_bd, m_add
-  FROM member WHERE m_no = ?
+  SELECT m.m_no, m.m_id, m.m_nm, m.m_email, m.m_tel, m.m_bd, m.m_add, m.m_org, o.organ_name
+  FROM member m
+  LEFT JOIN organ o ON o.organ_no = m.m_org
+  WHERE m.m_no = ?
 `;
 
 // ✅ 마이페이지: 회원 본인 프로필 수정 (m_tel, m_email, m_add)
@@ -307,4 +316,21 @@ exports.insertCounsel = `
     csl_code, csl_name, csl_date, csl_writer, csl_write_date, csl_title, csl_content, sup_code
   )
   VALUES (?, ?, ?, ?, NOW(), ?, ?, ?)
+`;
+
+// ✅ 기관관리자 마이페이지: organ 1건 조회 (organ_no)
+exports.selectOrganByOrganNo = `
+  SELECT organ_no, organ_name, organ_address, organ_mail, organ_tel, start_time, end_time, org_status
+  FROM organ WHERE organ_no = ?
+`;
+
+// ✅ 기관관리자 마이페이지: 해당 기관(organ_no)의 a0_30 담당자 수
+exports.countManagersByOrganNo = `
+  SELECT COUNT(*) AS cnt FROM member WHERE m_org = ? AND m_auth = 'a0_30'
+`;
+
+// ✅ 기관관리자 마이페이지: 기관 정보 수정 (기관명, 주소, 메일, 대표전화)
+exports.updateOrganProfileByOrganNo = `
+  UPDATE organ SET organ_name = ?, organ_address = ?, organ_mail = ?, organ_tel = ?
+  WHERE organ_no = ?
 `;

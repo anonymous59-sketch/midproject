@@ -53,7 +53,7 @@ const qry = {
     WHERE m_no = ?
   `,
 
-  selectMemberByMno: `
+  psw_selectMemberByMno: `
     SELECT m_no, m_id, m_nm, m_email
     FROM member
     WHERE m_no = ?

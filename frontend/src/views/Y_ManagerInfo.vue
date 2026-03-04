@@ -1,58 +1,95 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { useAuthStore } from "@/store/auth";
 
 // Argon components
 import ArgonInput from "@/components/ArgonInput.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 
-// =============================
-// 🔹 라우터
-// =============================
-const router = useRouter();
+const authStore = useAuthStore();
 
-// =============================
-// 🔹 담당자 정보
-// =============================
+// 담당자 정보 (백엔드 연동: organ_name, m_tel, m_add 포함)
 const managerInfo = ref({
   orgName: "",
   userId: "",
   phone: "",
   email: "",
   address: "",
-  joinDate: "",
 });
+const userName = ref("");
 
 const isEditMode = ref(false);
+const saving = ref(false);
 
-// ⭐ state로 넘어온 값 있으면 사용
-onMounted(() => {
-  if (router?.options?.history?.state?.managerInfo) {
-    managerInfo.value = { ...router.options.history.state.managerInfo };
-  } else {
-    loadMyInfo(); // fallback
-  }
-});
+// API 응답이 배열이면 첫 번째 행 사용 (호환)
+function normalizeProfile(data) {
+  if (!data) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row && typeof row === "object" ? row : null;
+}
 
-// fallback (지금은 샘플)
+// 로그인 사용자(m_no) 기준으로 프로필 조회
 const loadMyInfo = async () => {
-  managerInfo.value = {
-    orgName: "대구 복지센터",
-    userId: "manager01",
-    phone: "010-1234-5678",
-    email: "manager01@test.com",
-    address: "대구 수성구 달구벌대로",
-    joinDate: "2026-02-01",
-  };
+  const mNo = authStore.user?.m_no;
+  if (!mNo) return;
+  try {
+    const res = await fetch(`/api/apply/mypage/profile?m_no=${encodeURIComponent(mNo)}`);
+    if (!res.ok) throw new Error("프로필 조회 실패");
+    const raw = await res.json();
+    const data = normalizeProfile(raw);
+    if (data) {
+      managerInfo.value = {
+        orgName: data.organ_name ?? "",
+        userId: data.m_id ?? "",
+        phone: data.m_tel ?? "",
+        email: data.m_email ?? "",
+        address: data.m_add ?? "",
+      };
+      userName.value = data.m_nm ?? "";
+    }
+  } catch (e) {
+    console.error(e);
+    alert("정보를 불러오지 못했습니다.");
+  }
 };
+
+onMounted(() => {
+  loadMyInfo();
+});
 
 const toggleEdit = () => {
   isEditMode.value = !isEditMode.value;
 };
 
 const saveInfo = async () => {
-  alert("정보가 수정되었습니다.");
-  isEditMode.value = false;
+  const mNo = authStore.user?.m_no;
+  if (!mNo) {
+    alert("로그인 정보가 없습니다.");
+    return;
+  }
+  saving.value = true;
+  try {
+    const res = await fetch("/api/apply/mypage/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        m_no: mNo,
+        m_tel: managerInfo.value.phone,
+        m_email: managerInfo.value.email,
+        m_add: managerInfo.value.address,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "저장 실패");
+    }
+    alert("정보가 수정되었습니다.");
+    isEditMode.value = false;
+  } catch (e) {
+    alert(e.message || "저장에 실패했습니다.");
+  } finally {
+    saving.value = false;
+  }
 };
 </script>
 
@@ -73,7 +110,7 @@ const saveInfo = async () => {
                     기관 담당자
                   </h5>
                   <p class="text-white text-sm opacity-9 mb-0">
-                    김길동님 반갑습니다.
+                    {{ userName || "담당자" }}님 반갑습니다.
                   </p>
                 </div>
 
@@ -97,7 +134,8 @@ const saveInfo = async () => {
                   <label class="form-label">소속 기관</label>
                   <ArgonInput
                     v-model="managerInfo.orgName"
-                    :disabled="!isEditMode"
+                    readonly
+                    disabled
                     class="organ-input"
                   />
                 </div>
@@ -106,6 +144,7 @@ const saveInfo = async () => {
                   <label class="form-label">아이디</label>
                   <ArgonInput
                     v-model="managerInfo.userId"
+                    readonly
                     disabled
                     class="organ-input"
                   />
@@ -137,11 +176,6 @@ const saveInfo = async () => {
                     class="organ-input"
                   />
                 </div>
-
-                <div class="form-item">
-                  <label class="form-label">가입일</label>
-                  <div class="organ-readonly">{{ managerInfo.joinDate }}</div>
-                </div>
               </div>
 
               <!-- 저장 - Argon gradient button -->
@@ -154,9 +188,10 @@ const saveInfo = async () => {
                   variant="gradient"
                   size="md"
                   class="btn-save"
+                  :disabled="saving"
                   @click="saveInfo"
                 >
-                  저장
+                  {{ saving ? "저장 중..." : "저장" }}
                 </ArgonButton>
               </div>
             </div>

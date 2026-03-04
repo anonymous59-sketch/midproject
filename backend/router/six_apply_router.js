@@ -99,6 +99,39 @@ router.put("/mypage/profile", async (req, res) => {
   }
 });
 
+// ✅ 기관관리자 마이페이지: 회원 + 기관 + 기관담당자 수 GET /mypage/organmanager?m_no=xxx
+router.get("/mypage/organmanager", async (req, res) => {
+  try {
+    const mNo = req.query.m_no || "";
+    if (!mNo) return res.status(400).json({ message: "m_no 필요" });
+    const data = await sixApplyService.getOrganManagerMypage(mNo);
+    return res.json(data || { member: null, organ: null, managerCount: 0 });
+  } catch (err) {
+    console.error("[GET /mypage/organmanager]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ 기관관리자 마이페이지: 기관 정보 수정 PUT /mypage/organmanager/organ (body: m_no, organ_name, organ_address, organ_mail, organ_tel)
+router.put("/mypage/organmanager/organ", async (req, res) => {
+  try {
+    const { m_no, organ_name, organ_address, organ_mail, organ_tel } = req.body || {};
+    if (!m_no) return res.status(400).json({ message: "m_no 필요" });
+    const data = await sixApplyService.getOrganManagerMypage(m_no);
+    if (!data || !data.member || !data.member.m_org) return res.status(403).json({ message: "해당 기관을 수정할 수 없습니다." });
+    await sixApplyService.updateOrganProfileByOrganNo(data.member.m_org, {
+      organ_name: organ_name ?? "",
+      organ_address: organ_address ?? "",
+      organ_mail: organ_mail ?? "",
+      organ_tel: organ_tel ?? "",
+    });
+    return res.json({ message: "ok" });
+  } catch (err) {
+    console.error("[PUT /mypage/organmanager/organ]", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
 // ✅ 마이페이지: 지원대상자 수정 PUT /dsbl-prs/:mcPn (body: gdn_no, mc_nm, mc_bd, mc_gender, mc_address, mc_type, mc_submitdate)
 router.put("/dsbl-prs/:mcPn", async (req, res) => {
   try {
@@ -303,7 +336,6 @@ router.post("/applications", async (req, res) => {
       sver_code,
       write_date,
       mem_no,
-      mgr_no,
       req_yn,
       answers,
     });

@@ -60,6 +60,12 @@ const greetingText = computed(() => {
  */
 const fullMenuItems = [
   {
+    key: "apply",
+    label: "지원신청",
+    to: "/apply",
+    show: (auth) => auth === "a0_20",
+  },
+  {
     key: "support",
     label: "지원자 관리",
     to: "/applicantmanage",

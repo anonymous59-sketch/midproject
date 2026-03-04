@@ -102,8 +102,8 @@ const saveEdit = async (skipClose = false) => {
       authStore.user.m_add = add;
     }
     if (!skipClose) {
-      isEditMode.value = true;
-      alert("변경사항이 저장되었습니다.");
+      isEditMode.value = false;
+      setTimeout(() => alert("성공적으로 저장되었습니다."), 0);
     }
   } catch (e) {
     if (!skipClose) alert(e.message || "저장에 실패했습니다.");
@@ -261,8 +261,13 @@ const newApplicant = ref({
   mc_gender: "b0_00",
   mc_address: "",
   mc_types: [""],
-  mc_submitdate: "",
 });
+
+// 등록일: 항상 오늘(날짜 선택 없음, 백엔드에서 today 고정)
+const todayYmd = () => {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+};
 
 const openModal = () => (showModal.value = true);
 const closeModal = () => (showModal.value = false);
@@ -314,7 +319,7 @@ const addApplicant = async () => {
         mc_gender: newApplicant.value.mc_gender === "b0_10" ? "b0_10" : "b0_00",
         mc_address: (newApplicant.value.mc_address ?? "").trim(),
         mc_type: disabilityTypes.join(", "),
-        mc_submitdate: newApplicant.value.mc_submitdate || null,
+        // 등록일(mc_submitdate)은 백엔드에서 today()로 고정 저장
       }),
     });
     if (!res.ok) {
@@ -328,7 +333,6 @@ const addApplicant = async () => {
       mc_gender: "b0_00",
       mc_address: "",
       mc_types: [""],
-      mc_submitdate: "",
     };
     showModal.value = false;
     alert("지원대상자가 등록되었습니다.");
@@ -431,7 +435,11 @@ const findAddress = () => {
               </button>
 
               <div v-else class="d-flex gap-2 mb-2">
-                <button class="btn bg-gradient-success w-100" @click="saveEdit">
+                <button
+                  type="button"
+                  class="btn bg-gradient-success w-100"
+                  @click="saveEdit()"
+                >
                   저장
                 </button>
                 <button
@@ -553,7 +561,7 @@ const findAddress = () => {
                 </div>
 
                 <div class="info-box">
-                  <div class="info-label">신청일</div>
+                  <div class="info-label">등록일</div>
                   <div class="info-value">
                     {{
                       selectedApplicant.mc_submitdate
@@ -621,11 +629,12 @@ const findAddress = () => {
                 </div>
 
                 <div class="info-box">
-                  <div class="info-label">신청일</div>
+                  <div class="info-label">등록일</div>
                   <input
                     v-model="applicantEditForm.mc_submitdate"
                     type="date"
                     class="form-control"
+                    readonly
                   />
                 </div>
 
@@ -744,10 +753,14 @@ const findAddress = () => {
             <div class="form-label-left">등록일</div>
             <div class="form-input-right">
               <input
-                v-model="newApplicant.mc_submitdate"
-                type="date"
+                :value="todayYmd()"
+                type="text"
                 class="form-control"
+                readonly
               />
+              <small class="text-muted"
+                >등록일은 오늘 날짜로 자동 저장됩니다.</small
+              >
             </div>
           </div>
         </div>
