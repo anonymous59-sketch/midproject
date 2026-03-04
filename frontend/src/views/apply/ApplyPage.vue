@@ -7,7 +7,6 @@ const authStore = useAuthStore();
 
 // ✅ 프론트(devServer) 프록시 기준: /api/apply/xxx → 백엔드 /apply/xxx
 const API_PREFIX = "/api/apply";
-const authStore = useAuthStore();
 
 /** 로그인한 회원 m_no = dsbl_prs.gdn_no(보호자) → 본인이 담당하는 장애인만 선택 가능 */
 const loginMNo = computed(() => authStore.user?.m_no ?? "");
@@ -116,7 +115,7 @@ const apiPost = (path, body) => axios.post(`${API_PREFIX}${path}`, body);
 // ===== API =====
 /** 로그인 사용자(gdn_no)의 지원대상자만 조회 */
 const loadTargets = async () => {
-  const gdnNo = authStore.user?.m_no;
+  const gdnNo = loginMNo.value;
   if (!gdnNo) {
     targets.value = [];
     selectedMcPn.value = "";
