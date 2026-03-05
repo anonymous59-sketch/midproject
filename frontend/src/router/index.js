@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/auth";
 import kjh from "./kjh";
 import psw from "./psw";
 import six from "./six";
-import yang from "./yang";
+// import yang from "./yang";
 
 /** 로그인이 필요한 경로 (접두어) */
 const AUTH_REQUIRED_PATHS = [
@@ -79,7 +79,7 @@ const routesList = [
   ...kjh,
   ...psw,
   ...six,
-  ...yang,
+  // ...yang,
 
   // 기타 페이지
   {

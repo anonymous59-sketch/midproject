@@ -18,7 +18,13 @@ const filters = ref({
   targetName: "",
   applicantName: "",
   managerName: "",
-  stage: "전체",
+  stage: {
+    review: false,
+    wait: false,
+    apply: false,
+    approve: false,
+    reject: false,
+  },
   progress: {
     review: false,
     approve: false,
@@ -27,14 +33,20 @@ const filters = ref({
   },
 });
 
-/** 검색 버튼/엔터 시에만 적용 */
+/** 검색 버튼 클릭 시에만 적용 */
 const appliedFilters = ref({
   dateFrom: "",
   dateTo: "",
   targetName: "",
   applicantName: "",
   managerName: "",
-  stage: "전체",
+  stage: {
+    review: false,
+    wait: false,
+    apply: false,
+    approve: false,
+    reject: false,
+  },
   progress: {
     review: false,
     approve: false,
@@ -60,7 +72,24 @@ function formatApplyDate(val) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** 대기단계 코드 → 한글 (e0_00 검토, e0_10 승인 등) */
+function stageLabel(codeOrName) {
+  const map = {
+    e0_00: "검토",
+    e0_10: "승인",
+    e0_80: "보완",
+    e0_99: "반려",
+    e1_00: "대기",
+    e1_10: "신청",
+    e1_20: "승인",
+    e1_99: "반려",
+  };
+  const s = (codeOrName || "").trim();
+  return map[s] || s || "";
+}
+
 function mapApiRow(r, index) {
+  const rawStage = r.stage_name || r.req_yn || "";
   return {
     no: index + 1,
     sup_code: r.sup_code,
@@ -68,7 +97,7 @@ function mapApiRow(r, index) {
     applicantName: r.applicant_name || "",
     applyDate: formatApplyDate(r.sup_day),
     managerName: r.manager_name || "",
-    stage: r.stage_name || r.req_yn || "",
+    stage: stageLabel(rawStage) || rawStage,
     progress: {
       review: Number(r.review_cnt) || 0,
       approve: Number(r.approve_cnt) || 0,
@@ -91,7 +120,9 @@ async function loadOrganManagerList() {
   listLoading.value = true;
   listError.value = "";
   try {
-    const res = await fetch(`/api/apply/organmanager-list?m_org=${encodeURIComponent(mOrg)}`);
+    const res = await fetch(
+      `/api/apply/organmanager-list?m_org=${encodeURIComponent(mOrg)}`,
+    );
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "목록 조회 실패");
     rows.value = Array.isArray(data) ? data.map((r, i) => mapApiRow(r, i)) : [];
@@ -138,11 +169,14 @@ function beginAssignManager(row) {
 async function confirmAssignManager() {
   if (!assigningSupCode.value || !assigningMgrNo.value) return;
   try {
-    const res = await fetch(`/api/apply/support/${encodeURIComponent(assigningSupCode.value)}/manager`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mgr_no: assigningMgrNo.value }),
-    });
+    const res = await fetch(
+      `/api/apply/support/${encodeURIComponent(assigningSupCode.value)}/manager`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mgr_no: assigningMgrNo.value }),
+      },
+    );
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || "담당자 배정에 실패했습니다.");
     assigningSupCode.value = "";
@@ -168,10 +202,16 @@ const onSearch = () => {
 };
 
 const onReset = () => {
+  filters.value.dateFrom = "";
+  filters.value.dateTo = "";
   filters.value.targetName = "";
   filters.value.applicantName = "";
   filters.value.managerName = "";
-  filters.value.stage = "전체";
+  filters.value.stage.review = false;
+  filters.value.stage.wait = false;
+  filters.value.stage.apply = false;
+  filters.value.stage.approve = false;
+  filters.value.stage.reject = false;
   filters.value.progress.review = false;
   filters.value.progress.approve = false;
   filters.value.progress.reject = false;
@@ -182,12 +222,35 @@ const onReset = () => {
 const filteredRows = computed(() => {
   const f = appliedFilters.value;
   return rows.value.filter((r) => {
-    if (f.dateFrom && r.applyDate && r.applyDate < f.dateFrom.replace(/-/g, ".")) return false;
-    if (f.dateTo && r.applyDate && r.applyDate > f.dateTo.replace(/-/g, ".")) return false;
-    if (f.targetName && !String(r.targetName).includes(f.targetName)) return false;
-    if (f.applicantName && !String(r.applicantName).includes(f.applicantName)) return false;
-    if (f.managerName && !String(r.managerName || "").includes(f.managerName)) return false;
-    if (f.stage !== "전체" && r.stage !== f.stage) return false;
+    if (
+      f.dateFrom &&
+      r.applyDate &&
+      r.applyDate < f.dateFrom.replace(/-/g, ".")
+    )
+      return false;
+    if (f.dateTo && r.applyDate && r.applyDate > f.dateTo.replace(/-/g, "."))
+      return false;
+    if (f.targetName && !String(r.targetName).includes(f.targetName))
+      return false;
+    if (f.applicantName && !String(r.applicantName).includes(f.applicantName))
+      return false;
+    if (f.managerName && !String(r.managerName || "").includes(f.managerName))
+      return false;
+    const stageAny =
+      f.stage.review ||
+      f.stage.wait ||
+      f.stage.apply ||
+      f.stage.approve ||
+      f.stage.reject;
+    if (stageAny) {
+      const allowed = [];
+      if (f.stage.review) allowed.push("검토");
+      if (f.stage.wait) allowed.push("대기");
+      if (f.stage.apply) allowed.push("신청");
+      if (f.stage.approve) allowed.push("승인");
+      if (f.stage.reject) allowed.push("반려");
+      if (allowed.length && !allowed.includes(r.stage)) return false;
+    }
     const pc = f.progress;
     const any = pc.review || pc.approve || pc.reject || pc.done;
     if (any) {
@@ -218,7 +281,8 @@ const viewApply = (row) => {
   else alert("지원 정보를 찾을 수 없습니다.");
 };
 const viewPlan = (row) => {
-  if (row.sup_code) router.push(`/support-plan/${encodeURIComponent(row.sup_code)}`);
+  if (row.sup_code)
+    router.push(`/support-plan/${encodeURIComponent(row.sup_code)}`);
   else alert("지원 정보를 찾을 수 없습니다.");
 };
 const viewCounseling = (row) => {
@@ -226,7 +290,8 @@ const viewCounseling = (row) => {
   else alert("지원 정보를 찾을 수 없습니다.");
 };
 const viewResult = (row) => {
-  if (row.sup_code) router.push(`/support-result/${encodeURIComponent(row.sup_code)}`);
+  if (row.sup_code)
+    router.push(`/support-result/${encodeURIComponent(row.sup_code)}`);
   else alert("지원 정보를 찾을 수 없습니다.");
 };
 </script>
@@ -289,9 +354,7 @@ const viewResult = (row) => {
           <button
             class="btn btn-sm mb-0"
             :class="
-              filters.stage === '전체'
-                ? 'btn-warning'
-                : 'btn-outline-secondary'
+              filters.stage === '전체' ? 'btn-warning' : 'btn-outline-secondary'
             "
             @click="filters.stage = '전체'"
           >
@@ -311,9 +374,7 @@ const viewResult = (row) => {
           <button
             class="btn btn-sm mb-0"
             :class="
-              filters.stage === '대기'
-                ? 'btn-warning'
-                : 'btn-outline-secondary'
+              filters.stage === '대기' ? 'btn-warning' : 'btn-outline-secondary'
             "
             @click="filters.stage = '대기'"
           >
@@ -322,9 +383,7 @@ const viewResult = (row) => {
           <button
             class="btn btn-sm mb-0"
             :class="
-              filters.stage === '긴급'
-                ? 'btn-warning'
-                : 'btn-outline-secondary'
+              filters.stage === '긴급' ? 'btn-warning' : 'btn-outline-secondary'
             "
             @click="filters.stage = '긴급'"
           >
@@ -333,9 +392,7 @@ const viewResult = (row) => {
           <button
             class="btn btn-sm mb-0"
             :class="
-              filters.stage === '종결'
-                ? 'btn-warning'
-                : 'btn-outline-secondary'
+              filters.stage === '종결' ? 'btn-warning' : 'btn-outline-secondary'
             "
             @click="filters.stage = '종결'"
           >

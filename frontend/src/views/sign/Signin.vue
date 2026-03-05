@@ -284,28 +284,37 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- 화면 맨 아래 고정되는 외부 링크 바 -->
-    <div class="position-absolute bottom-0 start-0 w-100 z-index-3 pb-4">
-      <div class="container">
-        <div class="row justify-content-center">
-          <div class="col-lg-6 text-center">
-            <div class="d-flex justify-content-center gap-3">
-              <a
-                href="https://www.google.com"
-                target="_blank"
-                class="btn btn-outline-white rounded-0 py-2 px-4 text-white border-white"
-                >구글 바로가기</a
-              >
-              <a
-                href="https://www.naver.com"
-                target="_blank"
-                class="btn btn-outline-white rounded-0 py-2 px-4 text-white border-white"
-                >네이버 바로가기</a
-              >
-            </div>
-          </div>
+    <!-- 화면 맨 아래 고정되는 외부 링크 바 -->
+<div class="position-absolute bottom-0 start-0 w-100 z-index-3 pb-4">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-6 text-center">
+        <div
+          class="d-flex justify-content-center gap-4 p-2 rounded-3"
+          style="background: rgba(0,0,0,0.35); backdrop-filter: blur(4px);"
+        >
+          <!-- Google -->
+          <a
+            href="https://www.google.com"
+            target="_blank"
+            class="external-icon"
+          >
+            <i class="fa-brands fa-google"></i>
+          </a>
+
+          <!-- Naver -->
+          <a
+            href="https://www.naver.com"
+            target="_blank"
+            class="external-icon"
+          >
+            <i class="fa-solid fa-n"></i>
+          </a>
         </div>
       </div>
     </div>
+  </div>
+</div>
   </main>
 </template>
 
