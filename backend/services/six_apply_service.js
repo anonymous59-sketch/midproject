@@ -304,10 +304,31 @@ exports.getSurveyTree = async (sverCode) => {
       q_no: Number(r.q_no),
       q_type: r.q_type,
       q_content: r.q_content,
+      views: [],
     });
   }
 
   result.majors.forEach((m) => delete m._subMap);
+
+  // 설문 보기(체크박스/라디오 옵션) 조회 후 각 질문에 첨부
+  const viewRows = await query("selectSurveyViewBySverCode", [sverCode]);
+  const viewList = Array.isArray(viewRows) ? viewRows : [];
+  const viewMap = new Map();
+  for (const v of viewList) {
+    if (!v?.q_code) continue;
+    if (!viewMap.has(v.q_code)) viewMap.set(v.q_code, []);
+    viewMap.get(v.q_code).push({
+      q_view_code: v.q_view_code,
+      q_view_content: v.q_view_content,
+    });
+  }
+  for (const mj of result.majors) {
+    for (const sb of mj.subs || []) {
+      for (const q of sb.questions || []) {
+        if (q.q_code && viewMap.has(q.q_code)) q.views = viewMap.get(q.q_code);
+      }
+    }
+  }
 
   return result;
 };
@@ -470,11 +491,12 @@ exports.createApplication = async ({ mc_pn, mem_no, req_yn, answers }) => {
     for (let i = 0; i < entries.length; i++) {
       const [qCode, ansVal] = entries[i];
       const ansCode = generateAnsCode(now, aCodeNext + i);
+      const aContent = Array.isArray(ansVal) ? ansVal.join(",") : String(ansVal ?? "");
       await conn.query(surveySql.insertSurveyAnswer, [
         ansCode,
         qCode,
         mem_no,
-        ansVal,
+        aContent,
         supCode,
       ]);
       aCodes.push(ansCode);

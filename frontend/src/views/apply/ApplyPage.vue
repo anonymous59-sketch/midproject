@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import axios from "axios";
 import { useAuthStore } from "@/store/auth";
 
+const router = useRouter();
 const authStore = useAuthStore();
 
 // ✅ 프론트(devServer) 프록시 기준: /api/apply/xxx → 백엔드 /apply/xxx
@@ -30,19 +32,31 @@ const targets = ref([]);
 const selectedMcPn = ref("");
 
 // ===== computed =====
-/** 조사지 내 모든 질문 q_code 목록 (저장 전 검증용) */
-const allQuestionCodes = computed(() => {
+/** 질문 타입 상수 (survey_q.q_type = sub_code.s_code) */
+const Q_TYPE = { TEXT: "f0_00", CHECKBOX: "f0_10", RADIO: "f0_20" };
+
+/** 모든 질문 플랫 목록 (검증용) */
+const allQuestions = computed(() => {
   if (!survey.value?.majors) return [];
-  const codes = [];
+  const list = [];
   for (const mj of survey.value.majors) {
     for (const sb of mj.subs || []) {
       for (const q of sb.questions || []) {
-        if (q.q_code) codes.push(q.q_code);
+        if (q.q_code) list.push(q);
       }
     }
   }
-  return codes;
+  return list;
 });
+
+/** 질문별 답변 유효 여부 */
+const isQuestionAnswered = (q) => {
+  const v = answers.value[q.q_code];
+  if (q.q_type === Q_TYPE.TEXT) return typeof v === "string" && v.trim() !== "";
+  if (q.q_type === Q_TYPE.CHECKBOX) return Array.isArray(v) && v.length > 0;
+  if (q.q_type === Q_TYPE.RADIO) return typeof v === "string" && v !== "";
+  return false;
+};
 
 const selectedTarget = computed(() => {
   if (!selectedMcPn.value) return null;
@@ -70,6 +84,16 @@ const toDateInput = (v) => {
   if (!v) return "";
   const s = String(v);
   return s.length >= 10 ? s.substring(0, 10) : s;
+};
+
+/** 라디오 질문의 보기 목록 — DB 보기 없으면 기본 '예'/'아니오' */
+const DEFAULT_RADIO_OPTIONS = [
+  { q_view_code: "Y", q_view_content: "예" },
+  { q_view_code: "N", q_view_content: "아니오" },
+];
+const getRadioOptions = (q) => {
+  if (q.views && q.views.length > 0) return q.views;
+  return DEFAULT_RADIO_OPTIONS;
 };
 
 // ✅ rows -> tree
@@ -104,6 +128,7 @@ const buildSurveyTree = (rows) => {
       q_no: r.q_no,
       q_type: r.q_type,
       q_content: r.q_content,
+      views: [],
     });
   }
   return root;
@@ -164,8 +189,18 @@ const loadSurveyTree = async (code) => {
       : null;
 
   survey.value = normalized;
-
   answers.value = {};
+
+  // 체크박스 타입 질문은 답변을 배열로 초기화
+  if (normalized?.majors) {
+    for (const mj of normalized.majors) {
+      for (const sb of mj.subs || []) {
+        for (const q of sb.questions || []) {
+          if (q.q_type === Q_TYPE.CHECKBOX) answers.value[q.q_code] = [];
+        }
+      }
+    }
+  }
 };
 
 // ===== 초기 로딩 =====
@@ -205,10 +240,8 @@ const onSave = async () => {
       return;
     }
 
-    // 모든 질문에 답변이 있는지 검사 (null/빈값이면 저장하지 않음)
-    const missing = allQuestionCodes.value.filter(
-      (qCode) => answers.value[qCode] !== "Y" && answers.value[qCode] !== "N",
-    );
+    // 질문 타입별로 모든 문항에 답변이 있는지 검사
+    const missing = allQuestions.value.filter((q) => !isQuestionAnswered(q));
     if (missing.length > 0) {
       alert("모든 항목에 답변해 주세요. 답변하지 않은 문항이 있습니다.");
       return;
@@ -243,7 +276,11 @@ const onSave = async () => {
   }
 };
 
-const onCancel = () => alert("취소(더미)");
+const onCancel = () => {
+  if (confirm("지금까지 작성한 내용이 모두 취소됩니다. 정말 취소하시겠습니까?")) {
+    router.push("/applicant");
+  }
+};
 </script>
 
 <template>
@@ -380,11 +417,9 @@ const onCancel = () => alert("취소(더미)");
                       <div
                         v-for="q in sb.questions"
                         :key="q.q_code"
-                        class="d-flex align-items-center justify-content-between py-2 border-bottom border-light"
+                        class="py-2 border-bottom border-light"
                       >
-                        <div
-                          class="d-flex align-items-start gap-2 flex-grow-1 me-3"
-                        >
+                        <div class="d-flex align-items-start gap-2 mb-2">
                           <span
                             class="text-muted text-sm"
                             style="min-width: 20px"
@@ -393,31 +428,61 @@ const onCancel = () => alert("취소(더미)");
                           </span>
                           <span class="text-sm">{{ q.q_content }}</span>
                         </div>
+                        <!-- 텍스트(텍스트에어리어) -->
                         <div
-                          class="d-flex align-items-center gap-3 flex-shrink-0"
+                          v-if="q.q_type === 'f0_00'"
+                          class="ms-4 mb-0"
+                        >
+                          <textarea
+                            class="form-control form-control-sm"
+                            rows="3"
+                            :placeholder="'내용을 입력하세요.'"
+                            v-model="answers[q.q_code]"
+                          />
+                        </div>
+                        <!-- 체크박스 -->
+                        <div
+                          v-else-if="q.q_type === 'f0_10' && (q.views && q.views.length)"
+                          class="ms-4 d-flex flex-wrap gap-3"
                         >
                           <label
+                            v-for="opt in q.views"
+                            :key="opt.q_view_code"
                             class="mb-0 d-flex align-items-center gap-1 text-sm"
                           >
                             <input
-                              type="radio"
-                              :name="q.q_code"
-                              value="Y"
+                              type="checkbox"
+                              :value="opt.q_view_code"
                               v-model="answers[q.q_code]"
                             />
-                            예
+                            {{ opt.q_view_content }}
                           </label>
+                        </div>
+                        <!-- 라디오: 보기 있으면 사용, 없으면 예/아니오 -->
+                        <div
+                          v-else-if="q.q_type === 'f0_20'"
+                          class="ms-4 d-flex flex-wrap gap-3"
+                        >
                           <label
+                            v-for="opt in getRadioOptions(q)"
+                            :key="opt.q_view_code"
                             class="mb-0 d-flex align-items-center gap-1 text-sm"
                           >
                             <input
                               type="radio"
                               :name="q.q_code"
-                              value="N"
+                              :value="opt.q_view_code"
                               v-model="answers[q.q_code]"
                             />
-                            아니오
+                            {{ opt.q_view_content }}
                           </label>
+                        </div>
+                        <!-- 보기 없음(체크박스만, views 없을 때) -->
+                        <div
+                          v-else-if="q.q_type === 'f0_10'"
+                          class="ms-4 text-muted text-sm"
+                        >
+                          (보기 없음)
                         </div>
                       </div>
                     </div>
