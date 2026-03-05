@@ -49,8 +49,10 @@ const greetingText = computed(() => {
   const org = organDisplayName.value;
   const auth = currentAuth.value;
   if (auth === "a0_99") return `${name} 님 반갑습니다!`;
-  if (auth === "a0_40") return org ? `${org} | ${name} 기관관리자님` : `${name} 기관관리자님`;
-  if (auth === "a0_30") return org ? `${org} | ${name} 담당자님` : `${name} 담당자님`;
+  if (auth === "a0_40")
+    return org ? `${org} | ${name} 기관관리자님` : `${name} 기관관리자님`;
+  if (auth === "a0_30")
+    return org ? `${org} | ${name} 담당자님` : `${name} 담당자님`;
   return `${name} 님 반갑습니다!`;
 });
 
@@ -137,11 +139,7 @@ function isNavActive(itemTo) {
         </RouterLink>
 
         <ul class="navbar-nav flex-row gap-3 align-items-center">
-          <li
-            v-for="item in navItems"
-            :key="item.key"
-            class="nav-item"
-          >
+          <li v-for="item in navItems" :key="item.key" class="nav-item">
             <RouterLink
               class="nav-link text-dark px-2 py-2 d-flex align-items-center gap-1"
               :class="{ 'nav-link-active': isNavActive(item.to) }"

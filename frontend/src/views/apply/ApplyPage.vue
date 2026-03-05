@@ -124,7 +124,9 @@ const loadTargets = async () => {
   }
   targetLoading.value = true;
   try {
-    const { data } = await apiGet(`/dsbl-prs?gdn_no=${encodeURIComponent(gdnNo)}`);
+    const { data } = await apiGet(
+      `/dsbl-prs?gdn_no=${encodeURIComponent(gdnNo)}`,
+    );
     targets.value = Array.isArray(data) ? data : [];
     selectedMcPn.value = targets.value.length ? targets.value[0].mc_pn : "";
   } catch (err) {

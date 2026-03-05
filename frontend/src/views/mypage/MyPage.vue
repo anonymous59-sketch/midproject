@@ -129,12 +129,6 @@ const cancelEdit = () => {
   isEditMode.value = false;
 };
 
-const withdrawMember = () => {
-  if (confirm("정말 회원탈퇴 하시겠습니까?")) {
-    alert("회원탈퇴 처리 (백엔드 연결 예정)");
-  }
-};
-
 /* ================= 지원대상자 (dsbl_prs, 백엔드 연동) ================= */
 const applicants = ref([]);
 const applicantsLoading = ref(false);
@@ -449,13 +443,6 @@ const findAddress = () => {
                   취소
                 </button>
               </div>
-
-              <button
-                class="btn bg-gradient-danger w-100"
-                @click="withdrawMember"
-              >
-                회원탈퇴
-              </button>
             </div>
           </div>
         </div>
