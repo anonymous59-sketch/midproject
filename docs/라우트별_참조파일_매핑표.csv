@@ -24,7 +24,6 @@
 "인증","/find-id","(없음)","views/FindId.vue","/api/verifi/find-id; verify","psw_verifi_router.js","svc.js(verifi)","psw_verifi_sql.js"
 "인증","/find-password","(없음)","views/FindPassword.vue","/api/verifi/reset-pw; verify; reset-password","psw_verifi_router.js","svc.js(verifi)","psw_verifi_sql.js"
 "인증","/reset-password","(없음)","views/ResetPassword.vue","(verifi)","psw_verifi_router.js","svc.js(verifi)","psw_verifi_sql.js"
-"기타","/proxy-test","(없음)","views/ProxyTest.vue","/api/hello; /api/survey","app.js; psw_survey_router.js","—; svc.js","—; psw_survey_sql.js"
 "지원계획","/support-plan/:supportCode","(별도)","views/SupportPlan.vue","/api/support/:supportCode; /api/upload/file-content; file (DELETE)","jh_support_router.js; upload_router.js","svc.js(support); upload","jh_support_sql.js; upload_sql.js"
 "지원결과","/support-result/:supportCode","(별도)","views/SupportResult.vue","/api/upload/file-content; file (DELETE)","jh_support_router.js; upload_router.js","svc.js; upload","jh_support_sql.js; upload_sql.js"
 "순위","/rank/:supCode","(별도)","views/Rank.vue","(rank API)","jh_rank_router.js","svc.js(rank)","jh_rank_sql.js"

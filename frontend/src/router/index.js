@@ -5,12 +5,11 @@ import Signin from "../views/Signin.vue";
 import FindId from "../views/FindId.vue";
 import FindPassword from "../views/FindPassword.vue";
 import ResetPassword from "../views/ResetPassword.vue";
-import ProxyTest from "../views/ProxyTest.vue";
 import { useAuthStore } from "@/store/auth";
 import kjh from "./kjh";
 import psw from "./psw";
 import six from "./six";
-import yang from "./yang";
+// import yang from "./yang";
 
 /** 로그인이 필요한 경로 (접두어) */
 const AUTH_REQUIRED_PATHS = ["/applicant", "/manager", "/organmanager", "/admin", "/managermanage", "/applicantmanage", "/organmanagermanage", "/apply", "/mypage"];
@@ -68,7 +67,7 @@ const routesList = [
   ...kjh,
   ...psw,
   ...six,
-  ...yang,
+  // ...yang,
 
   // 기타 페이지
   {
@@ -96,26 +95,6 @@ const routesList = [
     name: "FindPassword",
     component: FindPassword,
   },
-  {
-    path: "/proxy-test",
-    name: "ProxyTest",
-    component: ProxyTest,
-  },
-  // {
-  //   path: "/systemSurveyList",
-  //   name: "systemSurveyList",
-  //   component: () => import("../views/SystemManager_survey.vue"),
-  // },
-  // {
-  //   path: "/systemSurveyForm",
-  //   name: "SystemManagerSurveyForm",
-  //   component: () => import("../views/systemmanager_surveyComp/SurveyForm.vue"),
-  // },
-  // {
-  //   path: "/manager-control",
-  //   name: "managerControl",
-  //   component: ManagerControl,
-  // },
 ];
 
 const router = createRouter({

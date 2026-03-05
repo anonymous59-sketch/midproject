@@ -66,17 +66,6 @@ function disabilityLabel(code) {
   return code || "";
 }
 
-// function authLabel(auth) {
-//   const map = {
-//     a0_10: "대기자",
-//     a0_20: "일반이용자",
-//     a0_30: "기관담당자",
-//     a0_40: "기관관리자",
-//     a0_99: "시스템관리자",
-//   };
-//   return map[auth] || auth || "";
-// }
-
 async function loadHistory() {
   if (!supCode.value) {
     error.value = "지원번호(sup_code)가 없습니다.";
@@ -209,9 +198,6 @@ onMounted(() => {
               <span class="badge bg-secondary me-1">지원신청일자</span>
               <span class="fw-semibold">
                 {{ formatDate(block.sup_day) }}
-              </span>
-              <span class="text-muted small ms-2">
-                ({{ block.sup_code }})
               </span>
             </div>
             <div class="d-flex align-items-center gap-2">
