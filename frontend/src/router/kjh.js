@@ -2,6 +2,6 @@ export default [
   {
     path: "",
     name: "home",
-    component: () => import("@/views/Signin.vue"),
+    component: () => import("@/views/sign/Signin.vue"),
   },
 ];

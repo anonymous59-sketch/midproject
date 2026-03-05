@@ -120,12 +120,8 @@ const resultCancelModal = ref({
 const cancelRequestResultCode = ref(null);
 
 // 보완/반려 사유 입력용 ConfirmModal (우선순위·지원계획·지원결과)
-const {
-  reasonModal,
-  openReasonModal,
-  closeReasonModal,
-  onReasonConfirm,
-} = useReasonModal();
+const { reasonModal, openReasonModal, closeReasonModal, onReasonConfirm } =
+  useReasonModal();
 
 // 계획/결과 보완이력 모달 (한 번이라도 보완 판정된 건에서 버튼 노출)
 const planSuppleHistoryShow = ref(false);
@@ -1393,7 +1389,11 @@ function onReceiptReject() {
                 @reject="
                   () =>
                     openReasonModal({
-                      context: { type: 'rank', decision: 'e0_99', reqCode: rankData?.req_code },
+                      context: {
+                        type: 'rank',
+                        decision: 'e0_99',
+                        reqCode: rankData?.req_code,
+                      },
                       title: '반려 사유',
                       message: '우선순위 반려 사유를 입력해 주세요.',
                       reasonPlaceholder: '반려 사유를 입력해 주세요.',
@@ -1412,13 +1412,25 @@ function onReceiptReject() {
                           });
                           const json = await res.json();
                           if (json?.retCode === 'Success') {
-                            showAlert('success', '알림', '우선순위 반려가 완료되었습니다.');
+                            showAlert(
+                              'success',
+                              '알림',
+                              '우선순위 반려가 완료되었습니다.',
+                            );
                             await loadRankTab();
                           } else {
-                            showAlert('error', '알림', json?.retMsg ?? '처리에 실패했습니다.');
+                            showAlert(
+                              'error',
+                              '알림',
+                              json?.retMsg ?? '처리에 실패했습니다.',
+                            );
                           }
                         } catch (e) {
-                          showAlert('error', '알림', '처리 중 오류가 발생했습니다.');
+                          showAlert(
+                            'error',
+                            '알림',
+                            '처리 중 오류가 발생했습니다.',
+                          );
                         }
                       },
                     })
@@ -1426,7 +1438,11 @@ function onReceiptReject() {
                 @supple="
                   () =>
                     openReasonModal({
-                      context: { type: 'rank', decision: 'e0_80', reqCode: rankData?.req_code },
+                      context: {
+                        type: 'rank',
+                        decision: 'e0_80',
+                        reqCode: rankData?.req_code,
+                      },
                       title: '보완 사유',
                       message: '우선순위 보완 사유를 입력해 주세요.',
                       reasonPlaceholder: '보완 사유를 입력해 주세요.',
@@ -1435,17 +1451,32 @@ function onReceiptReject() {
                           const res = await fetch('/api/rank/supple', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ req_code: context.reqCode, rank_cmt: reason ?? null }),
+                            body: JSON.stringify({
+                              req_code: context.reqCode,
+                              rank_cmt: reason ?? null,
+                            }),
                           });
                           const json = await res.json();
                           if (json?.retCode === 'Success') {
-                            showAlert('supple', '알림', '보완 처리가 완료되었습니다.');
+                            showAlert(
+                              'supple',
+                              '알림',
+                              '보완 처리가 완료되었습니다.',
+                            );
                             await loadRankTab();
                           } else {
-                            showAlert('error', '알림', json?.retMsg ?? '보완 처리에 실패했습니다.');
+                            showAlert(
+                              'error',
+                              '알림',
+                              json?.retMsg ?? '보완 처리에 실패했습니다.',
+                            );
                           }
                         } catch (e) {
-                          showAlert('error', '알림', '보완 처리 중 오류가 발생했습니다.');
+                          showAlert(
+                            'error',
+                            '알림',
+                            '보완 처리 중 오류가 발생했습니다.',
+                          );
                         }
                       },
                     })
@@ -1504,7 +1535,11 @@ function onReceiptReject() {
                   @supple="
                     (pc) =>
                       openReasonModal({
-                        context: { type: 'plan', decision: 'e0_80', planCode: pc },
+                        context: {
+                          type: 'plan',
+                          decision: 'e0_80',
+                          planCode: pc,
+                        },
                         title: '보완 사유',
                         message: '지원계획 보완 사유를 입력해 주세요.',
                         reasonPlaceholder: '보완 사유를 입력해 주세요.',
@@ -1517,12 +1552,18 @@ function onReceiptReject() {
                           if (res?.retCode === 'Success') {
                             await loadPlanTab();
                             const p = getAlertPreset(
-                              context.decision === 'e0_80' ? 'suppleComplete' : 'rejectComplete',
+                              context.decision === 'e0_80'
+                                ? 'suppleComplete'
+                                : 'rejectComplete',
                               'plan',
                             );
                             showAlert(p.type, p.title, res.retMsg ?? p.message);
                           } else if (res != null) {
-                            showAlert('error', '알림', res.retMsg ?? '처리에 실패했습니다.');
+                            showAlert(
+                              'error',
+                              '알림',
+                              res.retMsg ?? '처리에 실패했습니다.',
+                            );
                           }
                         },
                       })
@@ -1530,7 +1571,11 @@ function onReceiptReject() {
                   @reject="
                     (pc) =>
                       openReasonModal({
-                        context: { type: 'plan', decision: 'e0_99', planCode: pc },
+                        context: {
+                          type: 'plan',
+                          decision: 'e0_99',
+                          planCode: pc,
+                        },
                         title: '반려 사유',
                         message: '지원계획 반려 사유를 입력해 주세요.',
                         reasonPlaceholder: '반려 사유를 입력해 주세요.',
@@ -1543,12 +1588,18 @@ function onReceiptReject() {
                           if (res?.retCode === 'Success') {
                             await loadPlanTab();
                             const p = getAlertPreset(
-                              context.decision === 'e0_80' ? 'suppleComplete' : 'rejectComplete',
+                              context.decision === 'e0_80'
+                                ? 'suppleComplete'
+                                : 'rejectComplete',
                               'plan',
                             );
                             showAlert(p.type, p.title, res.retMsg ?? p.message);
                           } else if (res != null) {
-                            showAlert('error', '알림', res.retMsg ?? '처리에 실패했습니다.');
+                            showAlert(
+                              'error',
+                              '알림',
+                              res.retMsg ?? '처리에 실패했습니다.',
+                            );
                           }
                         },
                       })
@@ -1622,7 +1673,11 @@ function onReceiptReject() {
                   @supple="
                     (rc) =>
                       openReasonModal({
-                        context: { type: 'result', decision: 'e0_80', resultCode: rc },
+                        context: {
+                          type: 'result',
+                          decision: 'e0_80',
+                          resultCode: rc,
+                        },
                         title: '보완 사유',
                         message: '지원결과 보완 사유를 입력해 주세요.',
                         reasonPlaceholder: '보완 사유를 입력해 주세요.',
@@ -1639,12 +1694,18 @@ function onReceiptReject() {
                               selectedPlanCode.value ?? undefined,
                             );
                             const p = getAlertPreset(
-                              context.decision === 'e0_80' ? 'suppleComplete' : 'rejectComplete',
+                              context.decision === 'e0_80'
+                                ? 'suppleComplete'
+                                : 'rejectComplete',
                               'result',
                             );
                             showAlert(p.type, p.title, res.retMsg ?? p.message);
                           } else if (res != null) {
-                            showAlert('error', '알림', res.retMsg ?? '처리에 실패했습니다.');
+                            showAlert(
+                              'error',
+                              '알림',
+                              res.retMsg ?? '처리에 실패했습니다.',
+                            );
                           }
                         },
                       })
@@ -1652,7 +1713,11 @@ function onReceiptReject() {
                   @reject="
                     (rc) =>
                       openReasonModal({
-                        context: { type: 'result', decision: 'e0_99', resultCode: rc },
+                        context: {
+                          type: 'result',
+                          decision: 'e0_99',
+                          resultCode: rc,
+                        },
                         title: '반려 사유',
                         message: '지원결과 반려 사유를 입력해 주세요.',
                         reasonPlaceholder: '반려 사유를 입력해 주세요.',
@@ -1669,12 +1734,18 @@ function onReceiptReject() {
                               selectedPlanCode.value ?? undefined,
                             );
                             const p = getAlertPreset(
-                              context.decision === 'e0_80' ? 'suppleComplete' : 'rejectComplete',
+                              context.decision === 'e0_80'
+                                ? 'suppleComplete'
+                                : 'rejectComplete',
                               'result',
                             );
                             showAlert(p.type, p.title, res.retMsg ?? p.message);
                           } else if (res != null) {
-                            showAlert('error', '알림', res.retMsg ?? '처리에 실패했습니다.');
+                            showAlert(
+                              'error',
+                              '알림',
+                              res.retMsg ?? '처리에 실패했습니다.',
+                            );
                           }
                         },
                       })

@@ -38,7 +38,7 @@ export default [
       {
         path: "manager-control",
         name: "admin-manager-control",
-        component: () => import("@/views/ManagerControl.vue"),
+        component: () => import("@/views/admin/ManagerControl.vue"),
       },
       {
         path: "organ-managers",
