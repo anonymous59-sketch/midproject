@@ -8,17 +8,14 @@ import TempStorageModal from "@/components/TempStorageModal.vue";
 import { storeToRefs } from "pinia";
 import { useSupportStore } from "@/store/support";
 import { useAuthStore } from "@/store/auth";
-import SupportPlanDetail from "@/views/support/SupportPlanDetail.vue";
-import SupportResultDetail from "@/views/support/SupportResultDetail.vue";
-import PlanAdd from "@/views/support/PlanAdd.vue";
-import ResultAdd from "@/views/support/ResultAdd.vue";
-import RankDetail from "@/views/rank/RankDetail.vue";
 import CounselApplicantInfo from "@/views/counsel/CounselApplicantInfo.vue";
 import CounselReceiptTab from "@/views/counsel/CounselReceiptTab.vue";
 import CounselApplicationTab from "@/views/counsel/CounselApplicationTab.vue";
 import CounselRankTab from "@/views/counsel/CounselRankTab.vue";
-import CounselPlanTab from "@/views/counsel/CounselPlanTab.vue";
-import CounselResultTab from "@/views/counsel/CounselResultTab.vue";
+import SupportPlanDetail from "@/views/support/SupportPlanDetail.vue";
+import SupportResultDetail from "@/views/support/SupportResultDetail.vue";
+import PlanAdd from "@/views/support/PlanAdd.vue";
+import ResultAdd from "@/views/support/ResultAdd.vue";
 import CounselRightPanel from "@/views/counsel/CounselRightPanel.vue";
 import ConfirmModal from "@/views/modal/ConfirmModal.vue";
 import AlertModal from "@/views/modal/AlertModal.vue";
@@ -129,6 +126,8 @@ const reasonConfirmModal = ref({
   reasonLabel: "사유",
   context: null, // { type: 'plan'|'result'|'rank', decision: 'e0_80'|'e0_99', planCode?, resultCode?, reqCode? }
 });
+// 하위 컴포넌트에서 보완/반려 시 사유 입력 모달을 열 때 사용 (emit 연동 시 호출)
+// eslint-disable-next-line no-unused-vars
 function openReasonConfirmModal(context, title, message, reasonPlaceholder = "사유를 입력해 주세요.") {
   reasonConfirmModal.value = {
     show: true,
@@ -302,13 +301,11 @@ async function uploadFilesToServer(files, filePath, categoryPk, uploadMem) {
   }
 }
 
-const planTabRef = ref(null);
 const planDetailRefs = {};
 function setPlanDetailRef(planCode, el) {
   if (el) planDetailRefs[planCode] = el;
   else delete planDetailRefs[planCode];
 }
-const resultTabRef = ref(null);
 const resultDetailRefs = {};
 function setResultDetailRef(resultCode, el) {
   if (el) resultDetailRefs[resultCode] = el;
@@ -1443,70 +1440,118 @@ function onReceiptReject() {
                 @cancel="onRankCancel"
                 @open-supple-history="onOpenSuppleHistory"
               />
-              <!-- 지원계획 -->
-              <CounselPlanTab
-                v-else-if="leftTab === 'plan'"
-                ref="planTabRef"
-                :show-add-plan-form="showAddPlanForm"
-                :add-plan-form="addPlanForm"
-                @update:add-plan-form="(obj) => Object.assign(addPlanForm, obj)"
-                :add-plan-file-names="addPlanFileNames"
-                :plan-loading="planLoading"
-                :plan-data="planData"
-                :cancel-request-plan-code="cancelRequestPlanCode"
-                @set-plan-detail-ref="setPlanDetailRef"
-                @toggle-add="toggleAddPlan"
-                @load-temp="onLoadTempPlan"
-                @temp-save="onTempSaveFromAddPlan"
-                @plan-file-change="onPlanFileChange"
-                @open-file-dialog="openPlanFileDialog"
-                @approval-request-add="onPlanApprovalRequestFromAdd"
-                @cancel-add="openPlanCancelModal('add')"
-                @result="loadResultForPlan"
-                @open-supple-history="openPlanSuppleHistory"
-                @approve="(pc) => supportStore.decidePlan(pc, 'e0_10', null).then(() => loadPlanTab())"
-                @supple="(pc) => supportStore.decidePlan(pc, 'e0_80', null).then(() => loadPlanTab())"
-                @reject="(pc) => supportStore.decidePlan(pc, 'e0_99', null).then(() => loadPlanTab())"
-                @edit-complete="onPlanEditComplete"
-                @approval-request="onPlanApprovalRequest"
-                @request-cancel="(planCode) => openPlanCancelModal('edit', planCode)"
-                @cancel-done="clearCancelRequestPlan"
-                @end="(pc) => supportStore.endPlan(pc).then(() => loadPlanTab())"
-                @temp-save-detail="onTempSaveFromDetailPlan"
-                @history="openPlanHistory"
-                @alert="(p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')"
-              />
-              <!-- 지원결과 -->
-              <CounselResultTab
-                v-else
-                ref="resultTabRef"
-                :show-add-result-form="showAddResultForm"
-                :add-result-form="addResultForm"
-                @update:add-result-form="(obj) => Object.assign(addResultForm, obj)"
-                :add-result-file-names="addResultFileNames"
-                :result-loading="resultLoading"
-                :result-data="resultData"
-                :cancel-request-result-code="cancelRequestResultCode"
-                @set-result-detail-ref="setResultDetailRef"
-                @toggle-add="toggleAddResultForm"
-                @load-temp="onLoadTempResult"
-                @temp-save="onTempSaveFromAddResult"
-                @result-file-change="onResultFileChange"
-                @open-file-dialog="openResultFileDialog"
-                @approval-request-add="onResultApprovalRequestFromAdd"
-                @cancel-add="openResultCancelModal('add')"
-                @open-supple-history="openResultSuppleHistory"
-                @approve="(rc) => supportStore.decideResult(rc, 'e0_10', null).then(() => supportStore.supportResultDetail(supCode.value, selectedPlanCode.value))"
-                @supple="(rc) => supportStore.decideResult(rc, 'e0_80', null).then(() => supportStore.supportResultDetail(supCode.value, selectedPlanCode.value))"
-                @reject="(rc) => supportStore.decideResult(rc, 'e0_99', null).then(() => supportStore.supportResultDetail(supCode.value, selectedPlanCode.value))"
-                @edit-complete="onResultEditComplete"
-                @approval-request="onResultApprovalRequest"
-                @request-cancel="(resultCode) => openResultCancelModal('edit', resultCode)"
-                @cancel-done="clearCancelRequestResult"
-                @temp-save-detail="onTempSaveFromDetailResult"
-                @history="openResultHistory"
-                @alert="(p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')"
-              />
+              <!-- 지원계획: PlanAdd + SupportPlanDetail -->
+              <template v-else-if="leftTab === 'plan'">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <h6 class="text-sm text-uppercase text-muted mb-0">지원계획</h6>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    @click="toggleAddPlan"
+                  >
+                    계획추가
+                  </button>
+                </div>
+                <PlanAdd
+                  v-if="showAddPlanForm"
+                  ref="planAddRef"
+                  :sup-code="supCode"
+                  @approval-request="onPlanApprovalRequestFromAdd"
+                  @cancel="openPlanCancelModal('add')"
+                  @alert="(p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')"
+                />
+                <div v-if="planLoading" class="text-muted text-sm">로딩 중...</div>
+                <div v-else-if="planData.length === 0" class="text-muted text-sm">
+                  등록된 지원계획이 없습니다.
+                </div>
+                <template v-else>
+                  <SupportPlanDetail
+                    v-for="plan in planData"
+                    :key="plan.plan_code"
+                    :ref="(el) => setPlanDetailRef(plan.plan_code, el)"
+                    :plan_code="plan.plan_code"
+                    :support_plan_title="plan.plan_goal"
+                    :support_plan_content="plan.plan_content"
+                    :start_time="plan.start_time"
+                    :end_time="plan.end_time"
+                    :support_plan_file="plan.origin_file_name"
+                    :file_code="plan.file_code"
+                    :plan_result="plan.plan_tf"
+                    :plan_date="plan.plan_date"
+                    :support_plan_comment="plan.plan_cmt"
+                    :support_plan_reject_comment="plan.plan_cmt"
+                    :support_plan_updday="plan.plan_updday"
+                    :cancel-request="cancelRequestPlanCode"
+                    :has_supple="!!(plan.plan_tf === 'e0_80' || plan.prev_plan_code)"
+                    @result="loadResultForPlan"
+                    @open-supple-history="openPlanSuppleHistory(plan.plan_code)"
+                    @approve="(pc) => supportStore.decidePlan(pc, 'e0_10', null).then(() => loadPlanTab())"
+                    @supple="(pc) => supportStore.decidePlan(pc, 'e0_80', null).then(() => loadPlanTab())"
+                    @reject="(pc) => supportStore.decidePlan(pc, 'e0_99', null).then(() => loadPlanTab())"
+                    @edit-complete="onPlanEditComplete"
+                    @approval-request="onPlanApprovalRequest"
+                    @request-cancel="(planCode) => openPlanCancelModal('edit', planCode)"
+                    @cancel-done="clearCancelRequestPlan"
+                    @end="(pc) => supportStore.endPlan(pc).then(() => loadPlanTab())"
+                    @temp-save="onTempSaveFromDetailPlan"
+                    @history="openPlanHistory"
+                    @alert="(p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')"
+                  />
+                </template>
+              </template>
+              <!-- 지원결과: ResultAdd + SupportResultDetail -->
+              <template v-else>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <h6 class="text-sm text-uppercase text-muted mb-0">지원결과</h6>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    @click="toggleAddResultForm"
+                  >
+                    결과추가
+                  </button>
+                </div>
+                <ResultAdd
+                  v-if="showAddResultForm"
+                  ref="resultAddRef"
+                  :sup-code="supCode"
+                  @approval-request="onResultApprovalRequestFromAdd"
+                  @cancel="openResultCancelModal('add')"
+                  @alert="(p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')"
+                />
+                <div v-if="resultLoading" class="text-muted text-sm">로딩 중...</div>
+                <div v-else-if="resultData.length === 0" class="text-muted text-sm">
+                  등록된 지원결과가 없습니다.
+                </div>
+                <template v-else>
+                  <SupportResultDetail
+                    v-for="result in resultData"
+                    :key="result.result_code"
+                    :ref="(el) => setResultDetailRef(result.result_code, el)"
+                    :result_code="result.result_code"
+                    :result_title="result.result_title"
+                    :result_content="result.result_content"
+                    :result_date="result.result_date"
+                    :result_tf="result.result_tf"
+                    :result_cmt="result.result_cmt"
+                    :result_updday="result.result_updday"
+                    :result_result="result.result_tf"
+                    :cancel-request="cancelRequestResultCode"
+                    :has_supple="!!(result.result_tf === 'e0_80' || result.prev_result_code)"
+                    @open-supple-history="openResultSuppleHistory(result.result_code)"
+                    @approve="(rc) => supportStore.decideResult(rc, 'e0_10', null).then(() => supportStore.supportResultDetail(supCode, selectedPlanCode))"
+                    @supple="(rc) => supportStore.decideResult(rc, 'e0_80', null).then(() => supportStore.supportResultDetail(supCode, selectedPlanCode))"
+                    @reject="(rc) => supportStore.decideResult(rc, 'e0_99', null).then(() => supportStore.supportResultDetail(supCode, selectedPlanCode))"
+                    @edit-complete="onResultEditComplete"
+                    @approval-request="onResultApprovalRequest"
+                    @request-cancel="(resultCode) => openResultCancelModal('edit', resultCode)"
+                    @cancel-done="clearCancelRequestResult"
+                    @temp-save="onTempSaveFromDetailResult"
+                    @history="openResultHistory"
+                    @alert="(p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')"
+                  />
+                </template>
+              </template>
             </div>
           </div>
         </div>
