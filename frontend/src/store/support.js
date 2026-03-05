@@ -135,12 +135,13 @@ export const useSupportStore = defineStore("support", () => {
     }
   };
 
-  // 지원결과 추가 (plan_code, result_title, result_content)
+  // 지원결과 추가. prev_result_code 있으면 보완 재신청(INSERT)
   const insertResult = async (
     supportCode,
     planCode,
     resultTitle,
     resultContent,
+    prevResultCode = null,
   ) => {
     try {
       const res = await fetch(`/api/support/${supportCode}/result`, {
@@ -150,6 +151,7 @@ export const useSupportStore = defineStore("support", () => {
           plan_code: planCode,
           result_title: resultTitle ?? "",
           result_content: resultContent ?? "",
+          prev_result_code: prevResultCode ?? undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));

@@ -17,11 +17,12 @@ const qry = {
     m_mem.m_nm    AS member_name,
     m_mgr.m_nm    AS manager_name,
     CASE WHEN r.s_rank_code IS NOT NULL THEN sc.s_name ELSE '-' END AS priority,
-    r.s_rank_code AS s_rank_code,
-    r.apply_for   AS apply_for,
+    r.s_rank_code    AS s_rank_code,
+    r.apply_for      AS apply_for,
     IFNULL(r.rank_cmt, '') AS rank_cmt,
-    r.s_rank_res   AS s_rank_res,
-    r.req_code     AS req_code
+    r.s_rank_res     AS s_rank_res,
+    r.req_code       AS req_code,
+    r.prev_req_code  AS prev_req_code
   FROM support s
   JOIN dsbl_prs d     ON s.mc_pn  = d.mc_pn
   JOIN member m_mem   ON s.mem_no = m_mem.m_no
@@ -45,6 +46,20 @@ const qry = {
 
   // 보완: s_rank_res = e0_80, rank_cmt에 보완 사유 저장
   rankSupple: `UPDATE \`rank\` SET s_rank_res = 'e0_80', rank_cmt = ? WHERE req_code = ?`,
+
+  // 보완이력 조회: 해당 sup_code의 모든 보완판정(e0_80) 기록
+  rankSuppleHistory: `
+  SELECT
+    r.req_code     AS req_code,
+    r.s_rank_code  AS s_rank_code,
+    IFNULL(sc.s_name, '-') AS rank_name,
+    IFNULL(r.apply_for, '') AS apply_for,
+    IFNULL(r.rank_cmt,  '') AS rank_cmt
+  FROM \`rank\` r
+  LEFT JOIN sub_code sc ON r.s_rank_code = sc.s_code
+  WHERE r.sup_code = ?
+    AND r.s_rank_res = 'e0_80'
+  ORDER BY r.req_code ASC`,
 
   // 우선순위 지정
   rankUpdate: `

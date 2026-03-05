@@ -55,6 +55,15 @@ const svc = {
     return null;
   },
 
+  // 보완이력 조회: sup_code 기준으로 e0_80(보완) 판정 기록 목록 반환
+  getRankSuppleHistory: async (supCode) => {
+    const rows = await query("rankSuppleHistory", [supCode]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return Array.isArray(rows) ? rows : [];
+  },
+
   // 우선순위 지정
   updateRank: async (rankRequestCode, rankCode, rankComment) => {
     // rankUpdate SQL: SET s_rank_code = ?, rank_cmt = ? WHERE req_code = ?

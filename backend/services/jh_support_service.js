@@ -33,13 +33,14 @@ const svc = {
   },
 
   /**
-   * 계획 추가 (승인요청). plan_code는 DB 트리거 자동 부여.
+   * 계획 추가 (승인요청 또는 보완 재신청). prev_plan_code 있으면 보완 재신청(INSERT).
+   * plan_code는 DB 트리거 자동 부여.
    * 종료일(end_time) 미지정이면 시작일(start_time) + 1년을 end_time으로 설정.
    * @returns {Promise<string|null>} 새 plan_code
    */
   insertPlan: async (
     supportCode,
-    { dsbl_no, plan_goal, plan_content, start_time, end_time },
+    { prev_plan_code, dsbl_no, plan_goal, plan_content, start_time, end_time },
   ) => {
     let end = end_time ?? null;
     const start = start_time ?? null;
@@ -51,6 +52,7 @@ const svc = {
       }
     }
     await query("supportPlanInsert", [
+      prev_plan_code ?? null,
       supportCode,
       dsbl_no ?? null,
       plan_goal ?? "",
@@ -62,15 +64,36 @@ const svc = {
       console.error(err);
       throw err;
     });
-    // 방금 추가된 계획의 plan_code 조회 (sup_code 기준 최신 계획)
-    const plans = await query("supportPlanBySupCode", [supportCode]).catch(
+    const rows = await query("supportPlanMaxPlanCode", [supportCode]).catch(
       (err) => {
         console.error(err);
         throw err;
       },
     );
-    const last = Array.isArray(plans) ? plans[plans.length - 1] : null;
-    return last?.plan_code ?? null;
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return row?.plan_code ?? null;
+  },
+  /** 계획 보완이력 조회 (sup_code 기준 전체) */
+  getPlanSuppleHistory: async (supportCode) => {
+    const rows = await query("supportPlanSuppleHistory", [supportCode]).catch(
+      (err) => {
+        console.error(err);
+        throw err;
+      },
+    );
+    return Array.isArray(rows) ? rows : [];
+  },
+
+  /** 계획 보완이력 조회 — 해당 plan_code 체인 중 plan_tf = 'e0_80' 만 */
+  getPlanSuppleHistoryByPlanCode: async (planCode) => {
+    if (!planCode?.trim()) return [];
+    const rows = await query("supportPlanSuppleHistoryByPlanCode", [
+      planCode,
+    ]).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return Array.isArray(rows) ? rows : [];
   },
   /** 계획 수정. 제목·내용·시작일·종료일 전부 갱신. 보완(e0_80) 상태면 검토대기(e0_00)로 변경 */
   updatePlan: async (planCode, { plan_goal, plan_content, start_time, end_time }) => {
@@ -128,9 +151,10 @@ const svc = {
     );
     return rows ?? [];
   },
-  // 결과 추가
-  insertResult: async (planCode, result_title, result_content) => {
+  // 결과 추가. prev_result_code 있으면 보완 재신청(INSERT)
+  insertResult: async (planCode, result_title, result_content, prev_result_code = null) => {
     await query("supportResultInsert", [
+      prev_result_code ?? null,
       planCode,
       result_title ?? "",
       result_content ?? "",
@@ -138,15 +162,37 @@ const svc = {
       console.error(err);
       throw err;
     });
-    // 방금 추가된 결과의 result_code 조회 (plan_code 기준 최신 결과)
-    const rows = await query("supportResultByPlanCode", [planCode]).catch(
+    const rows = await query("supportResultMaxResultCode", [planCode]).catch(
       (err) => {
         console.error(err);
         throw err;
       },
     );
-    const last = Array.isArray(rows) ? rows[rows.length - 1] : null;
-    return last?.result_code ?? null;
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return row?.result_code ?? null;
+  },
+  /** 결과 보완이력 조회 (plan_code 기준 전체) */
+  getResultSuppleHistory: async (planCode) => {
+    const rows = await query("supportResultSuppleHistory", [planCode]).catch(
+      (err) => {
+        console.error(err);
+        throw err;
+      },
+    );
+    return Array.isArray(rows) ? rows : [];
+  },
+
+  /** 결과 보완이력 조회 — 해당 result_code 체인 중 result_tf = 'e0_80' 만 */
+  getResultSuppleHistoryByResultCode: async (resultCode) => {
+    if (!resultCode?.trim()) return [];
+    const rows = await query(
+      "supportResultSuppleHistoryByResultCode",
+      [resultCode],
+    ).catch((err) => {
+      console.error(err);
+      throw err;
+    });
+    return Array.isArray(rows) ? rows : [];
   },
   // 결과 수정 (제목, 내용만)
   updateResult: async (resultCode, { result_title, result_content }) => {

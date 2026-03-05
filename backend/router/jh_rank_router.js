@@ -79,6 +79,18 @@ router.put("/update", async (req, res) => {
   }
 });
 
+// 보완이력 조회: sup_code 기준으로 e0_80(보완) 판정 기록 목록 반환
+router.get("/:supCode/supple-history", async (req, res) => {
+  const supCode = req.params.supCode;
+  try {
+    const list = await rankService.getRankSuppleHistory(supCode);
+    res.json({ retCode: "Success", data: list });
+  } catch (err) {
+    console.error(err);
+    res.json({ retCode: "Error", retMsg: "조회 실패" });
+  }
+});
+
 // 우선순위 헤더/정보 조회 (sup_code 기준) — /:supCode는 마지막에
 router.get("/:supCode", async (req, res) => {
   const supCode = req.params.supCode;

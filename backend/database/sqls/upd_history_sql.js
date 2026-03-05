@@ -39,3 +39,22 @@ exports.selectUpdHistoryByTarget = `
   WHERE h.his_category = ? AND h.category_name = ?
   ORDER BY h.upd_date DESC
 `;
+
+// 수정이력 목록 조회 — upd_target(PK: plan_code / result_code) 기준, 해당 건의 수정이력만
+exports.selectUpdHistoryByUpdTarget = `
+  SELECT
+    h.history_no,
+    h.his_category,
+    h.category_name,
+    h.upd_date,
+    h.upd_member,
+    h.upd_target,
+    h.content,
+    h.upd_content,
+    m.m_nm,
+    m.m_auth
+  FROM upd_history h
+  LEFT JOIN member m ON m.m_no = h.upd_member
+  WHERE h.upd_target = ? AND h.category_name = ?
+  ORDER BY h.upd_date DESC
+`;

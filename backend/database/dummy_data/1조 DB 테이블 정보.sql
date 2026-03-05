@@ -167,6 +167,7 @@ CREATE TABLE `counsel` (
 -- 5-2. 지원 계획
 CREATE TABLE `support_plan` (
   `plan_code` VARCHAR(30) NOT NULL COMMENT 'PLAN + 날짜 + 시퀀스',
+  `prev_plan_code` VARCHAR(30) NULL,
   `sup_code` VARCHAR(30) NOT NULL,
   `dsbl_no` VARCHAR(20) NOT NULL, -- 크기 수정 반영
   `plan_goal` VARCHAR(40) NOT NULL,
@@ -180,12 +181,14 @@ CREATE TABLE `support_plan` (
   PRIMARY KEY (`plan_code`),
   CONSTRAINT `FK_support_TO_support_plan` FOREIGN KEY (`sup_code`) REFERENCES `support` (`sup_code`),
   CONSTRAINT `FK_dsbl_prs_TO_support_plan` FOREIGN KEY (`dsbl_no`) REFERENCES `dsbl_prs` (`mc_pn`),
-  CONSTRAINT `FK_sub_code_TO_support_plan_tf` FOREIGN KEY (`plan_tf`) REFERENCES `sub_code` (`s_code`)
+  CONSTRAINT `FK_sub_code_TO_support_plan_tf` FOREIGN KEY (`plan_tf`) REFERENCES `sub_code` (`s_code`),
+  CONSTRAINT `FK_support_plan_TO_support_plan` FOREIGN KEY (`prev_plan_code`) REFERENCES `support_plan` (`plan_code`)
 );
 
 -- 5-3. 지원 결과
 CREATE TABLE `support_result` (
   `result_code` VARCHAR(30) NOT NULL COMMENT 'RES + 날짜 + 시퀀스',
+  `prev_result_code` VARCHAR(30) NULL,
   `plan_code` VARCHAR(30) NOT NULL,
   `result_title` VARCHAR(40) NOT NULL,
   `result_content` LONGTEXT NOT NULL,
@@ -195,7 +198,8 @@ CREATE TABLE `support_result` (
   `result_rej_cmt` VARCHAR(1000) NULL, -- 컬럼명 변경 반영
   PRIMARY KEY (`result_code`),
   CONSTRAINT `FK_support_plan_TO_support_result` FOREIGN KEY (`plan_code`) REFERENCES `support_plan` (`plan_code`),
-  CONSTRAINT `FK_sub_code_TO_support_result_tf` FOREIGN KEY (`result_tf`) REFERENCES `sub_code` (`s_code`)
+  CONSTRAINT `FK_sub_code_TO_support_result_tf` FOREIGN KEY (`result_tf`) REFERENCES `sub_code` (`s_code`),
+  CONSTRAINT `FK_support_result_TO_support_result` FOREIGN KEY (`prev_result_code`) REFERENCES `support_result` (`result_code`)
 );
 
 -- 6-1. 우선순위 랭킹

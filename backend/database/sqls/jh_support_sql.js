@@ -33,7 +33,7 @@ const qry = {
     WHERE s.sup_code = ?
     AND r.s_rank_res = 'e0_10'`,
 
-  // 지원신청(sup_code)에 대한 계획 조회 (첨부파일은 별도 조회)
+  // 지원신청(sup_code)에 대한 계획 조회: 체인에서 "리프"만 (다른 행이 prev_plan_code로 참조하지 않는 행)
   supportPlanBySupCode: `
     SELECT 
       p.plan_code plan_code, 
@@ -45,15 +45,42 @@ const qry = {
       p.plan_date plan_date,
       p.plan_tf plan_tf,
       p.plan_cmt plan_cmt,
-      p.plan_updday plan_updday
+      p.plan_updday plan_updday,
+      p.prev_plan_code prev_plan_code
     FROM support_plan p 
     WHERE p.sup_code = ?
+      AND NOT EXISTS (SELECT 1 FROM support_plan p2 WHERE p2.prev_plan_code = p.plan_code)
     ORDER BY p.plan_date ASC
   `,
-  // 계획 추가. plan_code는 트리거 자동 부여
+  // 계획 추가. prev_plan_code 있으면 보완 재신청(INSERT). plan_code는 트리거 자동 부여
   supportPlanInsert: `
-    INSERT INTO support_plan (sup_code, dsbl_no, plan_goal, start_time, end_time, plan_content, plan_date, plan_tf, plan_cmt)
-    VALUES (?, ?, ?, ?, ?, ?, NOW(), 'e0_00', ?)
+    INSERT INTO support_plan (prev_plan_code, sup_code, dsbl_no, plan_goal, start_time, end_time, plan_content, plan_date, plan_tf, plan_cmt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'e0_00', ?)
+  `,
+  // 방금 추가된 계획의 plan_code 조회 (sup_code 기준 최신)
+  supportPlanMaxPlanCode: `
+    SELECT plan_code FROM support_plan WHERE sup_code = ? ORDER BY plan_code DESC LIMIT 1
+  `,
+  // 계획 보완이력: sup_code 기준 (전체, 레거시)
+  supportPlanSuppleHistory: `
+    SELECT plan_code, plan_goal, plan_content, start_time, end_time, plan_cmt
+    FROM support_plan
+    WHERE sup_code = ? AND plan_tf = 'e0_80'
+    ORDER BY plan_code ASC
+  `,
+  // 계획 보완이력 — 해당 plan_code 체인(자신+prev_plan_code 선조) 중 plan_tf = 'e0_80' 만
+  supportPlanSuppleHistoryByPlanCode: `
+    WITH RECURSIVE chain AS (
+      SELECT plan_code, prev_plan_code FROM support_plan WHERE plan_code = ?
+      UNION ALL
+      SELECT p.plan_code, p.prev_plan_code
+      FROM support_plan p
+      INNER JOIN chain c ON p.plan_code = c.prev_plan_code
+    )
+    SELECT p.plan_code, p.plan_goal, p.plan_content, p.start_time, p.end_time, p.plan_cmt
+    FROM support_plan p
+    WHERE p.plan_tf = 'e0_80' AND p.plan_code IN (SELECT plan_code FROM chain)
+    ORDER BY p.plan_code ASC
   `,
   // 계획 수정 (제목, 내용, 시작일, 종료일). 보완(e0_80) 상태면 수정 시 검토대기(e0_00)로 변경
   supportPlanUpdate: `
@@ -109,7 +136,7 @@ const qry = {
       AND p.plan_tf = 'e0_10'
     ORDER BY p.plan_date ASC
   `,
-  // 결과 조회: plan_code로 해당 결과 조회 (첨부파일은 별도 조회)
+  // 결과 조회: plan_code 기준 "리프"만 (다른 행이 prev_result_code로 참조하지 않는 행)
   supportResultByPlanCode: `
   SELECT r.result_code    result_code,
          r.result_title   result_title,
@@ -117,16 +144,43 @@ const qry = {
          r.result_date    result_date,
          r.result_tf      result_tf,
          r.result_cmt     result_cmt,
-         r.result_updday  result_updday
+         r.result_updday  result_updday,
+         r.prev_result_code prev_result_code
   FROM support_result r
   JOIN support_plan p USING (plan_code)
   WHERE r.plan_code = ?
+    AND NOT EXISTS (SELECT 1 FROM support_result r2 WHERE r2.prev_result_code = r.result_code)
   ORDER BY r.result_date ASC
   `,
-  // 결과 추가
+  // 결과 추가. prev_result_code 있으면 보완 재신청(INSERT)
   supportResultInsert: `
-    INSERT INTO support_result (plan_code, result_title, result_content, result_tf)
-    VALUES (?, ?, ?, 'e0_00')
+    INSERT INTO support_result (prev_result_code, plan_code, result_title, result_content, result_tf)
+    VALUES (?, ?, ?, ?, 'e0_00')
+  `,
+  // 방금 추가된 결과의 result_code 조회 (plan_code 기준 최신)
+  supportResultMaxResultCode: `
+    SELECT result_code FROM support_result WHERE plan_code = ? ORDER BY result_code DESC LIMIT 1
+  `,
+  // 결과 보완이력: plan_code 기준 (전체, 레거시)
+  supportResultSuppleHistory: `
+    SELECT result_code, result_title, result_content, result_cmt
+    FROM support_result
+    WHERE plan_code = ? AND result_tf = 'e0_80'
+    ORDER BY result_code ASC
+  `,
+  // 결과 보완이력 — 해당 result_code 체인(자신+prev_result_code 선조) 중 result_tf = 'e0_80' 만
+  supportResultSuppleHistoryByResultCode: `
+    WITH RECURSIVE chain AS (
+      SELECT result_code, prev_result_code FROM support_result WHERE result_code = ?
+      UNION ALL
+      SELECT r.result_code, r.prev_result_code
+      FROM support_result r
+      INNER JOIN chain c ON r.result_code = c.prev_result_code
+    )
+    SELECT r.result_code, r.result_title, r.result_content, r.result_cmt
+    FROM support_result r
+    WHERE r.result_tf = 'e0_80' AND r.result_code IN (SELECT result_code FROM chain)
+    ORDER BY r.result_code ASC
   `,
   // 결과 수정 (제목, 내용만). 보완(e0_80) 상태면 수정 시 검토대기(e0_00)로 변경해 재검토 버튼 노출
   supportResultUpdate: `

@@ -51,10 +51,10 @@ router.put("/plan/:planCode", async (req, res) => {
   }
 });
 
-// 계획 추가 (승인요청). plan_code는 트리거 자동 부여
+// 계획 추가 (승인요청 또는 보완 재신청). prev_plan_code 있으면 보완 재신청(INSERT)
 router.post("/:supportCode/plan", async (req, res) => {
   const supportCode = req.params.supportCode;
-  const { dsbl_no, plan_goal, plan_content, start_date, end_date } =
+  const { prev_plan_code, dsbl_no, plan_goal, plan_content, start_date, end_date } =
     req.body || {};
   try {
     let dsblNo = dsbl_no;
@@ -63,6 +63,7 @@ router.post("/:supportCode/plan", async (req, res) => {
       dsblNo = info?.dsbl_no ?? null;
     }
     const planCode = await supportService.insertPlan(supportCode, {
+      prev_plan_code: prev_plan_code ?? null,
       dsbl_no: dsblNo,
       plan_goal,
       plan_content,
@@ -73,6 +74,18 @@ router.post("/:supportCode/plan", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.json({ retCode: "Error", retMsg: "등록 실패" });
+  }
+});
+
+// 계획 보완이력 조회 — 해당 plan_code 체인만 (plan_tf = 'e0_80')
+router.get("/:supportCode/plan/:planCode/supple-history", async (req, res) => {
+  const { planCode } = req.params;
+  try {
+    const list = await supportService.getPlanSuppleHistoryByPlanCode(planCode);
+    res.json({ retCode: "Success", data: list });
+  } catch (err) {
+    console.error(err);
+    res.json({ retCode: "Error", retMsg: "조회 실패" });
   }
 });
 
@@ -108,9 +121,9 @@ router.get("/:supportCode", async (req, res) => {
   }
 });
 
-// 지원결과 추가 (plan_code, result_title, result_content)
+// 지원결과 추가. prev_result_code 있으면 보완 재신청(INSERT)
 router.post("/:supportCode/result", async (req, res) => {
-  const { plan_code, result_title, result_content } = req.body || {};
+  const { prev_result_code, plan_code, result_title, result_content } = req.body || {};
   try {
     if (!plan_code) {
       res.json({ retCode: "Fail", retMsg: "plan_code 필요" });
@@ -120,6 +133,7 @@ router.post("/:supportCode/result", async (req, res) => {
       plan_code,
       result_title,
       result_content,
+      prev_result_code ?? null,
     );
     res.json({
       retCode: "Success",
@@ -129,6 +143,18 @@ router.post("/:supportCode/result", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.json({ retCode: "Error", retMsg: "등록 실패" });
+  }
+});
+
+// 결과 보완이력 조회 — 해당 result_code 체인만 (result_tf = 'e0_80')
+router.get("/:supportCode/result/:resultCode/supple-history", async (req, res) => {
+  const { resultCode } = req.params;
+  try {
+    const list = await supportService.getResultSuppleHistoryByResultCode(resultCode);
+    res.json({ retCode: "Success", data: list });
+  } catch (err) {
+    console.error(err);
+    res.json({ retCode: "Error", retMsg: "조회 실패" });
   }
 });
 
