@@ -20,7 +20,13 @@ const filters = ref({
   targetName: "",
   applicantName: "",
   managerName: "",
-  stage: "전체",
+  stage: {
+    review: false,
+    wait: false,
+    apply: false,
+    approve: false,
+    reject: false,
+  },
   progress: {
     review: false,
     approve: false,
@@ -29,14 +35,20 @@ const filters = ref({
   },
 });
 
-/** 검색 버튼/엔터 시에만 적용되는 필터 (실시간 반영 안 함) */
+/** 검색 버튼 클릭 시에만 적용되는 필터 */
 const appliedFilters = ref({
   dateFrom: "",
   dateTo: "",
   targetName: "",
   applicantName: "",
   managerName: "",
-  stage: "전체",
+  stage: {
+    review: false,
+    wait: false,
+    apply: false,
+    approve: false,
+    reject: false,
+  },
   progress: {
     review: false,
     approve: false,
@@ -59,7 +71,15 @@ function formatApplyDate(val) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** 대기단계 코드 → 한글 (e0_00 검토, e0_10 승인 등) */
+function stageLabel(codeOrName) {
+  const map = { e0_00: "검토", e0_10: "승인", e0_80: "보완", e0_99: "반려", e1_00: "대기", e1_10: "신청", e1_20: "승인", e1_99: "반려" };
+  const s = (codeOrName || "").trim();
+  return map[s] || s || "";
+}
+
 function mapApiRow(r, index) {
+  const rawStage = r.stage_name || r.req_yn || "";
   return {
     no: index + 1,
     sup_code: r.sup_code,
@@ -67,7 +87,7 @@ function mapApiRow(r, index) {
     applicantName: r.applicant_name || "",
     applyDate: formatApplyDate(r.sup_day),
     managerName: r.manager_name || "",
-    stage: r.stage_name || r.req_yn || "",
+    stage: stageLabel(rawStage) || rawStage,
     progress: {
       review: Number(r.review_cnt) || 0,
       approve: Number(r.approve_cnt) || 0,
@@ -123,7 +143,11 @@ const onReset = () => {
   filters.value.targetName = "";
   filters.value.applicantName = "";
   filters.value.managerName = "";
-  filters.value.stage = "전체";
+  filters.value.stage.review = false;
+  filters.value.stage.wait = false;
+  filters.value.stage.apply = false;
+  filters.value.stage.approve = false;
+  filters.value.stage.reject = false;
   filters.value.progress.review = false;
   filters.value.progress.approve = false;
   filters.value.progress.reject = false;
@@ -144,7 +168,16 @@ const filteredRows = computed(() => {
     if (f.targetName && !String(r.targetName).includes(f.targetName)) return false;
     if (f.applicantName && !String(r.applicantName).includes(f.applicantName)) return false;
     if (f.managerName && !String(r.managerName || "").includes(f.managerName)) return false;
-    if (f.stage !== "전체" && r.stage !== f.stage) return false;
+    const stageAny = f.stage.review || f.stage.wait || f.stage.apply || f.stage.approve || f.stage.reject;
+    if (stageAny) {
+      const allowed = [];
+      if (f.stage.review) allowed.push("검토");
+      if (f.stage.wait) allowed.push("대기");
+      if (f.stage.apply) allowed.push("신청");
+      if (f.stage.approve) allowed.push("승인");
+      if (f.stage.reject) allowed.push("반려");
+      if (allowed.length && !allowed.includes(r.stage)) return false;
+    }
 
     const progressChecks = f.progress;
     const anyProgressChecked =
@@ -263,64 +296,26 @@ const viewResult = (row) => {
 
             <hr class="horizontal dark my-3" />
 
-            <!-- 대기단계 (PDF처럼 버튼 느낌) -->
             <label class="form-label text-sm">대기단계</label>
-            <div class="d-flex flex-wrap gap-2">
-              <button
-                class="btn btn-sm mb-0"
-                :class="
-                  filters.stage === '전체'
-                    ? 'btn-warning'
-                    : 'btn-outline-secondary'
-                "
-                @click="filters.stage = '전체'"
-              >
-                전체
-              </button>
-              <button
-                class="btn btn-sm mb-0"
-                :class="
-                  filters.stage === '검토 중'
-                    ? 'btn-warning'
-                    : 'btn-outline-secondary'
-                "
-                @click="filters.stage = '검토 중'"
-              >
-                검토 중
-              </button>
-              <button
-                class="btn btn-sm mb-0"
-                :class="
-                  filters.stage === '대기'
-                    ? 'btn-warning'
-                    : 'btn-outline-secondary'
-                "
-                @click="filters.stage = '대기'"
-              >
-                대기
-              </button>
-              <button
-                class="btn btn-sm mb-0"
-                :class="
-                  filters.stage === '긴급'
-                    ? 'btn-warning'
-                    : 'btn-outline-secondary'
-                "
-                @click="filters.stage = '긴급'"
-              >
-                긴급
-              </button>
-              <button
-                class="btn btn-sm mb-0"
-                :class="
-                  filters.stage === '종결'
-                    ? 'btn-warning'
-                    : 'btn-outline-secondary'
-                "
-                @click="filters.stage = '종결'"
-              >
-                종결
-              </button>
+            <div class="form-check">
+              <input id="a-s0" class="form-check-input" type="checkbox" v-model="filters.stage.review" />
+              <label class="form-check-label text-sm" for="a-s0">검토</label>
+            </div>
+            <div class="form-check">
+              <input id="a-s1" class="form-check-input" type="checkbox" v-model="filters.stage.wait" />
+              <label class="form-check-label text-sm" for="a-s1">대기</label>
+            </div>
+            <div class="form-check">
+              <input id="a-s2" class="form-check-input" type="checkbox" v-model="filters.stage.apply" />
+              <label class="form-check-label text-sm" for="a-s2">신청</label>
+            </div>
+            <div class="form-check">
+              <input id="a-s3" class="form-check-input" type="checkbox" v-model="filters.stage.approve" />
+              <label class="form-check-label text-sm" for="a-s3">승인</label>
+            </div>
+            <div class="form-check">
+              <input id="a-s4" class="form-check-input" type="checkbox" v-model="filters.stage.reject" />
+              <label class="form-check-label text-sm" for="a-s4">반려</label>
             </div>
 
             <hr class="horizontal dark my-3" />

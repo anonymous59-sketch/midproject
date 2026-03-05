@@ -20,6 +20,20 @@ exports.selectSurveyTree = `
   ORDER BY mj.major_code, sb.sub_code, q.q_no
 `;
 
+// ✅ 조사지별 설문 보기 목록 (체크박스/라디오 옵션용)
+exports.selectSurveyViewBySverCode = `
+  SELECT
+    qv.q_code,
+    qv.q_view_code,
+    qv.q_view_content
+  FROM survey_view qv
+  JOIN survey_q q ON qv.q_code = q.q_code
+  JOIN sub_category sb ON q.sub_code = sb.sub_code
+  JOIN major_category mj ON sb.major_code = mj.major_code
+  WHERE mj.sver_code = ?
+  ORDER BY qv.q_code, qv.q_view_code
+`;
+
 // ✅ 지원대상자 목록(셀렉트용)
 exports.selectTargets = `
   SELECT
@@ -53,7 +67,7 @@ exports.selectSupportBySupCode = `
   WHERE s.sup_code = ?
 `;
 
-// ✅ 지원자(mem_no)별 지원신청 목록 — applicant 대시보드용 (support + dsbl_prs + rank 진행 + 계획/결과 존재 여부)
+// ✅ 지원자(mem_no)별 지원신청 목록 — 대기단계: rank.s_rank_res 한글명, 없으면 support.req_yn 한글명 (e0_00 검토, e0_10 승인 등)
 exports.selectApplicantSupportList = `
   SELECT
     s.sup_code,
@@ -62,7 +76,13 @@ exports.selectApplicantSupportList = `
     d.mc_nm       AS target_name,
     m_app.m_nm    AS applicant_name,
     m_mgr.m_nm    AS manager_name,
-    sc.s_name     AS stage_name,
+    COALESCE(
+      (SELECT sc2.s_name FROM \`rank\` r2
+       LEFT JOIN sub_code sc2 ON r2.s_rank_res = sc2.s_code
+       WHERE r2.sup_code = s.sup_code
+       ORDER BY r2.req_code DESC LIMIT 1),
+      (SELECT sc_req.s_name FROM sub_code sc_req WHERE sc_req.s_code = s.req_yn)
+    ) AS stage_name,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_00') AS review_cnt,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_10') AS approve_cnt,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_99') AS reject_cnt,
@@ -77,12 +97,11 @@ exports.selectApplicantSupportList = `
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
   LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
   WHERE s.mem_no = ?
   ORDER BY s.sup_day DESC
 `;
 
-// ✅ 담당자(mgr_no)별 지원신청 목록 — manager 홈용 (support + dsbl_prs + rank 진행 + 계획/결과 존재 여부)
+// ✅ 담당자(mgr_no)별 지원신청 목록 — 대기단계: rank.s_rank_res 한글명, 없으면 support.req_yn 한글명 (e0_00 검토, e0_10 승인 등)
 exports.selectManagerSupportList = `
   SELECT
     s.sup_code,
@@ -91,7 +110,13 @@ exports.selectManagerSupportList = `
     d.mc_nm       AS target_name,
     m_app.m_nm    AS applicant_name,
     m_mgr.m_nm    AS manager_name,
-    sc.s_name     AS stage_name,
+    COALESCE(
+      (SELECT sc2.s_name FROM \`rank\` r2
+       LEFT JOIN sub_code sc2 ON r2.s_rank_res = sc2.s_code
+       WHERE r2.sup_code = s.sup_code
+       ORDER BY r2.req_code DESC LIMIT 1),
+      (SELECT sc_req.s_name FROM sub_code sc_req WHERE sc_req.s_code = s.req_yn)
+    ) AS stage_name,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_00') AS review_cnt,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_10') AS approve_cnt,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_99') AS reject_cnt,
@@ -106,12 +131,11 @@ exports.selectManagerSupportList = `
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
   LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
   WHERE s.mgr_no = ?
   ORDER BY s.sup_day DESC
 `;
 
-// ✅ 기관(m_org)별 지원신청 목록 — organmanager 홈용 (지원자 소속기관 = 로그인 기관관리자 m_org)
+// ✅ 기관(m_org)별 지원신청 목록 — 대기단계: rank.s_rank_res 한글명, 없으면 support.req_yn 한글명 (e0_00 검토, e0_10 승인 등)
 exports.selectOrganManagerSupportList = `
   SELECT
     s.sup_code,
@@ -120,7 +144,13 @@ exports.selectOrganManagerSupportList = `
     d.mc_nm       AS target_name,
     m_app.m_nm    AS applicant_name,
     m_mgr.m_nm    AS manager_name,
-    sc.s_name     AS stage_name,
+    COALESCE(
+      (SELECT sc2.s_name FROM \`rank\` r2
+       LEFT JOIN sub_code sc2 ON r2.s_rank_res = sc2.s_code
+       WHERE r2.sup_code = s.sup_code
+       ORDER BY r2.req_code DESC LIMIT 1),
+      (SELECT sc_req.s_name FROM sub_code sc_req WHERE sc_req.s_code = s.req_yn)
+    ) AS stage_name,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_00') AS review_cnt,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_10') AS approve_cnt,
     (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_99') AS reject_cnt,
@@ -135,7 +165,6 @@ exports.selectOrganManagerSupportList = `
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
   LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
   WHERE m_app.m_org = ?
   ORDER BY s.sup_day DESC
 `;
