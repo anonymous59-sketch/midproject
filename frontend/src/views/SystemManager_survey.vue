@@ -49,6 +49,11 @@ const handleEdit = (data) => {
 const onSearch = () => {
   fetchSurveys();
 };
+// 검색 초기화
+const onReset = () => {
+  searchName.value = "";
+  fetchSurveys();
+};
 
 // 페이지 로딩 시 전체 조회
 onBeforeMount(() => {
@@ -58,43 +63,69 @@ onBeforeMount(() => {
 
 <template>
   <div class="container-fluid py-4 survey-page">
-    <!-- 상단 버튼 영역 -->
-    <div class="top-bar d-flex justify-content-between align-items-center mb-3">
-      <button class="btn btn-primary" @click="goCreateSurvey">✏️ 조사지 등록</button>
-
-      <div class="search-box d-flex align-items-center gap-2">
-        <i class="fas fa-search"></i>
-        <input
-          v-model="searchName"
-          placeholder="검색할 조사지 이름을 입력해주세요"
-          @keyup.enter="onSearch"
-        />
-        <button type="button" class="btn btn-sm btn-primary" @click="onSearch">
-          검색
-        </button>
+    <div class="row">
+      <!-- 좌측: 조사지 검색 -->
+      <div class="col-lg-3 mb-4">
+        <div class="card">
+          <div class="card-header pb-0">
+            <h6 class="mb-0">조사지 검색</h6>
+          </div>
+          <div class="card-body">
+            <label class="form-label text-sm">조사지명</label>
+            <input
+              v-model="searchName"
+              type="text"
+              class="form-control form-control-sm mb-2"
+              placeholder="검색할 조사지 이름을 입력해주세요"
+              @keyup.enter="onSearch"
+            />
+            <button
+              type="button"
+              class="btn btn-sm btn-success w-100 mb-0"
+              @click="onSearch"
+            >
+              검색
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary w-100 mt-2"
+              @click="onReset"
+            >
+              초기화
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <!-- 테이블 영역 -->
-    <div class="card-box">
-      <SurveyTable
-        :surveys="surveys"
-        :error="error"
-        @edit="handleEdit"
-      />
+      <!-- 우측: 조사지 목록 -->
+      <div class="col-lg-9">
+        <div class="card mb-4">
+          <div
+            class="card-header d-flex justify-content-between align-items-center pb-0"
+          >
+            <h6>조사지 목록</h6>
+            <button
+              class="btn btn-sm btn-primary"
+              type="button"
+              @click="goCreateSurvey"
+            >
+              ✏️ 조사지 등록
+            </button>
+          </div>
+          <div class="card-body px-0 pt-0 pb-2">
+            <SurveyTable :surveys="surveys" :error="error" @edit="handleEdit" />
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.search-box input {
-  padding: 6px 10px 6px 4px;
-  border: 1px solid #cfcfcf;
-  border-radius: 2px;
-
-  width: 300px;       
-  min-width: 200px;   
-  max-width: 100%;    
-  box-sizing: border-box; 
-} 
+.card {
+  border-radius: 1.25rem;
+}
+.cursor-pointer {
+  cursor: pointer;
+}
 </style>

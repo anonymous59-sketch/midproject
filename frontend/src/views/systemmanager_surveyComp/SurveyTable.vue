@@ -36,7 +36,7 @@ const surveysWithVersion = computed(() => {
   <div>
     <div v-if="error" class="text-danger">{{ error }}</div>
 
-    <table v-if="surveys.length" class="table survey-table">
+    <table v-if="surveys.length" class="table align-items-center mb-0 survey-table">
       <thead>
         <tr>
           <th>조사지 Ver</th>

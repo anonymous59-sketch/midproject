@@ -66,8 +66,14 @@ onMounted(() => {
 // 우측 상담내역 패널 표시 여부 — URL 진입 시 숨김, '상담내역 보기' 클릭 시 표시
 const showRightPanel = ref(false);
 
-// 좌측 탭: application(지원신청서) | rank(우선순위) | plan(지원계획) | result(지원결과) — 기본 지원신청서
-const leftTab = ref("application");
+// 좌측 탭: application(지원신청서) | rank(우선순위) | plan(지원계획) | result(지원결과)
+// - 기본은 지원신청서, 쿼리스트링 tab 이 있을 경우 해당 탭으로 시작
+const initialLeftTab = computed(() => {
+  const t = route.query.tab;
+  const allowed = ["application", "receipt", "rank", "plan", "result"];
+  return allowed.includes(t) ? t : "application";
+});
+const leftTab = ref(initialLeftTab.value);
 
 // ─── 지원계획 / 지원결과 (store 연동) ───
 const authStore = useAuthStore();
@@ -901,6 +907,18 @@ watch(leftTab, (tab) => {
     }
   }
 });
+
+// 외부에서 쿼리스트링 tab 변경 시 탭 동기화
+watch(
+  () => route.query.tab,
+  (val) => {
+    if (!val) return;
+    const allowed = ["application", "receipt", "rank", "plan", "result"];
+    if (allowed.includes(val)) {
+      leftTab.value = val;
+    }
+  },
+);
 
 // 지원신청서: survey_a 조사지 질문+답 (sup_code로 API 조회)
 const surveyAnswers = ref([]);

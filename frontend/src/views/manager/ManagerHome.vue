@@ -192,6 +192,15 @@ const viewResult = (row) => {
   if (row.sup_code)
     router.push(`/support-result/${encodeURIComponent(row.sup_code)}`);
 };
+
+// 지원대상자명 클릭 시: 해당 지원신청의 sup_code 로 지원이력 페이지 이동
+const goSupportHistory = (row) => {
+  if (!row.sup_code) return;
+  router.push({
+    name: "pswSupportHistory",
+    params: { supCode: row.sup_code },
+  });
+};
 </script>
 
 <template>
@@ -401,7 +410,17 @@ const viewResult = (row) => {
                     <td class="text-center text-sm">
                       {{ rowDisplayNo(idx) }}
                     </td>
-                    <td class="text-center text-sm">{{ row.targetName }}</td>
+                    <td class="text-center text-sm">
+                      <span v-if="!row.targetName">-</span>
+                      <a
+                        v-else
+                        href="javascript:;"
+                        class="text-sm text-primary text-decoration-underline"
+                        @click.prevent="goSupportHistory(row)"
+                      >
+                        {{ row.targetName }}
+                      </a>
+                    </td>
                     <td class="text-center text-sm">
                       {{ row.applicantName || "-" }}
                     </td>
