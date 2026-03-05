@@ -34,7 +34,7 @@ async function generateHistoryNo(conn) {
 // ─── 서비스 함수 ──────────────────────────────────────────
 
 /**
- * 수정이력 목록 조회
+ * 수정이력 목록 조회 (his_category = sup_code 기준)
  * @param {string} supCode - 지원 코드 (his_category)
  * @param {string} categoryName - j0_00 | j0_10 | j0_20 | j0_30
  */
@@ -44,6 +44,26 @@ exports.getUpdHistoryByTarget = async (supCode, categoryName) => {
     conn = await pools.getConnection();
     const rows = await conn.query(updHistorySql.selectUpdHistoryByTarget, [
       supCode,
+      categoryName,
+    ]);
+    return Array.isArray(rows) ? rows : [];
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+/**
+ * 수정이력 목록 조회 — upd_target(PK) 기준. plan_code(j0_20) 또는 result_code(j0_30) 해당 건만.
+ * @param {string} targetPk - plan_code | result_code
+ * @param {string} categoryName - j0_20 | j0_30
+ */
+exports.getUpdHistoryByUpdTarget = async (targetPk, categoryName) => {
+  if (!targetPk?.trim()) return [];
+  let conn;
+  try {
+    conn = await pools.getConnection();
+    const rows = await conn.query(updHistorySql.selectUpdHistoryByUpdTarget, [
+      targetPk,
       categoryName,
     ]);
     return Array.isArray(rows) ? rows : [];

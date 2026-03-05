@@ -14,6 +14,7 @@ import RankDetail from "@/views/rank/RankDetail.vue";
 import ConfirmModal from "@/views/modal/ConfirmModal.vue";
 import AlertModal from "@/views/modal/AlertModal.vue";
 import HistoryModal from "@/views/modal/HistoryModal.vue";
+import SuppleHistoryModal from "@/views/modal/SuppleHistoryModal.vue";
 import { getAlertPreset } from "@/utils/alertPresets.js";
 
 const route = useRoute();
@@ -83,7 +84,7 @@ const isApplicant = computed(() => userAuth.value === "a0_20");
 const isManager = computed(() => userAuth.value === "a0_30");
 const { planData, resultData, infoData } = storeToRefs(supportStore);
 
-const { historyModal, openHistoryModal: _openHistoryModal, closeHistoryModal, insertHistory } = useHistory();
+const { historyModal, openHistoryModalByTarget, closeHistoryModal, insertHistory } = useHistory();
 const planLoading = ref(false);
 const resultLoading = ref(false);
 const selectedPlanCode = ref(null); // 결과조회 클릭 시 어떤 계획의 결과인지 기억
@@ -120,6 +121,50 @@ const addResultFileNames = computed(() =>
 const resultApprovalConfirm = ref({ show: false, source: "add", payload: null });
 const resultCancelModal = ref({ show: false, context: "add", resultCode: null });
 const cancelRequestResultCode = ref(null);
+
+// 계획/결과 보완이력 모달 (한 번이라도 보완 판정된 건에서 버튼 노출)
+const planSuppleHistoryShow = ref(false);
+const planSuppleHistoryList = ref([]);
+const resultSuppleHistoryShow = ref(false);
+const resultSuppleHistoryList = ref([]);
+// 보완이력: 카드별로 해당 plan_code / result_code 체인만 조회 (클릭 시 API 호출)
+
+async function openPlanSuppleHistory(planCode) {
+  if (!planCode?.trim()) return;
+  const code = supCode.value;
+  if (!code) return;
+  planSuppleHistoryList.value = [];
+  try {
+    const res = await fetch(`/api/support/${encodeURIComponent(code)}/plan/${encodeURIComponent(planCode)}/supple-history`);
+    const json = await res.json();
+    planSuppleHistoryList.value = Array.isArray(json?.data) ? json.data : [];
+  } catch (e) {
+    console.error("[planSuppleHistory]", e);
+  }
+  if (planSuppleHistoryList.value.length === 0) {
+    showAlert("info", "알림", "보완 이력이 존재하지 않습니다.");
+    return;
+  }
+  planSuppleHistoryShow.value = true;
+}
+async function openResultSuppleHistory(resultCode) {
+  if (!resultCode?.trim()) return;
+  const code = supCode.value;
+  if (!code) return;
+  resultSuppleHistoryList.value = [];
+  try {
+    const res = await fetch(`/api/support/${encodeURIComponent(code)}/result/${encodeURIComponent(resultCode)}/supple-history`);
+    const json = await res.json();
+    resultSuppleHistoryList.value = Array.isArray(json?.data) ? json.data : [];
+  } catch (e) {
+    console.error("[resultSuppleHistory]", e);
+  }
+  if (resultSuppleHistoryList.value.length === 0) {
+    showAlert("info", "알림", "보완 이력이 존재하지 않습니다.");
+    return;
+  }
+  resultSuppleHistoryShow.value = true;
+}
 
 /** 결과 추가 시 사용할 plan_code: 결과탭에서 선택된 계획 또는 계획 목록 첫 항목 */
 const selectedPlanCodeForResult = computed(
@@ -297,7 +342,41 @@ async function onPlanApprovalConfirmYes() {
 }
 async function onPlanEditComplete(payload) {
   if (!payload?.planCode) return;
+  const code = supCode.value;
   const before = (planData.value ?? []).find((p) => p.plan_code === payload.planCode);
+  const isResubmitAfterSupple = before?.plan_tf === "e0_80";
+
+  if (isResubmitAfterSupple) {
+    // 보완 재신청: INSERT (prev_plan_code = 현재 plan_code), UPDATE 아님
+    const res = await supportStore.insertPlan(code, {
+      prev_plan_code: payload.planCode,
+      dsbl_no: infoData.value?.dsbl_no ?? null,
+      plan_goal: payload.title ?? "",
+      plan_content: payload.content ?? "",
+      start_date: payload.startDate ?? null,
+      end_date: payload.endDate ?? null,
+    });
+    if (res?.retCode === "Success") {
+      const newPlanCode = res?.plan_code ?? null;
+      if (newPlanCode && Array.isArray(payload.newFiles) && payload.newFiles.length > 0) {
+        await uploadFilesToServer(
+          payload.newFiles,
+          "plan",
+          newPlanCode,
+          infoData.value?.mgr_no ?? null,
+        );
+      }
+      await loadPlanTab();
+      const p = getAlertPreset("approvalRequestComplete", "plan");
+      showAlert(p.type, p.title, res.retMsg ?? p.message);
+    } else if (res != null) {
+      showAlert("error", "알림", res.retMsg ?? "승인 재요청에 실패했습니다.");
+    } else {
+      showAlert("error", "알림", "승인 재요청에 실패했습니다.");
+    }
+    return;
+  }
+
   const res = await supportStore.updatePlan(payload.planCode, {
     plan_goal: payload.title ?? "",
     plan_content: payload.content ?? "",
@@ -305,7 +384,6 @@ async function onPlanEditComplete(payload) {
     end_date: payload.endDate ?? null,
   });
   if (res?.retCode === "Success") {
-    // 변경된 필드만 추출 (변경 없으면 수정이력 INSERT 생략)
     const planFields = [
       { field: "목표",  bv: before?.plan_goal ?? "",  av: payload.title ?? "" },
       { field: "내용",  bv: before?.plan_content ?? "", av: payload.content ?? "" },
@@ -314,7 +392,7 @@ async function onPlanEditComplete(payload) {
     ];
     const changed = planFields.filter((f) => f.bv !== f.av);
     if (changed.length > 0) {
-      insertHistory(supCode.value, "j0_20", {
+      insertHistory(code, "j0_20", {
         updTarget: payload.planCode,
         updMember: authStore.user?.m_no ?? "",
         beforeFields: changed.map((f) => ({ field: f.field, value: f.bv })),
@@ -325,8 +403,8 @@ async function onPlanEditComplete(payload) {
     if (codesToDelete.length > 0) {
       try {
         await Promise.all(
-          codesToDelete.map((code) =>
-            fetch(`/api/upload/file/${encodeURIComponent(code)}`, { method: "DELETE" }),
+          codesToDelete.map((c) =>
+            fetch(`/api/upload/file/${encodeURIComponent(c)}`, { method: "DELETE" }),
           ),
         );
       } catch (e) {
@@ -526,13 +604,48 @@ async function onResultApprovalConfirmYes() {
 async function onResultEditComplete(payload) {
   if (!payload?.resultCode) return;
   const code = supCode.value;
+  const planCode = selectedPlanCode.value;
   const before = (resultData.value ?? []).find((r) => r.result_code === payload.resultCode);
+  const isResubmitAfterSupple = before?.result_tf === "e0_80";
+
+  if (isResubmitAfterSupple) {
+    if (!planCode) {
+      showAlert("error", "알림", "계획 정보가 없습니다.");
+      return;
+    }
+    const res = await supportStore.insertResult(
+      code,
+      planCode,
+      payload.title ?? "",
+      payload.content ?? "",
+      payload.resultCode,
+    );
+    if (res?.retCode === "Success") {
+      const newResultCode = res?.result_code ?? null;
+      if (newResultCode && Array.isArray(payload.newFiles) && payload.newFiles.length > 0) {
+        await uploadFilesToServer(
+          payload.newFiles,
+          "result",
+          newResultCode,
+          infoData.value?.mgr_no ?? null,
+        );
+      }
+      await supportStore.supportResultDetail(code, selectedPlanCode.value ?? undefined);
+      const p = getAlertPreset("approvalRequestComplete", "result");
+      showAlert(p.type, p.title, res.retMsg ?? p.message);
+    } else if (res != null) {
+      showAlert("error", "알림", res.retMsg ?? "승인 재요청에 실패했습니다.");
+    } else {
+      showAlert("error", "알림", "승인 재요청에 실패했습니다.");
+    }
+    return;
+  }
+
   const res = await supportStore.updateResult(payload.resultCode, {
     result_title: payload.title ?? "",
     result_content: payload.content ?? "",
   });
   if (res?.retCode === "Success") {
-    // 변경된 필드만 추출 (변경 없으면 수정이력 INSERT 생략)
     const resultFields = [
       { field: "제목", bv: before?.result_title ?? "",   av: payload.title ?? "" },
       { field: "내용", bv: before?.result_content ?? "", av: payload.content ?? "" },
@@ -550,8 +663,8 @@ async function onResultEditComplete(payload) {
     if (codesToDelete.length > 0) {
       try {
         await Promise.all(
-          codesToDelete.map((code) =>
-            fetch(`/api/upload/file/${encodeURIComponent(code)}`, { method: "DELETE" }),
+          codesToDelete.map((c) =>
+            fetch(`/api/upload/file/${encodeURIComponent(c)}`, { method: "DELETE" }),
           ),
         );
       } catch (e) {
@@ -631,10 +744,20 @@ function onLoadTempResult() {
   openResultTempLoadModal();
 }
 
-// ─── 수정이력 모달 (계획/결과 공용) ─────────────────────────────────────
-function openHistoryModal(categoryName) {
-  const titleMap = { j0_20: "지원계획 수정이력", j0_30: "지원결과 수정이력" };
-  _openHistoryModal(supCode.value, categoryName, titleMap[categoryName] ?? "수정이력");
+// ─── 수정이력 모달 (plan_code / result_code 기준, 해당 PK의 upd_target 이력만) ───
+async function openPlanHistory(planCode) {
+  if (!planCode?.trim()) return;
+  await openHistoryModalByTarget(planCode, "j0_20", "지원계획 수정이력");
+  if (!historyModal.value.list || historyModal.value.list.length === 0) {
+    showAlert("info", "알림", "수정 이력이 존재하지 않습니다.");
+  }
+}
+async function openResultHistory(resultCode) {
+  if (!resultCode?.trim()) return;
+  await openHistoryModalByTarget(resultCode, "j0_30", "지원결과 수정이력");
+  if (!historyModal.value.list || historyModal.value.list.length === 0) {
+    showAlert("info", "알림", "수정 이력이 존재하지 않습니다.");
+  }
 }
 function clearCancelRequestResult() {
   cancelRequestResultCode.value = null;
@@ -740,6 +863,35 @@ async function onRankSupple() {
 function onRankCancel() {
   rankCodeLocal.value = rankData.value?.s_rank_code ?? "";
   rankCmtLocal.value  = rankData.value?.rank_cmt    ?? "";
+}
+
+// ─── 우선순위 보완이력 모달 ──────────────────────────────────────────────────
+const suppleHistoryShow    = ref(false);
+const suppleHistoryList    = ref([]);
+const suppleHistoryLoading = ref(false);
+
+/** 한 번이라도 보완 판정이 있었는지 (버튼 노출 조건) */
+const rankHasSupple = computed(() =>
+  !!rankData.value &&
+  (rankData.value.s_rank_res === "e0_80" || !!rankData.value.prev_req_code)
+);
+
+async function onOpenSuppleHistory() {
+  const code = supCode.value;
+  if (!code) return;
+  suppleHistoryShow.value    = true;
+  suppleHistoryLoading.value = true;
+  suppleHistoryList.value    = [];
+  try {
+    const res  = await fetch(`/api/rank/${encodeURIComponent(code)}/supple-history`);
+    const json = await res.json();
+    suppleHistoryList.value = Array.isArray(json?.data) ? json.data : [];
+  } catch (e) {
+    console.error("[suppleHistory]", e);
+    suppleHistoryList.value = [];
+  } finally {
+    suppleHistoryLoading.value = false;
+  }
 }
 
 // 탭 전환 시 데이터 로드
@@ -1402,6 +1554,7 @@ function formatCounselDate(val) {
                   </div>
                 </div>
               </template>
+
               <!-- 신청수리 (기관담당자) -->
               <template v-else-if="leftTab === 'receipt'">
                 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -1437,7 +1590,6 @@ function formatCounselDate(val) {
                   </div>
                 </div>
               </template>
-
               <!-- 우선순위 -->
               <template v-else-if="leftTab === 'rank'">
                 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -1460,6 +1612,7 @@ function formatCounselDate(val) {
                   :apply_for="rankData.apply_for ?? ''"
                   :s_rank_res="rankData.s_rank_res ?? ''"
                   :req_code="rankData.req_code ?? ''"
+                  :has_supple="rankHasSupple"
                   @update:rank_code="(v) => (rankCodeLocal = v)"
                   @update:rank_cmt="(v) => (rankCmtLocal = v)"
                   @approval-request="onRankApprovalRequest"
@@ -1467,9 +1620,9 @@ function formatCounselDate(val) {
                   @reject="onRankDecide('e0_99')"
                   @supple="onRankSupple"
                   @cancel="onRankCancel"
+                  @open-supple-history="onOpenSuppleHistory"
                 />
               </template>
-
               <!-- 지원계획 -->
               <template v-else-if="leftTab === 'plan'">
                 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -1541,7 +1694,9 @@ function formatCounselDate(val) {
                     :support_plan_reject_comment="plan.plan_cmt"
                     :support_plan_updday="plan.plan_updday"
                     :cancel-request="cancelRequestPlanCode"
+                    :has_supple="!!(plan.plan_tf === 'e0_80' || plan.prev_plan_code)"
                     @result="loadResultForPlan"
+                    @open-supple-history="openPlanSuppleHistory(plan.plan_code)"
                     @approve="(pc) => supportStore.decidePlan(pc, 'e0_10', null).then(() => loadPlanTab())"
                     @supple="(pc) => supportStore.decidePlan(pc, 'e0_80', null).then(() => loadPlanTab())"
                     @reject="(pc) => supportStore.decidePlan(pc, 'e0_99', null).then(() => loadPlanTab())"
@@ -1551,7 +1706,7 @@ function formatCounselDate(val) {
                     @cancel-done="clearCancelRequestPlan"
                     @end="(pc) => supportStore.endPlan(pc).then(() => loadPlanTab())"
                     @temp-save="onTempSaveFromDetailPlan"
-                    @history="() => openHistoryModal('j0_20')"
+                    @history="(planCode) => openPlanHistory(planCode)"
                     @alert="(p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')"
                   />
                 </template>
@@ -1615,6 +1770,8 @@ function formatCounselDate(val) {
                     :result_updday="result.result_updday"
                     :result_result="result.result_tf"
                     :cancel-request="cancelRequestResultCode"
+                    :has_supple="!!(result.result_tf === 'e0_80' || result.prev_result_code)"
+                    @open-supple-history="openResultSuppleHistory(result.result_code)"
                     @approve="(rc) => supportStore.decideResult(rc, 'e0_10', null).then(() => supportStore.supportResultDetail(supCode.value, selectedPlanCode.value))"
                     @supple="(rc) => supportStore.decideResult(rc, 'e0_80', null).then(() => supportStore.supportResultDetail(supCode.value, selectedPlanCode.value))"
                     @reject="(rc) => supportStore.decideResult(rc, 'e0_99', null).then(() => supportStore.supportResultDetail(supCode.value, selectedPlanCode.value))"
@@ -1623,7 +1780,7 @@ function formatCounselDate(val) {
                     @request-cancel="(resultCode) => openResultCancelModal('edit', resultCode)"
                     @cancel-done="clearCancelRequestResult"
                     @temp-save="onTempSaveFromDetailResult"
-                    @history="() => openHistoryModal('j0_30')"
+                    @history="(resultCode) => openResultHistory(resultCode)"
                     @alert="(p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')"
                   />
                 </template>
@@ -1943,6 +2100,33 @@ function formatCounselDate(val) {
       :list="historyModal.list"
       :loading="historyModal.loading"
       @close="closeHistoryModal"
+    />
+
+    <!-- 우선순위 보완이력 모달 -->
+    <SuppleHistoryModal
+      :show="suppleHistoryShow"
+      :list="suppleHistoryList"
+      :loading="suppleHistoryLoading"
+      variant="rank"
+      @close="suppleHistoryShow = false"
+    />
+
+    <!-- 지원계획 보완이력 모달 -->
+    <SuppleHistoryModal
+      :show="planSuppleHistoryShow"
+      :list="planSuppleHistoryList"
+      :loading="false"
+      variant="plan"
+      @close="planSuppleHistoryShow = false"
+    />
+
+    <!-- 지원결과 보완이력 모달 -->
+    <SuppleHistoryModal
+      :show="resultSuppleHistoryShow"
+      :list="resultSuppleHistoryList"
+      :loading="false"
+      variant="result"
+      @close="resultSuppleHistoryShow = false"
     />
   </div>
 </template>

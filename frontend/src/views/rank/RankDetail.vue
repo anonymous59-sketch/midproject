@@ -14,12 +14,13 @@ const canManageRank = computed(() => authStore.user?.m_auth === "a0_40");
 
 // ========== 변수 ==========
 const props = defineProps({
-  rank_code: { type: String, default: "" }, // 우선순위 코드 (d0_20/d0_30/d0_40)
-  rank_cmt: { type: String, default: "" },
-  priority: { type: String, default: "" },
-  apply_for: { type: String, default: "" },
-  s_rank_res: { type: String, default: "" }, // e0_00 검토대기, e0_80 보완, e0_10 승인, e0_99 반려
-  req_code: { type: String, default: "" },
+  rank_code:     { type: String,  default: "" },  // 우선순위 코드 (d0_20/d0_30/d0_40)
+  rank_cmt:      { type: String,  default: "" },
+  priority:      { type: String,  default: "" },
+  apply_for:     { type: String,  default: "" },
+  s_rank_res:    { type: String,  default: "" },  // e0_00 검토대기, e0_80 보완, e0_10 승인, e0_99 반려
+  req_code:      { type: String,  default: "" },
+  has_supple:    { type: Boolean, default: false }, // 한 번이라도 보완 판정 있으면 true
 });
 
 const emit = defineEmits([
@@ -30,6 +31,7 @@ const emit = defineEmits([
   "approve",
   "reject",
   "supple",
+  "open-supple-history",
 ]);
 
 // 빈 문자열이면 3개 pill 모두 표시, 선택 시 해당 pill만 중앙 표시
@@ -194,56 +196,84 @@ function onCancel() {
       -->
       <div
         v-if="s_rank_res !== 'e0_10' && s_rank_res !== 'e0_99'"
-        class="d-flex flex-wrap gap-2 justify-content-end"
+        class="d-flex flex-wrap gap-2"
+        :class="has_supple ? 'justify-content-between' : 'justify-content-end'"
       >
-        <!-- 신청 단계('' 등) 및 보완판정(e0_80): 승인요청 / 취소 활성 -->
-        <template v-if="s_rank_res !== 'e0_00'">
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-primary"
-            @click="
-              emit('approval-request', {
-                s_rank_code: selectedCode,
-                apply_for: rankComment,
-                prev_req_code: s_rank_res === 'e0_80' ? req_code : null,
-              })
-            "
-          >
-            승인요청
-          </button>
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-secondary"
-            @click="onCancel"
-          >
-            취소
-          </button>
-        </template>
+        <!-- 보완이력 버튼 (좌측): 한 번이라도 보완 판정이 있었던 경우 노출 -->
+        <button
+          v-if="has_supple"
+          type="button"
+          class="btn btn-sm btn-outline-purple"
+          @click="emit('open-supple-history')"
+        >
+          보완이력
+        </button>
 
-        <!-- 승인요청 상태(e0_00): 승인 / 보완 / 반려만 활성 (기관관리자 전용) -->
+        <!-- 우측 버튼 그룹 -->
+        <div class="d-flex flex-wrap gap-2">
+          <!-- 신청 단계('' 등) 및 보완판정(e0_80): 승인요청 / 취소 활성 -->
+          <template v-if="s_rank_res !== 'e0_00'">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-primary"
+              @click="
+                emit('approval-request', {
+                  s_rank_code: selectedCode,
+                  apply_for: rankComment,
+                  prev_req_code: s_rank_res === 'e0_80' ? req_code : null,
+                })
+              "
+            >
+              승인요청
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              @click="onCancel"
+            >
+              취소
+            </button>
+          </template>
+
+          <!-- 승인요청 상태(e0_00): 승인 / 보완 / 반려만 활성 (기관관리자 전용) -->
+          <button
+            v-if="canManageRank && s_rank_res === 'e0_00'"
+            type="button"
+            class="btn btn-sm btn-success"
+            @click="emit('approve')"
+          >
+            승인
+          </button>
+          <button
+            v-if="canManageRank && s_rank_res === 'e0_00'"
+            type="button"
+            class="btn btn-sm btn-warning"
+            @click="emit('supple')"
+          >
+            보완
+          </button>
+          <button
+            v-if="canManageRank && s_rank_res === 'e0_00'"
+            type="button"
+            class="btn btn-sm btn-danger"
+            @click="emit('reject')"
+          >
+            반려
+          </button>
+        </div>
+      </div>
+
+      <!-- 승인(e0_10) / 반려(e0_99) 상태에서도 보완이력 버튼 노출 -->
+      <div
+        v-else-if="has_supple"
+        class="d-flex justify-content-start mt-2"
+      >
         <button
-          v-if="canManageRank && s_rank_res === 'e0_00'"
           type="button"
-          class="btn btn-sm btn-success"
-          @click="emit('approve')"
+          class="btn btn-sm btn-outline-purple"
+          @click="emit('open-supple-history')"
         >
-          승인
-        </button>
-        <button
-          v-if="canManageRank && s_rank_res === 'e0_00'"
-          type="button"
-          class="btn btn-sm btn-warning"
-          @click="emit('supple')"
-        >
-          보완
-        </button>
-        <button
-          v-if="canManageRank && s_rank_res === 'e0_00'"
-          type="button"
-          class="btn btn-sm btn-danger"
-          @click="emit('reject')"
-        >
-          반려
+          보완이력
         </button>
       </div>
     </div>
@@ -293,5 +323,15 @@ function onCancel() {
   min-height: 6rem;
   max-height: 6rem;
   resize: none;
+}
+.btn-outline-purple {
+  color: #6f42c1;
+  border-color: #6f42c1;
+  background: transparent;
+}
+.btn-outline-purple:hover {
+  color: #fff;
+  background: #6f42c1;
+  border-color: #6f42c1;
 }
 </style>

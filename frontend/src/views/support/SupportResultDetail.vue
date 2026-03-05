@@ -29,9 +29,11 @@ const props = defineProps({
   result_updday: { type: String, default: "" },
   result_result: { type: String, default: "" },
   cancelRequest: { type: String, default: "" },
+  has_supple: { type: Boolean, default: false },
 });
 const emit = defineEmits([
   "history",
+  "open-supple-history",
   "result",
   "edit",
   "edit-complete",
@@ -430,14 +432,22 @@ watch(
         class="actions d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"
       >
         <div class="d-flex gap-2">
-          <!-- 수정이력: 조회상태일 때만 왼쪽에 표시 -->
+          <!-- 수정이력 / 보완이력: 조회상태일 때만 왼쪽에 표시 -->
           <button
             v-if="isViewMode()"
             type="button"
             class="btn btn-sm btn-success"
-            @click="emit('history')"
+            @click="emit('history', result_code)"
           >
             수정이력
+          </button>
+          <button
+            v-if="isViewMode() && has_supple"
+            type="button"
+            class="btn btn-sm btn-outline-purple"
+            @click="emit('open-supple-history')"
+          >
+            보완이력
           </button>
         </div>
         <div class="d-flex flex-wrap gap-2 justify-content-end">
@@ -559,6 +569,16 @@ watch(
   </div>
 </template>
 <style scoped>
+.btn-outline-purple {
+  color: #6f42c1;
+  border-color: #6f42c1;
+  background: transparent;
+}
+.btn-outline-purple:hover {
+  color: #fff;
+  background: #6f42c1;
+  border-color: #6f42c1;
+}
 .support-result-detail .form-control:read-only,
 .support-result-detail textarea[readonly] {
   background-color: var(--bs-gray-100, #f8f9fa);
