@@ -46,6 +46,14 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  disabled: {
+    type: Boolean,
+    default: false,
+  },
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const getClasses = (size, success, error) => {
@@ -80,7 +88,9 @@ const hasIcon = (icon) => (icon ? "input-group" : null);
         :name="name"
         :value="modelValue"
         :placeholder="placeholder"
-        :isRequired="isRequired"
+        :required="isRequired"
+        :disabled="disabled"
+        :readonly="readonly"
         @input="emit('update:modelValue', $event.target.value)"
       />
       <span v-if="iconDir === 'right'" class="input-group-text">

@@ -41,12 +41,12 @@ Vue 3 + Argon Dashboard 기반 프론트엔드 구조 설명입니다. **자주 
 ## `src/views` — 페이지(화면)
 
 URL 하나당 하나의 **페이지**를 담당합니다. 라우터와 1:1로 연결되며, 새 화면 추가 시 여기에 `.vue` 파일을 만들고 `router/index.js`에 등록합니다.
-
-| 파일 | 라우트 | 설명 |
-|------|--------|------|
 | **Dashboard.vue** | `/dashboard-default` | 메인 대시보드. 미니 통계 카드, 차트, Carousel, CategoriesList 등 사용. |
 | **Tables.vue** | `/tables` | 테이블 페이지. AuthorsTable, ProjectsTable 사용. |
 | **Profile.vue** | `/profile` | 프로필 페이지. ProfileCard, ArgonInput, ArgonButton 사용. |
+
+| 파일 | 라우트 | 설명 |
+|------|--------|------|
 | **Signin.vue** | `/signin` | 로그인 폼. |
 | **Signup.vue** | `/signup` | 회원가입 폼. |
 | **Home.vue** | (라우트 없음) | 랜딩/홈용. 현재 `@/views/dashboards/Default.vue`를 import하며, 해당 파일이 없으면 별도 처리 필요. |

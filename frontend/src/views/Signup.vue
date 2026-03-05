@@ -1,15 +1,200 @@
 <script setup>
-import { onBeforeUnmount, onBeforeMount } from "vue";
+import { onBeforeUnmount, onBeforeMount, ref, computed } from "vue";
+import { onMounted } from "vue";
+import axios from "axios";
 import { useStore } from "vuex";
-
 import Navbar from "@/examples/PageLayout/Navbar.vue";
 import AppFooter from "@/examples/PageLayout/Footer.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
-import ArgonCheckbox from "@/components/ArgonCheckbox.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
-const body = document.getElementsByTagName("body")[0];
+import { useRouter } from "vue-router";
 
+const body = document.getElementsByTagName("body")[0];
 const store = useStore();
+const router = useRouter();
+
+// --- [상태 관리 변수] ---
+const userid = ref("");
+const isIdChecked = ref(false);
+const idErrorMessage = ref("");
+
+const name = ref("");
+
+const password = ref("");
+const confirmPassword = ref("");
+
+const email = ref("");
+const isEmailVerified = ref(false);
+const authCodeInput = ref("");
+const showAuthSection = ref(false); // 인증번호 발송 후 입력 칸 표시
+const authMessage = ref(""); // 성공/실패 메시지 (작은 글씨)
+const emailErrorMessage = ref(""); // 이메일 중복 경고
+const isSendingCode = ref(false); // 발송 중 로딩
+const isVerifying = ref(false); // 인증 중 로딩
+
+const tel = ref("");
+const bd = ref("");
+const address = ref("");
+const userType = ref("일반회원");
+const org = ref("");
+
+const organList = ref([]);
+
+const openModal = (message) => {
+  modalMessage.value = message;
+  showModal.value = true;
+};
+
+const redirectAfterSuccess = ref(false);
+
+const handleModalConfirm = () => {
+  showModal.value = false;
+
+  if (redirectAfterSuccess.value) {
+    redirectAfterSuccess.value = false;
+    router.push("/signin");
+  }
+};
+
+// 주소(도시명: 대구/부산 등) 기반 기관 필터링용
+const filteredOrganList = computed(() => {
+  // 회원이 선택한 주소에서 도시명 추출
+  const userCity = extractCityFromAddress(address.value);
+  //  주소 없으면 전체 기관
+  if (!userCity) {
+    return organList.value;
+  }
+
+  // 같은 도시 기관만 필터링
+  const matchedList = organList.value.filter((orgItem) => {
+    const orgAddr = orgItem?.organ_address;
+    if (typeof orgAddr !== "string") return false;
+
+    const orgCity = extractCityFromAddress(orgAddr);
+    return orgCity === userCity;
+  });
+
+  // 같은 도시 기관이 없으면 전체 기관 반환
+  if (matchedList.length === 0) {
+    return organList.value;
+  }
+
+  // 같은 도시 기관이 있으면 필터된 목록 반환
+  return matchedList;
+});
+
+const authCodeMap = {
+  일반회원: "a0_21",
+  기관담당자: "a0_31",
+  기관관리자: "a0_41",
+};
+
+const showModal = ref(false);
+const modalMessage = ref("");
+const countdown = ref(0);
+let timerInterval = null;
+
+const TIMER_STORAGE_KEY = "verifi_end_signup";
+const TIMER_DURATION_SEC = 180;
+
+// 만료 시각 기준 남은 초 (탭 이동 후 복귀 시에도 정확히 계산)
+const getRemainingSeconds = (endTimeMs) =>
+  Math.max(0, Math.ceil((endTimeMs - Date.now()) / 1000));
+
+const stopTimer = () => {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+};
+
+// 타이머 구동: 매초 endTime 기준으로 남은 초 갱신 (탭 비활성 시에도 복귀 후 정확)
+const runTimerInterval = (endTimeMs) => {
+  stopTimer();
+  const tick = () => {
+    const remaining = getRemainingSeconds(endTimeMs);
+    countdown.value = remaining;
+    if (remaining <= 0) {
+      stopTimer();
+      sessionStorage.removeItem(TIMER_STORAGE_KEY);
+      authMessage.value = "인증시간이 만료되었습니다. 다시 요청해주세요.";
+      isEmailVerified.value = false;
+      axios.post("/api/verifi/expire", { email: email.value, purpose: "i0_10" }).catch(() => {});
+    }
+  };
+  tick();
+  timerInterval = setInterval(tick, 1000);
+};
+
+// 이메일 인증 버튼 라벨: 인증완료 → 발송중 → (발송 후 만료/실패 시) 재인증 → 이메일 인증
+const emailButtonLabel = computed(() => {
+  if (isEmailVerified.value) return "인증완료";
+  if (isSendingCode.value) return "발송중...";
+  // 인증 발송한 적 있고, 만료/실패로 재인증 가능한 상태
+  if (showAuthSection.value && countdown.value === 0) return "재인증";
+  return "이메일 인증";
+});
+
+// 발송 후 카운트다운 중에는 버튼 비활성화, 만료/실패 시에만 재인증 버튼 활성화
+const emailButtonDisabled = computed(
+  () =>
+    isEmailVerified.value ||
+    isSendingCode.value ||
+    (showAuthSection.value && countdown.value > 0),
+);
+
+const goToSignin = () => router.push("/signin");
+// 주소검색관련
+const zipCode = ref("");
+const institutions = ref([]);
+// 상세주소
+const detailAddress = ref("");
+
+// "(우편번호) 대구 남구 ..." 또는 "대구 남구 ..." 형식의 주소에서
+// 앞의 도시명(예: "대구", "부산")만 추출
+const extractCityFromAddress = (addr) => {
+  if (!addr || typeof addr !== "string") return "";
+
+  // 앞에 붙은 "(12345)" 형태의 우편번호 제거
+  const noZip = addr.replace(/^\(\d+\)\s*/, "");
+
+  // 공백 기준으로 자르기
+  const parts = noZip.split(" ").filter(Boolean);
+  if (!parts.length) return "";
+
+  const firstToken = parts[0]; // 예: "대구", "대구광역시", "부산광역시"
+
+  // "대구광역시" → "대구", "부산광역시" → "부산" 정도로 단순 정규화
+  return firstToken.replace(/광역시|특별시|시$/, "").slice(0, 2);
+};
+
+
+
+// --- [라이프사이클] ---
+
+onMounted(async () => {
+  try {
+    const res = await axios.get("/api/auth/organ/list");
+    organList.value = res.data;
+  } catch (err) {
+    console.error("기관 목록 조회 실패", err);
+  }
+  // 탭/페이지 이동 후 복귀 시 저장된 만료 시각으로 카운트 복구
+  const saved = sessionStorage.getItem(TIMER_STORAGE_KEY);
+  if (saved) {
+    const endTimeMs = parseInt(saved, 10);
+    if (endTimeMs > Date.now()) {
+      showAuthSection.value = true;
+      countdown.value = getRemainingSeconds(endTimeMs);
+      runTimerInterval(endTimeMs);
+    } else {
+      sessionStorage.removeItem(TIMER_STORAGE_KEY);
+      countdown.value = 0;
+      showAuthSection.value = true;
+    }
+  }
+});
+
 onBeforeMount(() => {
   store.state.hideConfigButton = true;
   store.state.showNavbar = false;
@@ -17,201 +202,559 @@ onBeforeMount(() => {
   store.state.showFooter = false;
   body.classList.remove("bg-gray-100");
 });
+
 onBeforeUnmount(() => {
   store.state.hideConfigButton = false;
   store.state.showNavbar = true;
   store.state.showSidenav = true;
   store.state.showFooter = true;
   body.classList.add("bg-gray-100");
+  stopTimer();
 });
+
+// --- [검증 로직] ---
+const idValidationMessage = computed(() => {
+  if (userid.value.length === 0) return "";
+  if (userid.value.length < 4 || userid.value.length > 15)
+    return "아이디는 4~15글자로 입력해주세요.";
+  return "";
+});
+
+const passwordValidationMessage = computed(() => {
+  if (confirmPassword.value.length === 0) return "";
+  if (password.value !== confirmPassword.value)
+    return "비밀번호가 일치하지 않습니다.";
+  return "";
+});
+
+// --- [기능 함수] ---
+const checkIdDuplication = async () => {
+  // 1. 기본 길이 검증
+  if (idValidationMessage.value) {
+    modalMessage.value = idValidationMessage.value;
+    showModal.value = true;
+    return;
+  }
+
+  try {
+    // 2. 서버에 중복 검사 요청
+    const res = await axios.get(`/api/auth/check-id/${userid.value}`);
+
+    // 3. 결과 처리
+    if (res.data.exists) {
+      idErrorMessage.value = "이미 등록된 아이디입니다.";
+      isIdChecked.value = false;
+    } else {
+      idErrorMessage.value = "";
+      isIdChecked.value = true;
+      modalMessage.value = "사용 가능한 아이디입니다.";
+      showModal.value = true;
+    }
+  } catch (err) {
+    console.error(err);
+    modalMessage.value = "중복 검사 중 오류 발생";
+    showModal.value = true;
+  }
+};
+
+// 이메일 인증번호 발송
+const sendEmailVerification = async () => {
+  if (!email.value) {
+    modalMessage.value = "이메일을 입력해주세요.";
+    showModal.value = true;
+    return;
+  }
+  emailErrorMessage.value = "";
+  authMessage.value = "";
+  isSendingCode.value = true;
+  try {
+    // 0) 이메일 중복 체크 (member.email unique)
+    const check = await axios.get("/api/auth/check-email", {
+      params: { email: email.value },
+    });
+    if (check.data?.exists) {
+      emailErrorMessage.value = "해당 이메일은 이미 가입되어있습니다.";
+      showAuthSection.value = false;
+      return;
+    }
+
+    // 재인증 시도를 위해 기존 상태 초기화
+    isEmailVerified.value = false;
+    authCodeInput.value = "";
+    const res = await axios.post("/api/verifi/join", { email: email.value });
+    authMessage.value = res.data.message || "인증번호가 발송되었습니다.";
+    showAuthSection.value = true;
+    startTimer(); // 3분 타이머
+  } catch (err) {
+    authMessage.value =
+      err.response?.data?.message || "인증번호 발송에 실패했습니다.";
+  } finally {
+    isSendingCode.value = false;
+  }
+};
+// 인증 타이머: 만료 시각을 저장해 두면 탭 이동 후에도 남은 시간 복구 가능
+const startTimer = () => {
+  const endTimeMs = Date.now() + TIMER_DURATION_SEC * 1000;
+  sessionStorage.setItem(TIMER_STORAGE_KEY, String(endTimeMs));
+  countdown.value = TIMER_DURATION_SEC;
+  runTimerInterval(endTimeMs);
+};
+
+// 이메일 입력 변경 시 인증 상태 초기화
+const resetEmailVerificationState = () => {
+  stopTimer();
+  sessionStorage.removeItem(TIMER_STORAGE_KEY);
+  emailErrorMessage.value = "";
+  isEmailVerified.value = false;
+  showAuthSection.value = false;
+  authCodeInput.value = "";
+  authMessage.value = "";
+  countdown.value = 0;
+};
+
+// 인증번호 확인
+const confirmAuthCode = async () => {
+  if (!authCodeInput.value) {
+    authMessage.value = "인증번호를 입력해주세요.";
+    return;
+  }
+  authMessage.value = "";
+  isVerifying.value = true;
+  try {
+    const res = await axios.post("/api/verifi/verify", {
+      email: email.value,
+      code: authCodeInput.value,
+      purpose: "i0_10",
+    });
+    authMessage.value = res.data.message || "인증이 완료되었습니다.";
+    isEmailVerified.value = true;
+    stopTimer();
+    sessionStorage.removeItem(TIMER_STORAGE_KEY);
+  } catch (err) {
+    authMessage.value =
+      err.response?.data?.message ||
+      "인증번호가 일치하지 않습니다. 인증 번호를 다시 발급받아주세요.";
+    stopTimer();
+    sessionStorage.removeItem(TIMER_STORAGE_KEY);
+    countdown.value = 0;
+  } finally {
+    isVerifying.value = false;
+  }
+};
+
+const selectUserType = (type) => {
+  userType.value = type;
+};
+
+const handleSignUp = async () => {
+  if (!isIdChecked.value) {
+    modalMessage.value = "아이디 중복 검사를 해주세요.";
+    showModal.value = true;
+    return;
+  }
+  if (!isEmailVerified.value) {
+    modalMessage.value = "이메일 인증을 완료해주세요.";
+    showModal.value = true;
+    return;
+  }
+  if (!address.value.trim() || !detailAddress.value.trim()) {
+    modalMessage.value = "주소를 입력해주세요.";
+    showModal.value = true;
+    return;
+  }
+  if (password.value !== confirmPassword.value) {
+    openModal("비밀번호 확인 요망");
+    return;
+  }
+
+  try {
+    const userInfo = {
+      m_id: userid.value,
+      m_pw: password.value,
+      m_nm: name.value,
+      m_email: email.value,
+      m_tel: tel.value.replace(/\D/g, ""), // 숫자만 추출, 하이픈이나 다른 문자, 공백 전부 제거
+      m_bd: bd.value,
+      m_add: `(${zipCode.value}) ${address.value} ${detailAddress.value}`
+        .replace(/\s+/g, " ")
+        .trim(), // (우편번호) 기본주소 상세주소 형식
+      // 우편번호 기준으로 가까운 기관 선택할 거라 필요함
+      m_auth: authCodeMap[userType.value] || "a0_21", // 기본값은 일반회원
+      m_org: org.value || null,
+    };
+
+    const res = await axios.post("/api/auth/sign-up", userInfo);
+
+    if (res.data.success) {
+      redirectAfterSuccess.value = true;
+      openModal("회원가입 완료! 가입 승인을 기다려주세요.");
+    } else {
+      openModal(res.data.message || "회원가입에 실패했습니다.");
+    }
+  } catch (err) {
+    console.error(err);
+    openModal("회원가입 실패");
+  }
+};
+const fetchInstitutionsByZip = async (zip) => {
+  try {
+    const res = await axios.get(`/api/institution/by-zip/${zip}`);
+    institutions.value = res.data || [];
+  } catch (err) {
+    console.error("기관 조회 실패:", err);
+  }
+};
+
+const searchAddress = () => {
+  new window.daum.Postcode({
+    oncomplete: function (data) {
+      // 도로명 주소
+      address.value = data.roadAddress || data.jibunAddress;
+
+      // 우편번호
+      zipCode.value = data.zonecode;
+
+      // 주소 기반 기관 조회
+      fetchInstitutionsByZip(data.zonecode);
+    },
+  }).open();
+};
 </script>
+
 <template>
-  <div class="container top-0 position-sticky z-index-sticky">
+  <div
+    v-if="store.state.showNavbar"
+    class="container top-0 position-sticky z-index-sticky"
+  >
     <div class="row">
-      <div class="col-12">
-        <navbar isBtn="bg-gradient-light" />
-      </div>
+      <div class="col-12"><navbar isBtn="bg-gradient-light" /></div>
     </div>
   </div>
+
   <main class="main-content mt-0">
     <div
-      class="page-header align-items-start min-vh-50 pt-5 pb-11 m-3 border-radius-lg"
-      style="
-        background-image: url(&quot;https://raw.githubusercontent.com/creativetimofficial/public-assets/master/argon-dashboard-pro/assets/img/signup-cover.jpg&quot;);
-        background-position: top;
-      "
+      class="page-header align-items-start min-vh-50 pt-5 pb-11 m-3 border-radius-lg bg-gradient-success"
     >
-      <span class="mask bg-gradient-dark opacity-6"></span>
       <div class="container">
         <div class="row justify-content-center">
           <div class="col-lg-5 text-center mx-auto">
             <h1 class="text-white mb-2 mt-5">Welcome!</h1>
-            <p class="text-lead text-white">
-              Use these awesome forms to login or create new account in your
-              project for free.
-            </p>
           </div>
         </div>
       </div>
     </div>
+
     <div class="container">
-      <div class="row mt-lg-n10 mt-md-n11 mt-n10 justify-content-center">
-        <div class="col-xl-4 col-lg-5 col-md-7 mx-auto">
-          <div class="card z-index-0">
-            <div class="card-header text-center pt-4">
-              <h5>Register with</h5>
+      <div class="row mt-lg-n12 mt-md-n11 mt-n10 justify-content-center">
+        <div class="col-xl-6 col-lg-8 col-md-10 mx-auto">
+          <div class="card z-index-0 rounded-0 shadow-lg p-md-5 p-3 mb-5">
+            <div class="card-header text-center pt-4 bg-transparent border-0">
+              <h5 class="font-weight-bolder">회원 가입</h5>
             </div>
-            <div class="row px-xl-5 px-sm-4 px-3">
-              <div class="col-3 ms-auto px-1">
-                <a class="btn btn-outline-light w-100" href="javascript:;">
-                  <svg
-                    width="24px"
-                    height="32px"
-                    viewBox="0 0 64 64"
-                    version="1.1"
-                  >
-                    <g
-                      stroke="none"
-                      stroke-width="1"
-                      fill="none"
-                      fill-rule="evenodd"
-                    >
-                      <g
-                        transform="translate(3.000000, 3.000000)"
-                        fill-rule="nonzero"
-                      >
-                        <circle
-                          fill="#3C5A9A"
-                          cx="29.5091719"
-                          cy="29.4927506"
-                          r="29.4882047"
-                        />
-                        <path
-                          d="M39.0974944,9.05587273 L32.5651312,9.05587273 C28.6886088,9.05587273 24.3768224,10.6862851 24.3768224,16.3054653 C24.395747,18.2634019 24.3768224,20.1385313 24.3768224,22.2488655 L19.8922122,22.2488655 L19.8922122,29.3852113 L24.5156022,29.3852113 L24.5156022,49.9295284 L33.0113092,49.9295284 L33.0113092,29.2496356 L38.6187742,29.2496356 L39.1261316,22.2288395 L32.8649196,22.2288395 C32.8649196,22.2288395 32.8789377,19.1056932 32.8649196,18.1987181 C32.8649196,15.9781412 35.1755132,16.1053059 35.3144932,16.1053059 C36.4140178,16.1053059 38.5518876,16.1085101 39.1006986,16.1053059 L39.1006986,9.05587273 L39.0974944,9.05587273 L39.0974944,9.05587273 Z"
-                          fill="#FFFFFF"
-                        />
-                      </g>
-                    </g>
-                  </svg>
-                </a>
-              </div>
-              <div class="col-3 px-1">
-                <a class="btn btn-outline-light w-100" href="javascript:;">
-                  <svg
-                    width="24px"
-                    height="32px"
-                    viewBox="0 0 64 64"
-                    version="1.1"
-                  >
-                    <g
-                      stroke="none"
-                      stroke-width="1"
-                      fill="none"
-                      fill-rule="evenodd"
-                    >
-                      <g
-                        transform="translate(7.000000, 0.564551)"
-                        fill="#000000"
-                        fill-rule="nonzero"
-                      >
-                        <path
-                          d="M40.9233048,32.8428307 C41.0078713,42.0741676 48.9124247,45.146088 49,45.1851909 C48.9331634,45.4017274 47.7369821,49.5628653 44.835501,53.8610269 C42.3271952,57.5771105 39.7241148,61.2793611 35.6233362,61.356042 C31.5939073,61.431307 30.2982233,58.9340578 25.6914424,58.9340578 C21.0860585,58.9340578 19.6464932,61.27947 15.8321878,61.4314159 C11.8738936,61.5833617 8.85958554,57.4131833 6.33064852,53.7107148 C1.16284874,46.1373849 -2.78641926,32.3103122 2.51645059,22.9768066 C5.15080028,18.3417501 9.85858819,15.4066355 14.9684701,15.3313705 C18.8554146,15.2562145 22.5241194,17.9820905 24.9003639,17.9820905 C27.275104,17.9820905 31.733383,14.7039812 36.4203248,15.1854154 C38.3824403,15.2681959 43.8902255,15.9888223 47.4267616,21.2362369 C47.1417927,21.4153043 40.8549638,25.1251794 40.9233048,32.8428307 M33.3504628,10.1750144 C35.4519466,7.59650964 36.8663676,4.00699306 36.4804992,0.435448578 C33.4513624,0.558856931 29.7884601,2.48154382 27.6157341,5.05863265 C25.6685547,7.34076135 23.9632549,10.9934525 24.4233742,14.4943068 C27.7996959,14.7590956 31.2488715,12.7551531 33.3504628,10.1750144"
-                        />
-                      </g>
-                    </g>
-                  </svg>
-                </a>
-              </div>
-              <div class="col-3 me-auto px-1">
-                <a class="btn btn-outline-light w-100" href="javascript:;">
-                  <svg
-                    width="24px"
-                    height="32px"
-                    viewBox="0 0 64 64"
-                    version="1.1"
-                  >
-                    <g
-                      stroke="none"
-                      stroke-width="1"
-                      fill="none"
-                      fill-rule="evenodd"
-                    >
-                      <g
-                        transform="translate(3.000000, 2.000000)"
-                        fill-rule="nonzero"
-                      >
-                        <path
-                          d="M57.8123233,30.1515267 C57.8123233,27.7263183 57.6155321,25.9565533 57.1896408,24.1212666 L29.4960833,24.1212666 L29.4960833,35.0674653 L45.7515771,35.0674653 C45.4239683,37.7877475 43.6542033,41.8844383 39.7213169,44.6372555 L39.6661883,45.0037254 L48.4223791,51.7870338 L49.0290201,51.8475849 C54.6004021,46.7020943 57.8123233,39.1313952 57.8123233,30.1515267"
-                          fill="#4285F4"
-                        />
-                        <path
-                          d="M29.4960833,58.9921667 C37.4599129,58.9921667 44.1456164,56.3701671 49.0290201,51.8475849 L39.7213169,44.6372555 C37.2305867,46.3742596 33.887622,47.5868638 29.4960833,47.5868638 C21.6960582,47.5868638 15.0758763,42.4415991 12.7159637,35.3297782 L12.3700541,35.3591501 L3.26524241,42.4054492 L3.14617358,42.736447 C7.9965904,52.3717589 17.959737,58.9921667 29.4960833,58.9921667"
-                          fill="#34A853"
-                        />
-                        <path
-                          d="M12.7159637,35.3297782 C12.0932812,33.4944915 11.7329116,31.5279353 11.7329116,29.4960833 C11.7329116,27.4640054 12.0932812,25.4976752 12.6832029,23.6623884 L12.6667095,23.2715173 L3.44779955,16.1120237 L3.14617358,16.2554937 C1.14708246,20.2539019 0,24.7439491 0,29.4960833 C0,34.2482175 1.14708246,38.7380388 3.14617358,42.736447 L12.7159637,35.3297782"
-                          fill="#FBBC05"
-                        />
-                        <path
-                          d="M29.4960833,11.4050769 C35.0347044,11.4050769 38.7707997,13.7975244 40.9011602,15.7968415 L49.2255853,7.66898166 C44.1130815,2.91684746 37.4599129,0 29.4960833,0 C17.959737,0 7.9965904,6.62018183 3.14617358,16.2554937 L12.6832029,23.6623884 C15.0758763,16.5505675 21.6960582,11.4050769 29.4960833,11.4050769"
-                          fill="#EB4335"
-                        />
-                      </g>
-                    </g>
-                  </svg>
-                </a>
-              </div>
-              <div class="mt-2 position-relative text-center">
-                <p
-                  class="text-sm font-weight-bold mb-2 text-secondary text-border d-inline z-index-2 bg-white px-3"
+
+            <!-- 수정: 회원 유형 버튼 선택 시 색상 표시 -->
+            <div class="row px-xl-5 px-sm-4 px-3 mb-4 text-center">
+              <div class="col-4 px-1">
+                <!-- 기본적으로 일반회원이 선택되게 설정 -->
+                <argon-button
+                  :variant="userType === '일반회원' ? 'gradient' : 'outline'"
+                  :color="userType === '일반회원' ? 'success' : 'secondary'"
+                  fullWidth
+                  class="rounded-0 py-2 text-nowrap"
+                  @click="selectUserType('일반회원')"
                 >
-                  or
-                </p>
+                  일반 회원
+                </argon-button>
               </div>
+              <div class="col-4 px-1">
+                <argon-button
+                  :variant="userType === '기관담당자' ? 'gradient' : 'outline'"
+                  :color="userType === '기관담당자' ? 'success' : 'secondary'"
+                  fullWidth
+                  class="rounded-0 py-2 text-nowrap"
+                  @click="selectUserType('기관담당자')"
+                >
+                  기관 담당자
+                </argon-button>
+              </div>
+              <div class="col-4 px-1">
+                <argon-button
+                  :variant="userType === '기관관리자' ? 'gradient' : 'outline'"
+                  :color="userType === '기관관리자' ? 'success' : 'secondary'"
+                  fullWidth
+                  class="rounded-0 py-2 text-nowrap"
+                  @click="selectUserType('기관관리자')"
+                >
+                  기관 관리자
+                </argon-button>
+              </div>
+              <p class="text-xs font-weight-bold mt-3 mb-0 text-secondary">
+                회원 유형을 선택해주세요
+              </p>
             </div>
-            <div class="card-body">
-              <form role="form">
-                <argon-input
-                  id="name"
-                  type="text"
-                  placeholder="Name"
-                  aria-label="Name"
-                />
-                <argon-input
-                  id="email"
-                  type="email"
-                  placeholder="Email"
-                  aria-label="Email"
-                />
-                <argon-input
-                  id="password"
-                  type="password"
-                  placeholder="Password"
-                  aria-label="Password"
-                />
-                <argon-checkbox checked>
-                  <label class="form-check-label" for="flexCheckDefault">
-                    I agree the
-                    <a href="javascript:;" class="text-dark font-weight-bolder"
-                      >Terms and Conditions</a
+
+            <div class="card-body pt-0">
+              <form role="form" @submit.prevent="handleSignUp">
+                <!-- 이름 -->
+                <div class="mb-3">
+                  <argon-input
+                    v-model="name"
+                    placeholder="이름"
+                    size="lg"
+                    class="rounded-0"
+                  />
+                </div>
+
+                <!-- 아이디 중복 체크 -->
+                <div class="mb-3">
+                  <div class="d-flex gap-2">
+                    <argon-input
+                      v-model="userid"
+                      placeholder="아이디 (4~15자)"
+                      size="lg"
+                      class="rounded-0 flex-grow-1 mb-0"
+                      @input="
+                        isIdChecked = false;
+                        idErrorMessage = '';
+                      "
+                    />
+                    <argon-button
+                      type="button"
+                      variant="outline"
+                      color="success"
+                      class="rounded-0 text-nowrap"
+                      style="height: 46px"
+                      @click="checkIdDuplication"
+                      >중복검사</argon-button
                     >
-                  </label>
-                </argon-checkbox>
-                <div class="text-center">
+                  </div>
+                  <p
+                    v-if="idValidationMessage || idErrorMessage"
+                    class="text-danger text-xs mt-1 mb-0 ps-1"
+                  >
+                    {{ idValidationMessage || idErrorMessage }}
+                  </p>
+                  <p
+                    v-if="isIdChecked && !idValidationMessage"
+                    class="text-success text-xs mt-1 mb-0 ps-1"
+                  >
+                    사용 가능한 아이디입니다.
+                  </p>
+                </div>
+
+                <!-- 비밀번호 -->
+                <div class="mb-3">
+                  <argon-input
+                    v-model="password"
+                    type="password"
+                    placeholder="비밀번호"
+                    size="lg"
+                    class="rounded-0"
+                  />
+                </div>
+                <div class="mb-3">
+                  <argon-input
+                    v-model="confirmPassword"
+                    type="password"
+                    placeholder="비밀번호 확인"
+                    size="lg"
+                    class="rounded-0 mb-0"
+                  />
+                  <p
+                    v-if="passwordValidationMessage"
+                    class="text-danger text-xs mt-1 mb-0 ps-1"
+                  >
+                    {{ passwordValidationMessage }}
+                  </p>
+                </div>
+
+                <!-- 이메일 -->
+                <div class="mb-3">
+                  <div class="d-flex gap-2">
+                    <argon-input
+                      v-model="email"
+                      type="email"
+                      placeholder="이메일"
+                      size="lg"
+                      class="rounded-0 flex-grow-1 mb-0"
+                      @input="resetEmailVerificationState"
+                    />
+                    <argon-button
+                      type="button"
+                      variant="outline"
+                      color="success"
+                      class="rounded-0 text-nowrap"
+                      style="height: 46px"
+                      :disabled="emailButtonDisabled"
+                      @click="sendEmailVerification"
+                    >
+                      {{ emailButtonLabel }}
+                    </argon-button>
+                  </div>
+                  <p
+                    v-if="emailErrorMessage"
+                    class="text-danger text-xs mt-1 mb-0 ps-1"
+                  >
+                    {{ emailErrorMessage }}
+                  </p>
+                  <!-- 인증번호 입력 (발송 후 표시) -->
+                  <div v-if="showAuthSection && !isEmailVerified" class="mt-2">
+                    <div class="d-flex gap-2">
+                      <argon-input
+                        v-model="authCodeInput"
+                        placeholder="인증번호 6자리"
+                        class="rounded-0 flex-grow-1"
+                        maxlength="6"
+                      />
+                      <argon-button
+                        type="button"
+                        variant="outline"
+                        color="dark"
+                        class="rounded-0 text-nowrap"
+                        style="height: 46px"
+                        :disabled="isVerifying"
+                        @click="confirmAuthCode"
+                      >
+                        {{ isVerifying ? "확인중..." : "인증" }}
+                      </argon-button>
+                    </div>
+                    <p
+                      v-if="authMessage"
+                      :class="[
+                        'text-xs mt-1 mb-0 ps-1',
+                        isEmailVerified ||
+                        authMessage.includes('완료') ||
+                        authMessage.includes('발송')
+                          ? 'text-success'
+                          : 'text-danger',
+                      ]"
+                    >
+                      {{ authMessage }}
+                    </p>
+                    <p
+                      v-if="countdown > 0 && !isEmailVerified"
+                      class="text-danger text-xs mt-1 mb-0 ps-1"
+                    >
+                      남은 시간 :
+                      {{ Math.floor(countdown / 60) }}:
+                      {{ String(countdown % 60).padStart(2, "0") }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- 연락처 -->
+                <div class="mb-3">
+                  <input
+                    v-model="tel"
+                    type="tel"
+                    maxlength="11"
+                    placeholder="연락처 (예시 : 01012345678)"
+                    size="lg"
+                    class="rounded-3 form-control form-control-lg mb-3"
+                    @input="tel = tel.replace(/\D/g, '')"
+                  />
+                </div>
+
+                <!-- 생년월일 -->
+                <input
+                  v-model="bd"
+                  type="text"
+                  placeholder="생년월일을 선택해주세요"
+                  size="lg"
+                  class="rounded-3 form-control form-control-lg mb-3"
+                  @focus="(e) => (e.target.type = 'date')"
+                  @blur="
+                    (e) => {
+                      if (!bd) e.target.type = 'text';
+                    }
+                  "
+                />
+
+                <!-- 주소 -->
+                <div class="mb-3">
+                  <div class="d-flex gap-2 mb-2">
+                    <input
+                      v-model="zipCode"
+                      placeholder="우편번호"
+                      readonly
+                      class="form-control"
+                    />
+
+                    <argon-button
+                      type="button"
+                      variant="outline"
+                      color="success"
+                      class="rounded-0 text-nowrap"
+                      style="height: 46px"
+                      @click="searchAddress"
+                    >
+                      주소 검색
+                    </argon-button>
+                  </div>
+
+                  <input
+                    v-model="address"
+                    placeholder="기본 주소"
+                    readonly
+                    class="mb-2 form-control form-control-lg"
+                  />
+
+                  <argon-input
+                    v-model="detailAddress"
+                    placeholder="상세 주소를 입력해주세요"
+                  />
+                </div>
+
+                <!-- 기관 선택 -->
+                <select
+                  v-model="org"
+                  class="form-select form-select-lg rounded-0 border-gray-300"
+                  style="height: 46px; font-size: 0.875rem"
+                >
+                  <option disabled value="">기관을 선택해주세요</option>
+
+                  <option
+                    v-for="item in filteredOrganList"
+                    :key="item.organ_no"
+                    :value="item.organ_no"
+                  >
+                    {{ item.organ_name }}
+                  </option>
+                </select>
+                <!-- 기관 선택 테스트 -->
+                <div v-if="institutions.length > 0" class="mt-3">
+                  <label class="form-label">아래 기관을 선택해주세요</label>
+                  <select v-model="selectedInstitution" class="form-control">
+                    <option value="">기관 선택</option>
+                    <option
+                      v-for="inst in institutions"
+                      :key="inst.inst_id"
+                      :value="inst.inst_id"
+                    >
+                      {{ inst.inst_name }}
+                    </option>
+                  </select>
+                </div>
+                <div class="text-center mt-4">
                   <argon-button
+                    type="submit"
                     fullWidth
-                    color="dark"
+                    color="success"
                     variant="gradient"
-                    class="my-4 mb-2"
-                    >Sign up</argon-button
+                    class="rounded-0"
+                    size="lg"
+                    >가입하기</argon-button
                   >
                 </div>
-                <p class="text-sm mt-3 mb-0">
-                  Already have an account?
-                  <a href="javascript:;" class="text-dark font-weight-bolder"
-                    >Sign in</a
+                <div class="text-center mt-3">
+                  <span
+                    class="text-xs text-secondary"
+                    style="cursor: pointer; text-decoration: underline"
+                    @click="goToSignin"
                   >
-                </p>
+                    - 로그인 화면 이동 -
+                  </span>
+                </div>
               </form>
             </div>
           </div>
@@ -219,5 +762,43 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </main>
+
+  <!-- 모달: 알림 -->
+  <div
+    v-if="showModal"
+    class="modal fade show d-block"
+    style="background: rgba(0, 0, 0, 0.5); z-index: 9999"
+  >
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-0 border-0 shadow-lg">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title font-weight-bolder">알림</h5>
+        </div>
+        <div class="modal-body py-4 text-center text-dark font-weight-bold">
+          {{ modalMessage }}
+        </div>
+        <div class="modal-footer border-0 pt-0 justify-content-center">
+          <argon-button
+            color="success"
+            variant="gradient"
+            class="rounded-0 px-5"
+            @click="handleModalConfirm"
+            >확인</argon-button
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+
   <app-footer />
 </template>
+
+<style scoped>
+.form-select:focus {
+  border-color: #2dce89;
+  box-shadow: 0 0 0 2px rgba(45, 206, 137, 0.2);
+}
+.modal.show {
+  display: block;
+}
+</style>

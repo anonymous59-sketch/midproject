@@ -1,0 +1,5 @@
+m_no,m_id,m_pw,m_nm,m_email,m_tel,m_bd,m_add,m_auth,m_org
+MEM20260224001,user01,$2a$10$dummybcryptpassword,김지원,user01@test.com,01011112222,1990-05-15,서울 강남구,a0_20,\N
+MEM20260224002,mgr01,$2a$10$dummybcryptpassword,이담당,mgr01@test.com,01022223333,1985-03-20,대구 수성구,a0_30,1234567890
+MEM20260224003,org01,$2a$10$dummybcryptpassword,박기관,org01@test.com,01033334444,1980-01-10,대구 북구,a0_40,1234567890
+MEM20260224004,admin01,$2a$10$dummybcryptpassword,최관리,admin@test.com,01044445555,1975-11-01,서울 서초구,a0_99,\N

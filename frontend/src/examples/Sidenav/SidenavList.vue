@@ -20,9 +20,6 @@ const getRoute = () => {
     class="collapse navbar-collapse w-auto h-auto h-100"
     id="sidenav-collapse-main"
   >
-    <ul class="navbar-nav">
-      <li class="nav-item">
-        <sidenav-item
           to="/dashboard-default"
           :class="getRoute() === 'dashboard-default' ? 'active' : ''"
           :navText="isRTL ? 'لوحة القيادة' : 'Dashboard'"
@@ -47,6 +44,9 @@ const getRoute = () => {
         </sidenav-item>
       </li>
 
+      <li class="nav-item">
+        <sidenav-item
+    <ul class="navbar-nav">
       <li class="nav-item">
         <sidenav-item
           to="/support-plan"
@@ -76,9 +76,6 @@ const getRoute = () => {
           ACCOUNT PAGES
         </h6>
       </li>
-
-      <li class="nav-item">
-        <sidenav-item
           to="/profile"
           :class="getRoute() === 'profile' ? 'active' : ''"
           :navText="isRTL ? 'حساب تعريفي' : 'Profile'"
@@ -88,6 +85,9 @@ const getRoute = () => {
           </template>
         </sidenav-item>
       </li>
+
+      <li class="nav-item">
+        <sidenav-item
 
       <li class="nav-item">
         <sidenav-item
