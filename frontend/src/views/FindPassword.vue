@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onBeforeMount, ref, computed } from "vue";
+import { onBeforeUnmount, onBeforeMount, onMounted, ref, computed } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import axios from "axios";
@@ -26,6 +26,36 @@ const hasSentOnce = ref(false);
 const countdown = ref(0);
 let timerInterval = null;
 
+const TIMER_STORAGE_KEY = "verifi_end_findpw";
+const TIMER_DURATION_SEC = 180;
+
+const getRemainingSeconds = (endTimeMs) =>
+  Math.max(0, Math.ceil((endTimeMs - Date.now()) / 1000));
+
+const stopTimer = () => {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+};
+
+const runTimerInterval = (endTimeMs) => {
+  stopTimer();
+  const tick = () => {
+    const remaining = getRemainingSeconds(endTimeMs);
+    countdown.value = remaining;
+    if (remaining <= 0) {
+      stopTimer();
+      sessionStorage.removeItem(TIMER_STORAGE_KEY);
+      authMessage.value = "인증시간이 만료되었습니다. 다시 요청해주세요.";
+      isVerified.value = false;
+      axios.post("/api/verifi/expire", { email: email.value, purpose: "i0_30" }).catch(() => {});
+    }
+  };
+  tick();
+  timerInterval = setInterval(tick, 1000);
+};
+
 const sendButtonLabel = computed(() => {
   if (isSending.value) return "발송중...";
   if (hasSentOnce.value && countdown.value === 0 && !isVerified.value)
@@ -47,13 +77,29 @@ onBeforeMount(() => {
   body.classList.remove("bg-gray-100");
 });
 
+onMounted(() => {
+  const saved = sessionStorage.getItem(TIMER_STORAGE_KEY);
+  if (saved) {
+    const endTimeMs = parseInt(saved, 10);
+    if (endTimeMs > Date.now()) {
+      hasSentOnce.value = true;
+      countdown.value = getRemainingSeconds(endTimeMs);
+      runTimerInterval(endTimeMs);
+    } else {
+      sessionStorage.removeItem(TIMER_STORAGE_KEY);
+      countdown.value = 0;
+      hasSentOnce.value = true;
+    }
+  }
+});
+
 onBeforeUnmount(() => {
   store.state.hideConfigButton = false;
   store.state.showNavbar = true;
   store.state.showSidenav = true;
   store.state.showFooter = true;
   body.classList.add("bg-gray-100");
-  if (timerInterval) clearInterval(timerInterval);
+  stopTimer();
 });
 
 const goToLogin = () => routes.push("/signin");
@@ -86,24 +132,11 @@ const sendVerificationCode = async () => {
   }
 };
 
-// 인증번호 타이머
 const startTimer = () => {
-  countdown.value = 180; // 3분
-
-  if (timerInterval) clearInterval(timerInterval);
-
-  timerInterval = setInterval(() => {
-    if (countdown.value > 0) {
-      countdown.value--;
-    } else {
-      clearInterval(timerInterval);
-      timerInterval = null;
-      authMessage.value = "인증시간이 만료되었습니다. 다시 요청해주세요.";
-      isVerified.value = false;
-      // DB 인증 상태를 실패로 변경
-      axios.post("/api/verifi/expire", { email: email.value, purpose: "i0_30" }).catch(() => {});
-    }
-  }, 1000);
+  const endTimeMs = Date.now() + TIMER_DURATION_SEC * 1000;
+  sessionStorage.setItem(TIMER_STORAGE_KEY, String(endTimeMs));
+  countdown.value = TIMER_DURATION_SEC;
+  runTimerInterval(endTimeMs);
 };
 
 // 인증번호 확인
@@ -122,18 +155,13 @@ const confirmVerification = async () => {
     });
     isVerified.value = true;
     authMessage.value = "인증이 완료되었습니다.";
-
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
+    stopTimer();
+    sessionStorage.removeItem(TIMER_STORAGE_KEY);
   } catch (err) {
     authMessage.value =
       err.response?.data?.message || "인증번호가 일치하지 않습니다. 인증 번호를 다시 발급받아주세요.";
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
+    stopTimer();
+    sessionStorage.removeItem(TIMER_STORAGE_KEY);
     countdown.value = 0;
   } finally {
     isVerifying.value = false;

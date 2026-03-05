@@ -8,7 +8,7 @@
 // - 지원자/담당자 이름(member)
 // - 우선순위 / 진행상태(rank + sub_code) - 있을 경우만
 
-qry = {
+const qry = {
  psw_supportHistoryBaseBySupCode: `
   SELECT
     d.mc_pn,
@@ -51,6 +51,6 @@ qry = {
   )
   ORDER BY s.sup_day DESC, s.sup_code DESC
 `,
-}
+};
 
-exports = qry;
+module.exports = qry;

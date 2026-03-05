@@ -94,12 +94,36 @@ const modalMessage = ref("");
 const countdown = ref(0);
 let timerInterval = null;
 
-// 타이머 정리 함수
+const TIMER_STORAGE_KEY = "verifi_end_signup";
+const TIMER_DURATION_SEC = 180;
+
+// 만료 시각 기준 남은 초 (탭 이동 후 복귀 시에도 정확히 계산)
+const getRemainingSeconds = (endTimeMs) =>
+  Math.max(0, Math.ceil((endTimeMs - Date.now()) / 1000));
+
 const stopTimer = () => {
   if (timerInterval) {
     clearInterval(timerInterval);
     timerInterval = null;
   }
+};
+
+// 타이머 구동: 매초 endTime 기준으로 남은 초 갱신 (탭 비활성 시에도 복귀 후 정확)
+const runTimerInterval = (endTimeMs) => {
+  stopTimer();
+  const tick = () => {
+    const remaining = getRemainingSeconds(endTimeMs);
+    countdown.value = remaining;
+    if (remaining <= 0) {
+      stopTimer();
+      sessionStorage.removeItem(TIMER_STORAGE_KEY);
+      authMessage.value = "인증시간이 만료되었습니다. 다시 요청해주세요.";
+      isEmailVerified.value = false;
+      axios.post("/api/verifi/expire", { email: email.value, purpose: "i0_10" }).catch(() => {});
+    }
+  };
+  tick();
+  timerInterval = setInterval(tick, 1000);
 };
 
 // 이메일 인증 버튼 라벨: 인증완료 → 발송중 → (발송 후 만료/실패 시) 재인증 → 이메일 인증
@@ -144,7 +168,7 @@ const extractCityFromAddress = (addr) => {
   return firstToken.replace(/광역시|특별시|시$/, "").slice(0, 2);
 };
 
-// 주소검색관련
+
 
 // --- [라이프사이클] ---
 
@@ -154,6 +178,20 @@ onMounted(async () => {
     organList.value = res.data;
   } catch (err) {
     console.error("기관 목록 조회 실패", err);
+  }
+  // 탭/페이지 이동 후 복귀 시 저장된 만료 시각으로 카운트 복구
+  const saved = sessionStorage.getItem(TIMER_STORAGE_KEY);
+  if (saved) {
+    const endTimeMs = parseInt(saved, 10);
+    if (endTimeMs > Date.now()) {
+      showAuthSection.value = true;
+      countdown.value = getRemainingSeconds(endTimeMs);
+      runTimerInterval(endTimeMs);
+    } else {
+      sessionStorage.removeItem(TIMER_STORAGE_KEY);
+      countdown.value = 0;
+      showAuthSection.value = true;
+    }
   }
 });
 
@@ -254,37 +292,24 @@ const sendEmailVerification = async () => {
     isSendingCode.value = false;
   }
 };
-// 인증 타이머
+// 인증 타이머: 만료 시각을 저장해 두면 탭 이동 후에도 남은 시간 복구 가능
 const startTimer = () => {
-  stopTimer(); // 기존 타이머 정리
-
-  countdown.value = 180;
-
-  timerInterval = setInterval(() => {
-    if (countdown.value > 0) {
-      countdown.value--;
-    } else {
-      stopTimer();
-      authMessage.value = "인증시간이 만료되었습니다. 다시 요청해주세요.";
-      isEmailVerified.value = false;
-      // DB 인증 상태를 실패(i0_99)로 변경
-      axios.post("/api/verifi/expire", { email: email.value, purpose: "i0_10" }).catch(() => {});
-    }
-  }, 1000);
+  const endTimeMs = Date.now() + TIMER_DURATION_SEC * 1000;
+  sessionStorage.setItem(TIMER_STORAGE_KEY, String(endTimeMs));
+  countdown.value = TIMER_DURATION_SEC;
+  runTimerInterval(endTimeMs);
 };
 
 // 이메일 입력 변경 시 인증 상태 초기화
 const resetEmailVerificationState = () => {
   stopTimer();
-
+  sessionStorage.removeItem(TIMER_STORAGE_KEY);
   emailErrorMessage.value = "";
   isEmailVerified.value = false;
   showAuthSection.value = false;
   authCodeInput.value = "";
   authMessage.value = "";
   countdown.value = 0;
-
-  stopTimer();
 };
 
 // 인증번호 확인
@@ -303,14 +328,14 @@ const confirmAuthCode = async () => {
     });
     authMessage.value = res.data.message || "인증이 완료되었습니다.";
     isEmailVerified.value = true;
-
     stopTimer();
+    sessionStorage.removeItem(TIMER_STORAGE_KEY);
   } catch (err) {
     authMessage.value =
       err.response?.data?.message ||
       "인증번호가 일치하지 않습니다. 인증 번호를 다시 발급받아주세요.";
-    // 인증 실패 시 타이머 종료 → 재인증 버튼 활성화 (백엔드에서 이미 실패 상태로 DB 업데이트됨)
     stopTimer();
+    sessionStorage.removeItem(TIMER_STORAGE_KEY);
     countdown.value = 0;
   } finally {
     isVerifying.value = false;
@@ -623,9 +648,10 @@ const searchAddress = () => {
                     v-model="tel"
                     type="tel"
                     maxlength="11"
-                    placeholder="연락처 (숫자만 입력해주세요)"
+                    placeholder="연락처 (예시 : 01012345678)"
                     size="lg"
                     class="rounded-3 form-control form-control-lg mb-3"
+                    @input="tel = tel.replace(/\D/g, '')"
                   />
                 </div>
 
