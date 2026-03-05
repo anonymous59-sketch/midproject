@@ -52,6 +52,7 @@ const emit = defineEmits([
 
 /** 수정 모드 여부 */
 const isEditing = ref(false);
+/** 수정 중 로컬 제목·내용·시작일·종료일. 수정완료 시 부모에 전달 */
 const titleLocal = ref(props.result_title || "");
 const contentLocal = ref(props.result_content || "");
 
@@ -307,7 +308,13 @@ watch(
         <button
           type="button"
           class="btn btn-sm btn-secondary"
-          @click="emit('temp-save', { resultCode: result_code, title: titleLocal, content: contentLocal })"
+          @click="
+            emit('temp-save', {
+              resultCode: result_code,
+              title: titleLocal,
+              content: contentLocal,
+            })
+          "
         >
           임시저장
         </button>

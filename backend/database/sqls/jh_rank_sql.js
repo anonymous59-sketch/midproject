@@ -40,6 +40,8 @@ const qry = {
 
   // 승인(e0_10) / 반려(e0_99) 판정: rank s_rank_res 업데이트
   rankDecide: `UPDATE \`rank\` SET s_rank_res = ? WHERE req_code = ?`,
+  // 반려(e0_99) 시 rank_cmt(반려 사유) 함께 저장
+  rankDecideReject: `UPDATE \`rank\` SET s_rank_res = 'e0_99', rank_cmt = ? WHERE req_code = ?`,
 
   // 승인/반려 시 support.rank_res에 해당 req_code 반영
   supportRankResUpdate: `UPDATE support SET rank_res = ? WHERE sup_code = ?`,

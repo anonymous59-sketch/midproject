@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 
 import ArgonInput from "@/components/ArgonInput.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
+import TablePagination from "@/views/components/TablePagination.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -42,6 +43,19 @@ const orgSaving = ref(false);
 const showManagerModal = ref(false);
 const managerList = ref([]);
 const managerListLoading = ref(false);
+const managerPage = ref(1);
+const managerPageSize = 10;
+const managerTotalRows = computed(() => managerList.value.length);
+const pagedManagerList = computed(() => {
+  const start = (managerPage.value - 1) * managerPageSize;
+  return managerList.value.slice(start, start + managerPageSize);
+});
+const managerRowDisplayNo = (indexInPage) =>
+  managerTotalRows.value - ((managerPage.value - 1) * managerPageSize + indexInPage);
+
+watch(showManagerModal, (visible) => {
+  if (visible) managerPage.value = 1;
+});
 
 function formatBizNumber(val) {
   if (!val || typeof val !== "string") return "";
@@ -426,6 +440,7 @@ function goToManagerControl() {
               <table class="table table-hover">
                 <thead>
                   <tr>
+                    <th class="text-center text-xs">번호</th>
                     <th>이름</th>
                     <th>아이디</th>
                     <th>연락처</th>
@@ -434,7 +449,8 @@ function goToManagerControl() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="m in managerList" :key="m.m_no">
+                  <tr v-for="(m, idx) in pagedManagerList" :key="m.m_no">
+                    <td class="text-center text-sm">{{ managerRowDisplayNo(idx) }}</td>
                     <td>{{ m.m_nm }}</td>
                     <td>{{ m.m_id }}</td>
                     <td>{{ m.m_tel }}</td>
@@ -443,6 +459,13 @@ function goToManagerControl() {
                   </tr>
                 </tbody>
               </table>
+              <TablePagination
+                v-if="managerTotalRows > managerPageSize"
+                v-model:page="managerPage"
+                :total="managerTotalRows"
+                :page-size="managerPageSize"
+                class="mt-2"
+              />
             </div>
           </div>
           <div class="modal-footer">

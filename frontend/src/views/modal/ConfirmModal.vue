@@ -1,15 +1,36 @@
 <script setup>
-defineProps({
+import { ref, watch } from "vue";
+
+const props = defineProps({
   show: { type: Boolean, default: false },
   title: { type: String, default: "승인 요청" },
   message: { type: String, default: "승인 요청을 하시겠습니까?" },
   warningMessage: { type: String, default: "" },
+  /** 보완/반려 시 사유 입력란 표시 */
+  showReason: { type: Boolean, default: false },
+  reasonPlaceholder: { type: String, default: "사유를 입력해 주세요." },
+  reasonLabel: { type: String, default: "사유" },
 });
 
 const emit = defineEmits(["confirm", "close"]);
 
+const reasonText = ref("");
+
+watch(
+  () => props.show,
+  (visible) => {
+    if (!visible) reasonText.value = "";
+  },
+);
+
 function onConfirm() {
-  emit("confirm");
+  if (props.showReason) {
+    const trimmed = (reasonText.value || "").trim();
+    if (!trimmed) return;
+    emit("confirm", trimmed);
+  } else {
+    emit("confirm");
+  }
 }
 
 function onClose() {
@@ -32,13 +53,23 @@ function onClose() {
           <div class="confirm-modal-body">
             <p class="confirm-modal-message">{{ message }}</p>
             <p v-if="warningMessage" class="confirm-modal-warning">{{ warningMessage }}</p>
+            <template v-if="showReason">
+              <label class="confirm-modal-reason-label">{{ reasonLabel }}</label>
+              <textarea
+                v-model="reasonText"
+                class="confirm-modal-reason-input"
+                :placeholder="reasonPlaceholder"
+                rows="3"
+              />
+            </template>
             <div class="confirm-modal-actions">
               <button
                 type="button"
                 class="btn btn-confirm-yes rounded"
+                :disabled="showReason && !(reasonText && reasonText.trim())"
                 @click="onConfirm"
               >
-                네
+                {{ showReason ? "확인" : "네" }}
               </button>
               <button
                 type="button"
@@ -103,6 +134,23 @@ function onClose() {
   margin: 0 0 1.25rem;
   color: #dc3545;
   font-size: 0.9rem;
+}
+.confirm-modal-reason-label {
+  display: block;
+  margin: 0.75rem 0 0.35rem;
+  font-weight: 500;
+  color: #212529;
+  font-size: 0.9rem;
+}
+.confirm-modal-reason-input {
+  width: 100%;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 4.5rem;
 }
 .confirm-modal-actions {
   display: flex;

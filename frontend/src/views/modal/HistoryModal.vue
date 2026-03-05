@@ -4,13 +4,15 @@
  * 수정이력을 테이블 형태로 표시하는 모달
  * - 행 클릭 시 수정 전/후 내용을 토글 방식으로 표시
  * - content / upd_content: JSON.stringify([{ field, value }, ...]) 형태로 저장된 값을 파싱
+ * - 페이징: 페이지당 10건, 번호는 전체 건수 기준 내림차순
  */
-import { ref } from "vue";
+import { ref, computed, watch } from "vue";
+import TablePagination from "@/views/components/TablePagination.vue";
 
-defineProps({
-  show:    { type: Boolean, default: false },
-  title:   { type: String,  default: "수정이력" },
-  list:    { type: Array,   default: () => [] },
+const props = defineProps({
+  show: { type: Boolean, default: false },
+  title: { type: String, default: "수정이력" },
+  list: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
 });
 
@@ -18,6 +20,29 @@ const emit = defineEmits(["close"]);
 
 /** 현재 확장된 행의 history_no 집합 */
 const expandedSet = ref(new Set());
+
+const page = ref(1);
+const pageSize = 10;
+const totalRows = computed(() => props.list.length);
+const pagedList = computed(() => {
+  const start = (page.value - 1) * pageSize;
+  return props.list.slice(start, start + pageSize);
+});
+const rowDisplayNo = (indexInPage) =>
+  totalRows.value - ((page.value - 1) * pageSize + indexInPage);
+
+watch(
+  () => props.list.length,
+  () => {
+    page.value = 1;
+  },
+);
+watch(
+  () => props.show,
+  (visible) => {
+    if (!visible) page.value = 1;
+  },
+);
 
 function toggleRow(historyNo) {
   const s = new Set(expandedSet.value);
@@ -52,22 +77,24 @@ function formatDate(val) {
 <template>
   <Teleport to="body">
     <Transition name="hm-fade">
-      <div
-        v-if="show"
-        class="hm-backdrop"
-        @click.self="emit('close')"
-      >
+      <div v-if="show" class="hm-backdrop" @click.self="emit('close')">
         <div class="hm-dialog">
           <!-- 헤더 -->
           <div class="hm-header">
             <span class="hm-title">{{ title }}</span>
-            <button type="button" class="btn-close btn-sm" @click="emit('close')" />
+            <button
+              type="button"
+              class="btn-close btn-sm"
+              @click="emit('close')"
+            />
           </div>
 
           <!-- 바디 -->
           <div class="hm-body">
             <p v-if="loading" class="hm-empty">로딩 중...</p>
-            <p v-else-if="list.length === 0" class="hm-empty">수정이력이 없습니다.</p>
+            <p v-else-if="list.length === 0" class="hm-empty">
+              수정이력이 없습니다.
+            </p>
 
             <table v-else class="hm-table">
               <thead>
@@ -78,47 +105,82 @@ function formatDate(val) {
                 </tr>
               </thead>
               <tbody>
-                <template v-for="(h, idx) in list" :key="h.history_no">
+                <template v-for="(h, idx) in pagedList" :key="h.history_no">
                   <!-- 요약 행 (클릭 → 토글) -->
                   <tr
                     class="hm-row hm-row-main"
-                    :class="{ 'hm-row-expanded': expandedSet.has(h.history_no) }"
+                    :class="{
+                      'hm-row-expanded': expandedSet.has(h.history_no),
+                    }"
                     @click="toggleRow(h.history_no)"
                   >
-                    <td class="hm-td hm-td-no">{{ list.length - idx }}</td>
-                    <td class="hm-td hm-td-name">{{ h.m_nm || h.upd_member }}</td>
-                    <td class="hm-td hm-td-date">{{ formatDate(h.upd_date) }}</td>
+                    <td class="hm-td hm-td-no">{{ rowDisplayNo(idx) }}</td>
+                    <td class="hm-td hm-td-name">
+                      {{ h.m_nm || h.upd_member }}
+                    </td>
+                    <td class="hm-td hm-td-date">
+                      {{ formatDate(h.upd_date) }}
+                    </td>
                   </tr>
 
                   <!-- 확장 행: 수정 전/후 내용 -->
-                  <tr v-if="expandedSet.has(h.history_no)" class="hm-row hm-row-detail">
+                  <tr
+                    v-if="expandedSet.has(h.history_no)"
+                    class="hm-row hm-row-detail"
+                  >
                     <td colspan="3" class="hm-td-detail p-0">
                       <table class="hm-inner-table w-100">
                         <!-- 수정전 헤더 -->
                         <tr class="hm-inner-before-header">
-                          <td colspan="3" class="hm-inner-section-label">수정 전 내용</td>
+                          <td colspan="3" class="hm-inner-section-label">
+                            수정 전 내용
+                          </td>
                         </tr>
-                        <template v-for="(f, fi) in parseFields(h.content)" :key="'before-' + fi">
+                        <template
+                          v-for="(f, fi) in parseFields(h.content)"
+                          :key="'before-' + fi"
+                        >
                           <tr class="hm-inner-row">
                             <td class="hm-inner-field">{{ f.field }}</td>
-                            <td colspan="2" class="hm-inner-value hm-inner-value-before">{{ f.value }}</td>
+                            <td
+                              colspan="2"
+                              class="hm-inner-value hm-inner-value-before"
+                            >
+                              {{ f.value }}
+                            </td>
                           </tr>
                         </template>
-                        <tr v-if="parseFields(h.content).length === 0" class="hm-inner-row">
+                        <tr
+                          v-if="parseFields(h.content).length === 0"
+                          class="hm-inner-row"
+                        >
                           <td colspan="3" class="hm-inner-empty">기록 없음</td>
                         </tr>
 
                         <!-- 수정후 헤더 -->
                         <tr class="hm-inner-after-header">
-                          <td colspan="3" class="hm-inner-section-label">수정 후 내용</td>
+                          <td colspan="3" class="hm-inner-section-label">
+                            수정 후 내용
+                          </td>
                         </tr>
-                        <template v-for="(f, fi) in parseFields(h.upd_content)" :key="'after-' + fi">
+                        <template
+                          v-for="(f, fi) in parseFields(h.upd_content)"
+                          :key="'after-' + fi"
+                        >
                           <tr class="hm-inner-row">
                             <td class="hm-inner-field">{{ f.field }}</td>
-                            <td colspan="2" class="hm-inner-value hm-inner-value-after">{{ f.value }}</td>
+                            <td
+                              colspan="2"
+                              class="hm-inner-value hm-inner-value-after"
+                            >
+                              {{ f.value }}
+                            </td>
                           </tr>
                         </template>
-                        <tr v-if="parseFields(h.upd_content).length === 0" class="hm-inner-row">
+                        <tr
+                          v-if="parseFields(h.upd_content).length === 0"
+                          class="hm-inner-row"
+                        >
                           <td colspan="3" class="hm-inner-empty">기록 없음</td>
                         </tr>
                       </table>
@@ -127,6 +189,13 @@ function formatDate(val) {
                 </template>
               </tbody>
             </table>
+            <TablePagination
+              v-if="totalRows > pageSize"
+              v-model:page="page"
+              :total="totalRows"
+              :page-size="pageSize"
+              class="hm-pagination mt-2"
+            />
           </div>
         </div>
       </div>
@@ -201,9 +270,15 @@ function formatDate(val) {
   top: 0;
   z-index: 1;
 }
-.hm-th-no   { width: 15%; }
-.hm-th-name { width: 30%; }
-.hm-th-date { width: 55%; }
+.hm-th-no {
+  width: 15%;
+}
+.hm-th-name {
+  width: 30%;
+}
+.hm-th-date {
+  width: 55%;
+}
 
 .hm-row-main {
   cursor: pointer;
@@ -219,9 +294,19 @@ function formatDate(val) {
   text-align: center;
   vertical-align: middle;
 }
-.hm-td-no   { text-align: center; font-weight: 600; color: #495057; }
-.hm-td-name { text-align: center; }
-.hm-td-date { text-align: center; color: #495057; font-size: 0.82rem; }
+.hm-td-no {
+  text-align: center;
+  font-weight: 600;
+  color: #495057;
+}
+.hm-td-name {
+  text-align: center;
+}
+.hm-td-date {
+  text-align: center;
+  color: #495057;
+  font-size: 0.82rem;
+}
 
 /* ── 상세 확장 내부 테이블 ───────────────────────── */
 .hm-td-detail {
@@ -272,8 +357,12 @@ function formatDate(val) {
   white-space: pre-wrap;
   line-height: 1.5;
 }
-.hm-inner-value-before { color: #084298; }
-.hm-inner-value-after  { color: #0a3622; }
+.hm-inner-value-before {
+  color: #084298;
+}
+.hm-inner-value-after {
+  color: #0a3622;
+}
 .hm-inner-empty {
   text-align: center;
   color: #adb5bd;

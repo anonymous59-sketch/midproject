@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
+import TablePagination from "@/views/components/TablePagination.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -196,6 +197,24 @@ const filteredRows = computed(() => {
     return true;
   });
 });
+
+// 페이징: 페이지당 10건, 번호는 전체 건수 기준 내림차순(첫 행이 가장 큰 번호)
+const page = ref(1);
+const pageSize = 10;
+const totalRows = computed(() => filteredRows.value.length);
+const pagedRows = computed(() => {
+  const start = (page.value - 1) * pageSize;
+  return filteredRows.value.slice(start, start + pageSize);
+});
+const rowDisplayNo = (indexInPage) =>
+  totalRows.value - ((page.value - 1) * pageSize + indexInPage);
+
+watch(
+  () => filteredRows.value.length,
+  () => {
+    page.value = 1;
+  },
+);
 
 onMounted(() => {
   loadOrganManagerList();
@@ -428,8 +447,8 @@ const viewResult = (row) => {
                   <tr v-else-if="filteredRows.length === 0">
                     <td colspan="11" class="text-center text-sm text-muted py-4">검색 결과가 없습니다.</td>
                   </tr>
-                  <tr v-else v-for="row in filteredRows" :key="row.sup_code || row.no">
-                    <td class="text-center text-sm">{{ row.no }}</td>
+                  <tr v-else v-for="(row, idx) in pagedRows" :key="row.sup_code || row.no">
+                    <td class="text-center text-sm">{{ rowDisplayNo(idx) }}</td>
                     <td class="text-center text-sm">{{ row.targetName }}</td>
                     <td class="text-center text-sm">{{ row.applicantName }}</td>
                     <td class="text-center text-sm">{{ row.applyDate }}</td>
@@ -583,7 +602,12 @@ const viewResult = (row) => {
               </table>
             </div>
 
-            <!-- (선택) 페이지네이션은 다음 단계에서 붙이자 -->
+            <TablePagination
+              v-if="totalRows > pageSize"
+              v-model:page="page"
+              :total="totalRows"
+              :page-size="pageSize"
+            />
           </div>
         </div>
       </div>

@@ -2,8 +2,10 @@
 /**
  * SuppleHistoryModal.vue
  * 보완이력 모달. variant: rank(등급/신청사유/보완사유) | plan(목표/내용/보완사유) | result(제목/내용/보완사유)
+ * 페이징: 페이지당 10건, 번호는 전체 건수 기준 내림차순
  */
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
+import TablePagination from "@/views/components/TablePagination.vue";
 
 const props = defineProps({
   show:    { type: Boolean, default: false },
@@ -23,6 +25,19 @@ const rowKey = computed(() => {
 
 /** 현재 확장된 행의 키 집합 */
 const expandedSet = ref(new Set());
+
+const page = ref(1);
+const pageSize = 10;
+const totalRows = computed(() => props.list.length);
+const pagedList = computed(() => {
+  const start = (page.value - 1) * pageSize;
+  return props.list.slice(start, start + pageSize);
+});
+const rowDisplayNo = (indexInPage) =>
+  totalRows.value - ((page.value - 1) * pageSize + indexInPage);
+
+watch(() => props.list.length, () => { page.value = 1; });
+watch(() => props.show, (visible) => { if (!visible) page.value = 1; });
 
 function toggleRow(key) {
   const s = new Set(expandedSet.value);
@@ -59,13 +74,13 @@ function getItemKey(item) {
                 </tr>
               </thead>
               <tbody>
-                <template v-for="(item, idx) in list" :key="getItemKey(item)">
+                <template v-for="(item, idx) in pagedList" :key="getItemKey(item)">
                   <tr
                     class="shm-row shm-row-main"
                     :class="{ 'shm-row-expanded': expandedSet.has(getItemKey(item)) }"
                     @click="toggleRow(getItemKey(item))"
                   >
-                    <td class="shm-td shm-td-no">{{ idx + 1 }}</td>
+                    <td class="shm-td shm-td-no">{{ rowDisplayNo(idx) }}</td>
                     <td class="shm-td shm-td-rank">{{ item.rank_name || '-' }}</td>
                   </tr>
                   <tr v-if="expandedSet.has(getItemKey(item))" class="shm-row shm-row-detail">
@@ -90,13 +105,13 @@ function getItemKey(item) {
                 </tr>
               </thead>
               <tbody>
-                <template v-for="(item, idx) in list" :key="getItemKey(item)">
+                <template v-for="(item, idx) in pagedList" :key="getItemKey(item)">
                   <tr
                     class="shm-row shm-row-main"
                     :class="{ 'shm-row-expanded': expandedSet.has(getItemKey(item)) }"
                     @click="toggleRow(getItemKey(item))"
                   >
-                    <td class="shm-td shm-td-no">{{ idx + 1 }}</td>
+                    <td class="shm-td shm-td-no">{{ rowDisplayNo(idx) }}</td>
                     <td class="shm-td shm-td-rank">{{ item.plan_goal || '-' }}</td>
                   </tr>
                   <tr v-if="expandedSet.has(getItemKey(item))" class="shm-row shm-row-detail">
@@ -121,13 +136,13 @@ function getItemKey(item) {
                 </tr>
               </thead>
               <tbody>
-                <template v-for="(item, idx) in list" :key="getItemKey(item)">
+                <template v-for="(item, idx) in pagedList" :key="getItemKey(item)">
                   <tr
                     class="shm-row shm-row-main"
                     :class="{ 'shm-row-expanded': expandedSet.has(getItemKey(item)) }"
                     @click="toggleRow(getItemKey(item))"
                   >
-                    <td class="shm-td shm-td-no">{{ idx + 1 }}</td>
+                    <td class="shm-td shm-td-no">{{ rowDisplayNo(idx) }}</td>
                     <td class="shm-td shm-td-rank">{{ item.result_title || '-' }}</td>
                   </tr>
                   <tr v-if="expandedSet.has(getItemKey(item))" class="shm-row shm-row-detail">
@@ -142,6 +157,13 @@ function getItemKey(item) {
                 </template>
               </tbody>
             </table>
+            <TablePagination
+              v-if="totalRows > pageSize"
+              v-model:page="page"
+              :total="totalRows"
+              :page-size="pageSize"
+              class="shm-pagination mt-2"
+            />
           </div>
         </div>
       </div>

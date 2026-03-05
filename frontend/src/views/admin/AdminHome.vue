@@ -1,6 +1,7 @@
 <!-- src/views/admin/AdminHome.vue -->
 <script setup>
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, watch, onMounted } from "vue";
+import TablePagination from "@/views/components/TablePagination.vue";
 
 // ✅ 체크박스 선택 상태(선택된 기관 no 목록)
 const selectedNos = ref(new Set());
@@ -164,6 +165,24 @@ const filteredRows = computed(() => {
 
   return rows.value.filter((r) => r.orgName.includes(q));
 });
+
+// 페이징: 페이지당 10건, 순번은 전체 건수 기준 내림차순
+const page = ref(1);
+const pageSize = 10;
+const totalRows = computed(() => filteredRows.value.length);
+const pagedRows = computed(() => {
+  const start = (page.value - 1) * pageSize;
+  return filteredRows.value.slice(start, start + pageSize);
+});
+const rowDisplayNo = (indexInPage) =>
+  totalRows.value - ((page.value - 1) * pageSize + indexInPage);
+
+watch(
+  () => filteredRows.value.length,
+  () => {
+    page.value = 1;
+  },
+);
 
 // ------- 기관 주소 입력(우편번호 API) 공통 유틸 -------
 const createZipCode = ref("");
@@ -480,7 +499,7 @@ const submitCreate = async () => {
                 </thead>
 
                 <tbody>
-                  <tr v-for="(row, index) in filteredRows" :key="row.no">
+                  <tr v-for="(row, idx) in pagedRows" :key="row.no">
                     <!-- ✅ 행 체크 -->
                     <td class="text-center">
                       <input
@@ -490,7 +509,7 @@ const submitCreate = async () => {
                         @change="toggleOne(row.no)"
                       />
                     </td>
-                    <td class="text-center text-sm">{{ index + 1 }}</td>
+                    <td class="text-center text-sm">{{ rowDisplayNo(idx) }}</td>
                     <td class="text-center text-sm">
                       {{ formatOrganNo(row.no) || row.no }}
                     </td>
@@ -554,6 +573,13 @@ const submitCreate = async () => {
               </table>
             </div>
 
+            <TablePagination
+              v-if="!loading && !loadError && totalRows > pageSize"
+              v-model:page="page"
+              :total="totalRows"
+              :page-size="pageSize"
+              class="mt-3"
+            />
             <div
               v-if="!loading && !loadError"
               class="d-flex justify-content-end mt-3"

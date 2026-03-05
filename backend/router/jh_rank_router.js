@@ -29,7 +29,7 @@ router.post("/request", async (req, res) => {
 // 승인(e0_10) / 반려(e0_99): rank 판정 업데이트 후 support.rank_res에 req_code 반영
 router.put("/decide", async (req, res) => {
   try {
-    const { req_code, sup_code, decision } = req.body;
+    const { req_code, sup_code, decision, rank_cmt } = req.body;
     if (!req_code || !sup_code || !decision) {
       res.json({ retCode: "Fail", retMsg: "req_code, sup_code, decision 필요" });
       return;
@@ -39,7 +39,7 @@ router.put("/decide", async (req, res) => {
       res.json({ retCode: "Fail", retMsg: "decision 오류" });
       return;
     }
-    await rankService.decideRank(req_code, sup_code, decisionStr);
+    await rankService.decideRank(req_code, sup_code, decisionStr, rank_cmt ?? null);
     res.json({ retCode: "Success", retMsg: "처리 완료" });
   } catch (err) {
     console.error(err);
