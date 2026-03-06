@@ -1250,9 +1250,8 @@ async function updateReqYn(decision) {
         ? "신청이 접수되었습니다."
         : "신청이 반려되었습니다.";
     showAlert("success", "알림", label);
-    if (decision === "e0_10") {
-      leftTab.value = "rank";
-    }
+    // 신청접수 탭에서 처리 완료 후에는 우선순위 탭으로 이동
+    leftTab.value = "rank";
   } catch (e) {
     showAlert(
       "error",
