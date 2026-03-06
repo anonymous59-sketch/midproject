@@ -9,6 +9,8 @@ defineProps({
   rankCodeLocal: { type: String, default: "" },
   rankCmtLocal: { type: String, default: "" },
   rankHasSupple: { type: Boolean, default: false },
+  /** 지원자(a0_20) 등 읽기 전용: 우선순위 선택/요청 버튼 비활성화 */
+  readOnly: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -50,6 +52,7 @@ const emit = defineEmits([
     :s_rank_res="rankData.s_rank_res ?? ''"
     :req_code="rankData.req_code ?? ''"
     :has_supple="rankHasSupple"
+    :read-only="readOnly"
     @update:rank_code="(v) => emit('update:rankCodeLocal', v)"
     @update:rank_cmt="(v) => emit('update:rankCmtLocal', v)"
     @approval-request="emit('approval-request', $event)"

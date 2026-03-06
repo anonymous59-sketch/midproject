@@ -15,6 +15,8 @@ const canManageRank = computed(() => authStore.user?.m_auth === "a0_40");
 
 // ========== 변수 ==========
 const props = defineProps({
+  /** 지원자(a0_20) 등 읽기 전용: 선택/승인요청/보완이력 등 버튼 숨김 */
+  readOnly:      { type: Boolean, default: false },
   rank_code:     { type: String,  default: "" },  // 우선순위 코드 (d0_20/d0_30/d0_40)
   rank_cmt:      { type: String,  default: "" },
   priority:      { type: String,  default: "" },
@@ -153,12 +155,12 @@ function onCancel() {
             s_rank_res !== 'e0_10' && s_rank_res !== 'e0_99' && showPill(p)
           "
           :key="p.code"
-          role="button"
-          tabindex="0"
+          :role="readOnly ? undefined : 'button'"
+          :tabindex="readOnly ? undefined : 0"
           class="rank-pill"
-          :class="p.pillClass"
-          @click="selectPill(p.code)"
-          @keydown.enter="selectPill(p.code)"
+          :class="[p.pillClass, readOnly ? 'rank-pill-readonly' : '']"
+          @click="!readOnly && selectPill(p.code)"
+          @keydown.enter="!readOnly && selectPill(p.code)"
         >
           {{ p.label }}
         </span>
@@ -175,18 +177,18 @@ function onCancel() {
     >
       <textarea
         :value="textareaValue()"
-        :readonly="textareaReadonly()"
+        :readonly="readOnly ? true : textareaReadonly()"
         class="form-control form-control-sm mb-3 rank-detail-textarea"
         rows="3"
         :placeholder="
-          textareaReadonly()
+          (readOnly ? true : textareaReadonly())
             ? ''
             : '우선순위 선택 사유를 작성해주시기 바랍니다.'
         "
         @input="
-          (e) => {
-            if (!textareaReadonly()) updateComment(e.target.value);
-          }
+            (e) => {
+              if (!readOnly && !textareaReadonly()) updateComment(e.target.value);
+            }
         "
       />
       <!-- 버튼 영역
@@ -196,7 +198,7 @@ function onCancel() {
         - 승인(e0_10) / 반려(e0_99): 버튼 숨김
       -->
       <div
-        v-if="s_rank_res !== 'e0_10' && s_rank_res !== 'e0_99'"
+        v-if="!readOnly && s_rank_res !== 'e0_10' && s_rank_res !== 'e0_99'"
         class="d-flex flex-wrap gap-2"
         :class="has_supple ? 'justify-content-between' : 'justify-content-end'"
       >
@@ -276,7 +278,7 @@ function onCancel() {
 
       <!-- 승인(e0_10) / 반려(e0_99) 상태에서도 보완이력 버튼 노출 -->
       <div
-        v-else-if="has_supple"
+        v-else-if="!readOnly && has_supple"
         class="d-flex justify-content-start mt-2"
       >
         <ArgonButton

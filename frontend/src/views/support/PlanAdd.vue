@@ -9,6 +9,8 @@ import ArgonInput from "@/components/ArgonInput.vue";
 const props = defineProps({
   supCode: { type: String, default: "" },
   show: { type: Boolean, default: true },
+  /** 지원자(a0_20) 등 읽기 전용: 계획추가 버튼/폼 비노출 */
+  readOnly: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["approval-request", "cancel", "alert", "toggle"]);
@@ -113,11 +115,18 @@ defineExpose({ reset, deleteTempAfterInsert: deleteSelectedTemp });
   <div class="mb-3">
     <div class="counsel-section-header d-flex align-items-center justify-content-between mb-3">
       <h6 class="counsel-section-title text-sm text-uppercase text-muted mb-0">지원계획</h6>
-      <ArgonButton type="button" size="sm" variant="outline" color="primary" @click="emit('toggle')">
+      <ArgonButton
+        v-if="!readOnly"
+        type="button"
+        size="sm"
+        variant="outline"
+        color="primary"
+        @click="emit('toggle')"
+      >
         계획추가
       </ArgonButton>
     </div>
-    <div v-if="show" class="card shadow-sm border-radius-lg mb-4">
+    <div v-if="show && !readOnly" class="card shadow-sm border-radius-lg mb-4">
       <div class="card-body">
         <div class="d-flex justify-content-end gap-2 mb-3">
           <ArgonButton type="button" size="sm" variant="outline" color="secondary" @click="openLoadModal">

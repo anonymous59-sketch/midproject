@@ -241,11 +241,14 @@ async function loadResultForPlan(planCode) {
   resultLoading.value = true;
   await supportStore.supportResultDetail(code, planCode);
   resultLoading.value = false;
-  if (resultData.value.length === 0) {
+  const hasResult = resultData.value.length > 0;
+  if (!hasResult) {
     showAlert("info", "알림", "등록된 지원결과가 없습니다.");
     if (isManager.value) {
       resultCreateConfirm.value = true;
     }
+    // 결과가 0건이면 지원결과 탭으로 자동 이동하지 않는다.
+    return;
   }
   leftTab.value = "result";
 }
@@ -1218,7 +1221,9 @@ const rankApproved = computed(() => rankData.value?.s_rank_res === "e0_10");
 const showReceiptTab = computed(
   () => isManager.value && hasCounsel.value && reqYn.value === "e0_00",
 );
-const showRankTab = computed(() => reqYn.value === "e0_10");
+const showRankTab = computed(
+  () => !isApplicant.value && reqYn.value === "e0_10",
+);
 const showPlanTab = computed(
   () => reqYn.value === "e0_10" && rankApproved.value,
 );
@@ -1283,6 +1288,7 @@ function onReceiptReject() {
             :dsbl-loading="dsblLoading"
             :dsbl-error="dsblError"
             :show-right-panel="showRightPanel"
+            :is-applicant="isApplicant"
             @toggle-panel="toggleRightPanel"
           />
 
@@ -1395,6 +1401,7 @@ function onReceiptReject() {
                 :rank-code-local="rankCodeLocal"
                 :rank-cmt-local="rankCmtLocal"
                 :rank-has-supple="rankHasSupple"
+                :read-only="isApplicant"
                 @refresh="loadRankTab"
                 @update:rank-code-local="(v) => (rankCodeLocal = v)"
                 @update:rank-cmt-local="(v) => (rankCmtLocal = v)"
@@ -1505,6 +1512,7 @@ function onReceiptReject() {
                   ref="planAddRef"
                   :sup-code="supCode"
                   :show="showAddPlanForm"
+                  :read-only="isApplicant"
                   @toggle="toggleAddPlan"
                   @approval-request="onPlanApprovalRequestFromAdd"
                   @cancel="openPlanCancelModal('add')"
@@ -1641,6 +1649,7 @@ function onReceiptReject() {
                   ref="resultAddRef"
                   :sup-code="supCode"
                   :show="showAddResultForm"
+                  :read-only="isApplicant"
                   @toggle="toggleAddResultForm"
                   @approval-request="onResultApprovalRequestFromAdd"
                   @cancel="openResultCancelModal('add')"
@@ -1785,6 +1794,7 @@ function onReceiptReject() {
         <CounselRightPanel
           v-if="showRightPanel"
           class="col-lg-7"
+          :read-only="isApplicant"
           :counsel-list="counselList"
           :counsel-list-loading="counselListLoading"
           :counsel-list-error="counselListError"

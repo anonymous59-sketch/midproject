@@ -20,6 +20,8 @@ defineProps({
   dsblLoading: { type: Boolean, default: false },
   dsblError: { type: String, default: null },
   showRightPanel: { type: Boolean, default: false },
+  /** 지원자(a0_20)면 상담내역 보기 버튼 숨김 */
+  isApplicant: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["toggle-panel"]);
@@ -32,6 +34,7 @@ const emit = defineEmits(["toggle-panel"]);
     >
       <h6 class="mb-0">지원대상자 정보</h6>
       <ArgonButton
+        v-if="!isApplicant"
         type="button"
         size="sm"
         :variant="showRightPanel ? 'outline' : 'fill'"

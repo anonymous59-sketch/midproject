@@ -16,6 +16,8 @@ function contentPreview(text, max = 30) {
 }
 
 const props = defineProps({
+  /** 지원자(a0_20) 등 읽기 전용 모드: 상담추가/등록 폼 비노출 */
+  readOnly: { type: Boolean, default: false },
   counselList: { type: Array, default: () => [] },
   counselListLoading: { type: Boolean, default: false },
   counselListError: { type: String, default: null },
@@ -78,6 +80,7 @@ watch(
       <div class="d-flex align-items-center gap-2">
         <h6 class="mb-0 fw-bold">상담내역</h6>
         <ArgonButton
+          v-if="!readOnly"
           type="button"
           size="sm"
           variant="outline"
@@ -161,7 +164,7 @@ watch(
       </div>
 
       <!-- 상담등록 폼 -->
-      <div v-if="showForm" class="border rounded p-3 mb-4 bg-light">
+      <div v-if="showForm && !readOnly" class="border rounded p-3 mb-4 bg-light">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h6 class="text-sm text-uppercase text-muted mb-0">상담등록</h6>
           <div class="d-flex gap-2">
