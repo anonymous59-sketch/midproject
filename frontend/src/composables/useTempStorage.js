@@ -4,7 +4,10 @@
  *
  * @param {import('vue').Ref<string>|() => string} supCodeRef - 지원번호 (ref 또는 getter)
  * @param {string} categoryName - j0_10 | j0_20 | j0_30
- * @param {{ getPayload: () => { save_title: string, save_content: string }, setPayload: (item: { save_title?: string, save_content?: string }) => void, validate?: (payload: { save_title: string, save_content: string }) => { valid: boolean, message?: string } }} options
+ * @param {{ getPayload: () => { save_title: string, save_content: string },
+ *           setPayload: (item: { save_title?: string, save_content?: string }) => void,
+ *           validate?: (payload: { save_title: string, save_content: string }) => { valid: boolean, message?: string },
+ *           onAlert?: (type: string, title: string, message: string) => void }} options
  */
 import { ref } from "vue";
 
@@ -21,7 +24,10 @@ export function useTempStorage(supCodeRef, categoryName, options = {}) {
     }
   };
 
-  const getSupCode = typeof supCodeRef === "function" ? supCodeRef : () => supCodeRef?.value ?? "";
+  const getSupCode =
+    typeof supCodeRef === "function"
+      ? supCodeRef
+      : () => supCodeRef?.value ?? "";
 
   const showModal = ref(false);
   const tempList = ref([]);
@@ -62,17 +68,14 @@ export function useTempStorage(supCodeRef, categoryName, options = {}) {
 
       if (existingCode) {
         // 불러온 항목이 있으면 해당 tmp_code로 갱신(PUT)
-        fetchRes = await fetch(
-          `/api/tmp/${encodeURIComponent(existingCode)}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              save_title: String(save_title ?? "").trim(),
-              save_content: String(save_content ?? ""),
-            }),
-          },
-        );
+        fetchRes = await fetch(`/api/tmp/${encodeURIComponent(existingCode)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            save_title: String(save_title ?? "").trim(),
+            save_content: String(save_content ?? ""),
+          }),
+        });
       } else {
         // 신규 임시저장(POST)
         fetchRes = await fetch(
