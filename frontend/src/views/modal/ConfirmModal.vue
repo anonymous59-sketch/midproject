@@ -152,7 +152,7 @@ function onClose() {
   border: 1px solid var(--bs-border-color, #dee2e6);
   border-radius: 0.5rem;
   font-size: 0.9rem;
-  resize: vertical;
+  resize: none;
   min-height: 4.5rem;
 }
 .confirm-modal-reason-input:focus {

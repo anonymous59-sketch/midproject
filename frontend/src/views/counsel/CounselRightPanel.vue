@@ -324,3 +324,9 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+textarea {
+  resize: none;
+}
+</style>

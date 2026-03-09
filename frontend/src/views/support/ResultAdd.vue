@@ -151,3 +151,9 @@ defineExpose({ reset, deleteTempAfterInsert: deleteSelectedTemp });
     @select="applyItem"
   />
 </template>
+
+<style scoped>
+textarea {
+  resize: none;
+}
+</style>
