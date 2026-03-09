@@ -388,8 +388,13 @@ const findAddress = () => {
                 </div>
                 <ArgonInput
                   v-else
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="11"
                   v-model="editForm.m_tel"
                   @blur="onProfileFieldBlur"
+                  @input="editForm.m_tel = editForm.m_tel.replace(/\D/g, '').slice(0, 11)"
+                  @paste.prevent
                 />
               </div>
 

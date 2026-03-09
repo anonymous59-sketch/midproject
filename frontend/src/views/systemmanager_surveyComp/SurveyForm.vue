@@ -1216,4 +1216,8 @@ onBeforeMount(() => {
 .preview-modal-body {
   overflow-y: auto;
 }
+
+textarea {
+  resize: none;
+}
 </style>

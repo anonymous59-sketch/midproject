@@ -556,3 +556,9 @@ const onCancel = () => {
     />
   </div>
 </template>
+
+<style scoped>
+textarea {
+  resize: none;
+}
+</style>

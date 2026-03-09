@@ -239,4 +239,7 @@ const emit = defineEmits(["start-edit", "save", "cancel"]);
 .counsel-survey-list .counsel-survey-item:last-child {
   border-bottom: none !important;
 }
+textarea {
+  resize: none;
+}
 </style>

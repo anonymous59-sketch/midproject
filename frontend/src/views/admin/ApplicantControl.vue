@@ -281,4 +281,7 @@ onMounted(() => loadList());
 .cursor-pointer {
   cursor: pointer;
 }
+textarea {
+  resize: none;
+}
 </style>
