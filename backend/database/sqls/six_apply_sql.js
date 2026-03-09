@@ -20,6 +20,20 @@ exports.selectSurveyTree = `
   ORDER BY mj.major_code, sb.sub_code, q.q_no
 `;
 
+// ✅ 조사지별 설문 보기 목록 (체크박스/라디오 옵션용)
+exports.selectSurveyViewBySverCode = `
+  SELECT
+    qv.q_code,
+    qv.q_view_code,
+    qv.q_view_content
+  FROM survey_view qv
+  JOIN survey_q q ON qv.q_code = q.q_code
+  JOIN sub_category sb ON q.sub_code = sb.sub_code
+  JOIN major_category mj ON sb.major_code = mj.major_code
+  WHERE mj.sver_code = ?
+  ORDER BY qv.q_code, qv.q_view_code
+`;
+
 // ✅ 지원대상자 목록(셀렉트용)
 exports.selectTargets = `
   SELECT
@@ -53,7 +67,7 @@ exports.selectSupportBySupCode = `
   WHERE s.sup_code = ?
 `;
 
-// ✅ 지원자(mem_no)별 지원신청 목록 — applicant 대시보드용 (support + dsbl_prs + rank 진행 + 계획/결과 존재 여부)
+// ✅ 지원자(mem_no)별 지원신청 목록 — 지원진행상태: req_yn e0_00=검토, e0_10이면 rank s_rank_res=e0_10일 때 s_rank_code 한글(계획/중점/긴급), e0_99=반려. 계획/결과 진행=계획+결과 합산
 exports.selectApplicantSupportList = `
   SELECT
     s.sup_code,
@@ -62,27 +76,31 @@ exports.selectApplicantSupportList = `
     d.mc_nm       AS target_name,
     m_app.m_nm    AS applicant_name,
     m_mgr.m_nm    AS manager_name,
-    sc.s_name     AS stage_name,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_00') AS review_cnt,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_10') AS approve_cnt,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_99') AS reject_cnt,
-    (SELECT COUNT(*) FROM support_result sr
-     INNER JOIN support_plan p ON sr.plan_code = p.plan_code
-     WHERE p.sup_code = s.sup_code) AS result_cnt,
+    COALESCE(
+      (SELECT CASE WHEN r2.s_rank_res = 'e0_10'
+                   THEN (SELECT sc_pri.s_name FROM sub_code sc_pri WHERE sc_pri.s_code = r2.s_rank_code)
+                   ELSE sc2.s_name END
+       FROM \`rank\` r2
+       LEFT JOIN sub_code sc2 ON r2.s_rank_res = sc2.s_code
+       WHERE r2.sup_code = s.sup_code
+       ORDER BY r2.req_code DESC LIMIT 1),
+      (SELECT sc_req.s_name FROM sub_code sc_req WHERE sc_req.s_code = s.req_yn)
+    ) AS stage_name,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_00') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_00') AS review_cnt,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_10') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_10') AS approve_cnt,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_99') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_99') AS reject_cnt,
+    (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code) AS result_cnt,
     (SELECT 1 FROM support_plan p WHERE p.sup_code = s.sup_code LIMIT 1) AS has_plan,
-    (SELECT 1 FROM support_result sr
-     INNER JOIN support_plan p ON sr.plan_code = p.plan_code
-     WHERE p.sup_code = s.sup_code LIMIT 1) AS has_result
+    (SELECT 1 FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code LIMIT 1) AS has_result
   FROM support s
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
   LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
   WHERE s.mem_no = ?
   ORDER BY s.sup_day DESC
 `;
 
-// ✅ 담당자(mgr_no)별 지원신청 목록 — manager 홈용 (support + dsbl_prs + rank 진행 + 계획/결과 존재 여부)
+// ✅ 담당자(mgr_no)별 지원신청 목록 — 지원진행상태: e0_00=검토, e0_10이면 rank s_rank_res=e0_10일 때 s_rank_code 한글(계획/중점/긴급), e0_80=보완, e0_99=반려. 계획/결과 진행=계획+결과 합산
 exports.selectManagerSupportList = `
   SELECT
     s.sup_code,
@@ -91,27 +109,31 @@ exports.selectManagerSupportList = `
     d.mc_nm       AS target_name,
     m_app.m_nm    AS applicant_name,
     m_mgr.m_nm    AS manager_name,
-    sc.s_name     AS stage_name,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_00') AS review_cnt,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_10') AS approve_cnt,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_99') AS reject_cnt,
-    (SELECT COUNT(*) FROM support_result sr
-     INNER JOIN support_plan p ON sr.plan_code = p.plan_code
-     WHERE p.sup_code = s.sup_code) AS result_cnt,
+    COALESCE(
+      (SELECT CASE WHEN r2.s_rank_res = 'e0_10'
+                   THEN (SELECT sc_pri.s_name FROM sub_code sc_pri WHERE sc_pri.s_code = r2.s_rank_code)
+                   ELSE sc2.s_name END
+       FROM \`rank\` r2
+       LEFT JOIN sub_code sc2 ON r2.s_rank_res = sc2.s_code
+       WHERE r2.sup_code = s.sup_code
+       ORDER BY r2.req_code DESC LIMIT 1),
+      (SELECT sc_req.s_name FROM sub_code sc_req WHERE sc_req.s_code = s.req_yn)
+    ) AS stage_name,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_00') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_00') AS review_cnt,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_10') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_10') AS approve_cnt,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_99') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_99') AS reject_cnt,
+    (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code) AS result_cnt,
     (SELECT 1 FROM support_plan p WHERE p.sup_code = s.sup_code LIMIT 1) AS has_plan,
-    (SELECT 1 FROM support_result sr
-     INNER JOIN support_plan p ON sr.plan_code = p.plan_code
-     WHERE p.sup_code = s.sup_code LIMIT 1) AS has_result
+    (SELECT 1 FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code LIMIT 1) AS has_result
   FROM support s
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
   LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
   WHERE s.mgr_no = ?
   ORDER BY s.sup_day DESC
 `;
 
-// ✅ 기관(m_org)별 지원신청 목록 — organmanager 홈용 (지원자 소속기관 = 로그인 기관관리자 m_org)
+// ✅ 기관(m_org)별 지원신청 목록 — 지원진행상태: e0_00=검토, e0_10이면 rank s_rank_res=e0_10일 때 s_rank_code 한글(계획/중점/긴급), e0_80=보완, e0_99=반려. 계획/결과 진행=계획+결과 합산
 exports.selectOrganManagerSupportList = `
   SELECT
     s.sup_code,
@@ -120,22 +142,26 @@ exports.selectOrganManagerSupportList = `
     d.mc_nm       AS target_name,
     m_app.m_nm    AS applicant_name,
     m_mgr.m_nm    AS manager_name,
-    sc.s_name     AS stage_name,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_00') AS review_cnt,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_10') AS approve_cnt,
-    (SELECT COUNT(*) FROM \`rank\` r WHERE r.sup_code = s.sup_code AND r.s_rank_res = 'e0_99') AS reject_cnt,
-    (SELECT COUNT(*) FROM support_result sr
-     INNER JOIN support_plan p ON sr.plan_code = p.plan_code
-     WHERE p.sup_code = s.sup_code) AS result_cnt,
+    COALESCE(
+      (SELECT CASE WHEN r2.s_rank_res = 'e0_10'
+                   THEN (SELECT sc_pri.s_name FROM sub_code sc_pri WHERE sc_pri.s_code = r2.s_rank_code)
+                   ELSE sc2.s_name END
+       FROM \`rank\` r2
+       LEFT JOIN sub_code sc2 ON r2.s_rank_res = sc2.s_code
+       WHERE r2.sup_code = s.sup_code
+       ORDER BY r2.req_code DESC LIMIT 1),
+      (SELECT sc_req.s_name FROM sub_code sc_req WHERE sc_req.s_code = s.req_yn)
+    ) AS stage_name,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_00') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_00') AS review_cnt,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_10') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_10') AS approve_cnt,
+    (SELECT COUNT(*) FROM support_plan p WHERE p.sup_code = s.sup_code AND p.plan_tf = 'e0_99') + (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code AND sr.result_tf = 'e0_99') AS reject_cnt,
+    (SELECT COUNT(*) FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code) AS result_cnt,
     (SELECT 1 FROM support_plan p WHERE p.sup_code = s.sup_code LIMIT 1) AS has_plan,
-    (SELECT 1 FROM support_result sr
-     INNER JOIN support_plan p ON sr.plan_code = p.plan_code
-     WHERE p.sup_code = s.sup_code LIMIT 1) AS has_result
+    (SELECT 1 FROM support_result sr INNER JOIN support_plan p ON sr.plan_code = p.plan_code WHERE p.sup_code = s.sup_code LIMIT 1) AS has_result
   FROM support s
   INNER JOIN dsbl_prs d      ON s.mc_pn = d.mc_pn
   INNER JOIN member m_app    ON s.mem_no = m_app.m_no
   LEFT JOIN  member m_mgr    ON s.mgr_no = m_mgr.m_no
-  LEFT JOIN  sub_code sc     ON s.req_yn = sc.s_code
   WHERE m_app.m_org = ?
   ORDER BY s.sup_day DESC
 `;
@@ -283,6 +309,17 @@ exports.updateSupportReqYn = `
   UPDATE support
   SET req_yn = ?
   WHERE sup_code = ?
+`;
+
+// ✅ sup_code에 해당하는 조사지 버전(sver_code) — survey_a 1건으로 조회
+exports.selectSverCodeBySupCode = `
+  SELECT mj.sver_code
+  FROM survey_a a
+  JOIN survey_q q ON q.q_code = a.q_code
+  JOIN sub_category sb ON sb.sub_code = q.sub_code
+  JOIN major_category mj ON mj.major_code = sb.major_code
+  WHERE a.sup_code = ?
+  LIMIT 1
 `;
 
 // ✅ sup_code별 조사지 질문+답변 (review 지원신청서) — major_name, sub_name, a_code, q_type 포함 (수정하기용)

@@ -8,6 +8,7 @@
  */
 import { ref, computed, watch } from "vue";
 import TablePagination from "@/views/components/TablePagination.vue";
+import ArgonButton from "@/components/ArgonButton.vue";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -82,11 +83,16 @@ function formatDate(val) {
           <!-- 헤더 -->
           <div class="hm-header">
             <span class="hm-title">{{ title }}</span>
-            <button
+            <ArgonButton
               type="button"
-              class="btn-close btn-sm"
+              size="sm"
+              variant="outline"
+              color="secondary"
+              class="text-white border-light"
               @click="emit('close')"
-            />
+            >
+              닫기
+            </ArgonButton>
           </div>
 
           <!-- 바디 -->

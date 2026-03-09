@@ -57,7 +57,7 @@ const greetingText = computed(() => {
 });
 
 /**
- * 메뉴 순서(왼쪽→오른쪽): 지원신청(a0_20만), 지원자 관리, 담당자 관리, 관리자 관리, 조사지 관리, 기간 관리 / 오른쪽: 마이페이지, 로그아웃
+ * 메뉴 순서(왼쪽→오른쪽): 지원신청(a0_20만), 지원자 관리, 담당자 관리, 관리자 관리, 기관 관리, 조사지 관리 / 오른쪽: 마이페이지, 로그아웃
  * 마이페이지는 로그아웃 왼쪽(우측 영역)에 표시
  */
 const fullMenuItems = [
@@ -86,15 +86,15 @@ const fullMenuItems = [
     show: (auth) => auth === "a0_99",
   },
   {
-    key: "survey",
-    label: "조사지 관리",
-    to: "/admin/systemSurveyList",
-    show: (auth) => auth === "a0_99",
-  },
-  {
     key: "period",
     label: "기관 관리",
     to: "/admin",
+    show: (auth) => auth === "a0_99",
+  },
+  {
+    key: "survey",
+    label: "조사지 관리",
+    to: "/admin/systemSurveyList",
     show: (auth) => auth === "a0_99",
   },
 ];

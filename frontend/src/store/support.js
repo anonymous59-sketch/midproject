@@ -12,23 +12,25 @@ export const useSupportStore = defineStore("support", () => {
   // 지원계획 조회
   const supportPlanDetail = async (supportCode) => {
     try {
-      const res = await fetch(`/api/support/${supportCode}`);
+      const sup = encodeURIComponent(supportCode ?? "");
+      const res = await fetch(`/api/support/${sup}`);
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
         console.error(
           "지원계획 조회 중 에러: JSON이 아님(HTML 등). 프록시·백엔드 확인.",
         );
-        infoData.value = null;
-        planData.value = [];
         return;
       }
-      const supportPlanDetailInfo = await res.json();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("지원계획 조회 실패", err);
+        return;
+      }
+      const supportPlanDetailInfo = await res.json().catch(() => ({}));
       infoData.value = supportPlanDetailInfo?.infoData ?? null;
       planData.value = supportPlanDetailInfo?.data ?? [];
     } catch (err) {
       console.error("지원계획 조회 중 에러 발생", err);
-      infoData.value = null;
-      planData.value = [];
     }
   };
   // 지원계획 추가
@@ -109,29 +111,29 @@ export const useSupportStore = defineStore("support", () => {
   // 지원결과 조회 (planCode 있으면 해당 계획 1건만 조회)
   const supportResultDetail = async (supportCode, planCode) => {
     try {
+      const sup = encodeURIComponent(supportCode ?? "");
       const url = planCode
-        ? `/api/support/${supportCode}/result?planCode=${encodeURIComponent(planCode)}`
-        : `/api/support/${supportCode}/result`;
+        ? `/api/support/${sup}/result?planCode=${encodeURIComponent(planCode)}`
+        : `/api/support/${sup}/result`;
       const res = await fetch(url);
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
         console.error(
           "지원결과 조회 중 에러: JSON이 아님 (HTML 등). 프록시. 백엔드 확인.",
         );
-        infoData.value = null;
-        planData.value = [];
-        resultData.value = [];
         return;
       }
-      const supportResultDetailInfo = await res.json();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("지원결과 조회 실패", err);
+        return;
+      }
+      const supportResultDetailInfo = await res.json().catch(() => ({}));
       infoData.value = supportResultDetailInfo?.infoData ?? null;
       planData.value = supportResultDetailInfo?.planData ?? [];
       resultData.value = supportResultDetailInfo?.resultData ?? [];
     } catch (err) {
       console.error("지원결과 조회 중 에러 발생", err);
-      infoData.value = null;
-      planData.value = [];
-      resultData.value = [];
     }
   };
 

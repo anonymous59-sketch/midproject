@@ -1,5 +1,5 @@
-import OrganManager from "@/views/OrganManager.vue";
-import admin from "@/views/AdminLayout.vue";
+// import OrganManager from "@/views/OrganManager.vue";
+// import AdminLayout from "@/layouts/AdminLayout.vue";
 
 export default [
   // {
@@ -9,26 +9,21 @@ export default [
   // },
 
   // 1) 기관관리자 영역
-  {
-    path: "/organmanager",
-    component: OrganManager,
-    children: [
-      {
-        path: "",
-        name: "organmanager-home",
-        component: () => import("@/views/organmanager/ApplicantList.vue"),
-      },
-      {
-        path: "managers",
-        name: "organmanager-managers",
-        component: () => import("@/views/organmanager/ManagerList.vue"),
-      },
-    ],
-  },
+  // {
+  //   path: "/organmanager",
+  //   component: OrganManager,
+  //   children: [
+  //     {
+  //       path: "managers",
+  //       name: "organmanager-managers",
+  //       component: () => import("@/views/organmanager/ManagerList.vue"),
+  //     },
+  //   ],
+  // },
   // 2) 시스템관리자 영역
   {
     path: "/admin",
-    component: admin,
+    // component: AdminLayout,
     children: [
       {
         path: "",
@@ -38,7 +33,7 @@ export default [
       {
         path: "manager-control",
         name: "admin-manager-control",
-        component: () => import("@/views/ManagerControl.vue"),
+        component: () => import("@/views/admin/ManagerControl.vue"),
       },
       {
         path: "organ-managers",
@@ -61,36 +56,36 @@ export default [
   // 3) 담당자 관리 (헤더 유지를 위해 admin 레이아웃 사용)
   {
     path: "/managermanage",
-    component: admin,
+    // component: AdminLayout,
     children: [
       {
         path: "",
         name: "managermanage",
-        component: () => import("@/views/ManagerControl.vue"),
+        component: () => import("@/views/admin/ManagerControl.vue"),
       },
     ],
   },
   // 4) 지원자 관리 (a0_20, a0_21)
   {
     path: "/applicantmanage",
-    component: admin,
+    // component: AdminLayout,
     children: [
       {
         path: "",
         name: "applicantmanage",
-        component: () => import("@/views/ApplicantControl.vue"),
+        component: () => import("@/views/admin/ApplicantControl.vue"),
       },
     ],
   },
   // 5) 관리자 관리 (a0_40, a0_41)
   {
     path: "/organmanagermanage",
-    component: admin,
+    // component: AdminLayout,
     children: [
       {
         path: "",
         name: "organmanagermanage",
-        component: () => import("@/views/OrganManagerManage.vue"),
+        component: () => import("@/views/admin/OrganManagerManage.vue"),
       },
     ],
   },

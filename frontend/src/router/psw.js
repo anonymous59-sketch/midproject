@@ -1,9 +1,9 @@
-import pswSupportHistory from "@/views/psw_SupportHistory.vue";
+import SupportHistory from "@/views/SupportHistory.vue";
 
 export default [
   {
-    path: "/psw-support-history/:supCode",
-    name: "pswSupportHistory",
-    component: pswSupportHistory,
+    path: "/support-history/:supCode",
+    name: "SupportHistory",
+    component: SupportHistory,
   },
 ];

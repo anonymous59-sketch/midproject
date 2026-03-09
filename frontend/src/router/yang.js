@@ -1,15 +1,15 @@
-import Y_ManagerInfo from "@/views/Y_ManagerInfo.vue";
-import Y_OrganManagerInfo from "@/views/Y_OrganManagerInfo.vue";
+import ManagerInfo from "@/views/mypage/ManagerInfo.vue";
+import OrganManagerInfo from "@/views/mypage/OrganManagerInfo.vue";
 
 export default [
   {
-    path: "/Y_ManagerInfo",
-    name: "Y_ManagerInfo",
-    component: Y_ManagerInfo,
+    path: "/ManagerInfo",
+    name: "ManagerInfo",
+    component: ManagerInfo,
   },
   {
-    path: "/Y_OrganManagerInfo",
-    name: "Y_OrganManagerInfo",
-    component: Y_OrganManagerInfo,
+    path: "/OrganManagerInfo",
+    name: "OrganManagerInfo",
+    component: OrganManagerInfo,
   },
 ];

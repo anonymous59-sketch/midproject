@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, computed } from "vue";
+import ArgonButton from "@/components/ArgonButton.vue";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -87,14 +88,14 @@ function submit() {
             />
           </div>
           <div class="reason-modal-footer">
-            <button
+            <ArgonButton
               type="button"
-              class="btn rounded"
-              :class="typeConfig.buttonClass"
+              class="rounded"
+              :color="type === 'supple' ? 'warning' : 'danger'"
               @click="submit"
             >
               {{ typeConfig.buttonText }}
-            </button>
+            </ArgonButton>
           </div>
         </div>
       </div>

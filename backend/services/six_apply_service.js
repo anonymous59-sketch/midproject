@@ -33,7 +33,10 @@ exports.getDsblPrsByGdnNo = async (gdnNo) => {
 // ✅ 마이페이지: 회원 프로필 조회 (m_no) — 단일 객체 반환 (mysql2 [rows,fields] 대응)
 exports.getMemberByMno = async (mNo) => {
   const raw = await query("selectMemberByMno", [mNo]);
-  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  const rows =
+    Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0])
+      ? raw[0]
+      : raw;
   return Array.isArray(rows) && rows.length > 0 && rows[0] ? rows[0] : null;
 };
 
@@ -48,7 +51,10 @@ exports.updateMemberProfileByMno = async (mNo, payload) => {
 const getOrganByOrganNo = async (organNo) => {
   if (!organNo) return null;
   const raw = await query("selectOrganByOrganNo", [organNo]);
-  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  const rows =
+    Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0])
+      ? raw[0]
+      : raw;
   return Array.isArray(rows) && rows.length > 0 && rows[0] ? rows[0] : null;
 };
 
@@ -56,7 +62,10 @@ const getOrganByOrganNo = async (organNo) => {
 const countManagersByOrganNo = async (organNo) => {
   if (!organNo) return 0;
   const raw = await query("countManagersByOrganNo", [organNo]);
-  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  const rows =
+    Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0])
+      ? raw[0]
+      : raw;
   const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : raw;
   const cnt = row?.cnt ?? 0;
   return Number(cnt);
@@ -65,7 +74,10 @@ const countManagersByOrganNo = async (organNo) => {
 // 프로필 전용 조회 (sqlList 충돌 회피: selectMemberProfileByMno 사용)
 const getMemberProfileByMno = async (mNo) => {
   const raw = await query("selectMemberProfileByMno", [mNo]);
-  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  const rows =
+    Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0])
+      ? raw[0]
+      : raw;
   return Array.isArray(rows) && rows.length > 0 && rows[0] ? rows[0] : null;
 };
 
@@ -81,7 +93,12 @@ exports.getOrganManagerMypage = async (mNo) => {
 
 // ✅ 기관관리자 마이페이지: 기관 정보 수정 (기관명, 주소, 메일, 대표전화)
 exports.updateOrganProfileByOrganNo = async (organNo, payload) => {
-  const { organ_name = "", organ_address = "", organ_mail = "", organ_tel = "" } = payload || {};
+  const {
+    organ_name = "",
+    organ_address = "",
+    organ_mail = "",
+    organ_tel = "",
+  } = payload || {};
   await query("updateOrganProfileByOrganNo", [
     (organ_name || "").trim(),
     (organ_address || "").trim(),
@@ -109,7 +126,8 @@ exports.updateDsblPrs = async (mcPn, gdnNo, payload) => {
     err.code = "FORBIDDEN";
     throw err;
   }
-  const { mc_nm, mc_bd, mc_gender, mc_address, mc_type, mc_submitdate } = payload || {};
+  const { mc_nm, mc_bd, mc_gender, mc_address, mc_type, mc_submitdate } =
+    payload || {};
   await query("updateDsblPrsByMcPn", [
     mc_nm ?? one.mc_nm,
     mc_bd ?? one.mc_bd,
@@ -128,7 +146,10 @@ exports.createDsblPrs = async (gdnNo, payload) => {
   const now = new Date();
   const prefix = `DSBL${formatYmdForMcPn(now)}`;
   const raw = await query("selectMaxMcPnByDate", [`${prefix}%`]);
-  const rows = Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0]) ? raw[0] : raw;
+  const rows =
+    Array.isArray(raw) && raw.length > 0 && Array.isArray(raw[0])
+      ? raw[0]
+      : raw;
   let next = 1;
   if (Array.isArray(rows) && rows.length > 0 && rows[0] && rows[0].mc_pn) {
     const last = String(rows[0].mc_pn);
@@ -202,9 +223,44 @@ exports.getSupportWithDsbl = async (supCode) => {
 };
 
 // ✅ sup_code별 조사지 질문+답변 목록 (review 지원신청서)
+// survey_view 전체(모든 문항)를 보여주고, 그중 지원자가 체크한 survey_a 값을 함께 반환
 exports.getSurveyAnswersBySupCode = async (supCode) => {
-  const rows = await query("selectSurveyAnswersBySupCode", [supCode]);
-  return Array.isArray(rows) ? rows : [];
+  const sverRows = await query("selectSverCodeBySupCode", [supCode]);
+  const sverCode =
+    Array.isArray(sverRows) && sverRows.length > 0 && sverRows[0]?.sver_code
+      ? sverRows[0].sver_code
+      : null;
+  if (!sverCode) return { surveyName: "", items: [] };
+
+  const tree = await exports.getSurveyTree(sverCode);
+  if (!tree || !tree.majors || tree.majors.length === 0) return { surveyName: tree?.sv_name ?? "", items: [] };
+
+  const answerRows = await query("selectSurveyAnswersBySupCode", [supCode]);
+  const answerMap = new Map();
+  for (const r of Array.isArray(answerRows) ? answerRows : []) {
+    if (r?.q_code) answerMap.set(r.q_code, { a_code: r.a_code, a_content: r.a_content ?? "" });
+  }
+
+  const list = [];
+  for (const mj of tree.majors) {
+    for (const sb of mj.subs || []) {
+      for (const q of sb.questions || []) {
+        const ans = answerMap.get(q.q_code);
+        list.push({
+          a_code: ans?.a_code ?? "",
+          q_code: q.q_code,
+          major_name: mj.major_name ?? "",
+          sub_name: sb.sub_name ?? "",
+          q_no: q.q_no,
+          q_type: q.q_type ?? "f0_00",
+          q_content: q.q_content ?? "",
+          a_content: ans?.a_content ?? "",
+          views: Array.isArray(q.views) ? q.views : [],
+        });
+      }
+    }
+  }
+  return { surveyName: tree.sv_name ?? "", items: list };
 };
 
 // ✅ sup_code별 상담내역 목록 (review 우측 상담내역)
@@ -304,10 +360,31 @@ exports.getSurveyTree = async (sverCode) => {
       q_no: Number(r.q_no),
       q_type: r.q_type,
       q_content: r.q_content,
+      views: [],
     });
   }
 
   result.majors.forEach((m) => delete m._subMap);
+
+  // 설문 보기(체크박스/라디오 옵션) 조회 후 각 질문에 첨부
+  const viewRows = await query("selectSurveyViewBySverCode", [sverCode]);
+  const viewList = Array.isArray(viewRows) ? viewRows : [];
+  const viewMap = new Map();
+  for (const v of viewList) {
+    if (!v?.q_code) continue;
+    if (!viewMap.has(v.q_code)) viewMap.set(v.q_code, []);
+    viewMap.get(v.q_code).push({
+      q_view_code: v.q_view_code,
+      q_view_content: v.q_view_content,
+    });
+  }
+  for (const mj of result.majors) {
+    for (const sb of mj.subs || []) {
+      for (const q of sb.questions || []) {
+        if (q.q_code && viewMap.has(q.q_code)) q.views = viewMap.get(q.q_code);
+      }
+    }
+  }
 
   return result;
 };
@@ -470,11 +547,14 @@ exports.createApplication = async ({ mc_pn, mem_no, req_yn, answers }) => {
     for (let i = 0; i < entries.length; i++) {
       const [qCode, ansVal] = entries[i];
       const ansCode = generateAnsCode(now, aCodeNext + i);
+      const aContent = Array.isArray(ansVal)
+        ? ansVal.join(",")
+        : String(ansVal ?? "");
       await conn.query(surveySql.insertSurveyAnswer, [
         ansCode,
         qCode,
         mem_no,
-        ansVal,
+        aContent,
         supCode,
       ]);
       aCodes.push(ansCode);

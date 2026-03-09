@@ -4,21 +4,20 @@ import { ref, computed, watch, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { useTempStorage } from "@/composables/useTempStorage";
 import { useHistory } from "@/composables/useHistory";
+import { useReasonModal } from "@/composables/useReasonModal";
 import TempStorageModal from "@/components/TempStorageModal.vue";
 import { storeToRefs } from "pinia";
 import { useSupportStore } from "@/store/support";
 import { useAuthStore } from "@/store/auth";
+import CounselApplicantInfo from "@/views/counsel/CounselApplicantInfo.vue";
+import CounselReceiptTab from "@/views/counsel/CounselReceiptTab.vue";
+import CounselApplicationTab from "@/views/counsel/CounselApplicationTab.vue";
+import RankDetail from "@/views/rank/RankDetail.vue";
+import ArgonButton from "@/components/ArgonButton.vue";
 import SupportPlanDetail from "@/views/support/SupportPlanDetail.vue";
 import SupportResultDetail from "@/views/support/SupportResultDetail.vue";
 import PlanAdd from "@/views/support/PlanAdd.vue";
 import ResultAdd from "@/views/support/ResultAdd.vue";
-import RankDetail from "@/views/rank/RankDetail.vue";
-import CounselApplicantInfo from "@/views/counsel/CounselApplicantInfo.vue";
-import CounselReceiptTab from "@/views/counsel/CounselReceiptTab.vue";
-import CounselApplicationTab from "@/views/counsel/CounselApplicationTab.vue";
-import CounselRankTab from "@/views/counsel/CounselRankTab.vue";
-import CounselPlanTab from "@/views/counsel/CounselPlanTab.vue";
-import CounselResultTab from "@/views/counsel/CounselResultTab.vue";
 import CounselRightPanel from "@/views/counsel/CounselRightPanel.vue";
 import ConfirmModal from "@/views/modal/ConfirmModal.vue";
 import AlertModal from "@/views/modal/AlertModal.vue";
@@ -38,7 +37,7 @@ const dsblError = ref(null);
 async function loadSupport() {
   const code = supCode.value;
   if (!code) {
-    dsblError.value = "지원번호(sup_code)가 없습니다.";
+    dsblError.value = "지원번호가 존재하지 않습니다.";
     return;
   }
   dsblLoading.value = true;
@@ -101,12 +100,14 @@ const selectedPlanCode = ref(null); // 결과조회 클릭 시 어떤 계획의 
 // ─── 계획 추가 / 결과 추가 ───
 const showAddPlanForm = ref(false);
 const planAddRef = ref(null);
+const planCreateConfirm = ref(false);
 const planApprovalConfirm = ref({ show: false, source: "add", payload: null });
 const planCancelModal = ref({ show: false, context: "add", planCode: null });
 const cancelRequestPlanCode = ref(null);
 
 const showAddResultForm = ref(false);
 const resultAddRef = ref(null);
+const resultCreateConfirm = ref(false);
 const resultApprovalConfirm = ref({
   show: false,
   source: "add",
@@ -120,126 +121,20 @@ const resultCancelModal = ref({
 const cancelRequestResultCode = ref(null);
 
 // 보완/반려 사유 입력용 ConfirmModal (우선순위·지원계획·지원결과)
-const reasonConfirmModal = ref({
-  show: false,
-  title: "",
-  message: "",
-  showReason: true,
-  reasonPlaceholder: "사유를 입력해 주세요.",
-  reasonLabel: "사유",
-  context: null, // { type: 'plan'|'result'|'rank', decision: 'e0_80'|'e0_99', planCode?, resultCode?, reqCode? }
-});
-function openReasonConfirmModal(
-  context,
-  title,
-  message,
-  reasonPlaceholder = "사유를 입력해 주세요.",
-) {
-  reasonConfirmModal.value = {
-    show: true,
-    title,
-    message,
-    showReason: true,
-    reasonPlaceholder,
-    reasonLabel: "사유",
-    context: { ...context },
-  };
-}
-function closeReasonConfirmModal() {
-  reasonConfirmModal.value.show = false;
-  reasonConfirmModal.value.context = null;
-}
-async function onReasonConfirmModalConfirm(reason) {
-  const ctx = reasonConfirmModal.value.context;
-  if (!ctx) {
-    closeReasonConfirmModal();
-    return;
-  }
-  const code = supCode.value;
-  const { type, decision, planCode, resultCode, reqCode } = ctx;
-  closeReasonConfirmModal();
+const { reasonModal, openReasonModal, closeReasonModal, onReasonConfirm } =
+  useReasonModal();
 
-  if (type === "plan" && planCode) {
-    const res = await supportStore.decidePlan(
-      planCode,
-      decision,
-      reason ?? null,
-    );
-    if (res?.retCode === "Success") {
-      await loadPlanTab();
-      const p = getAlertPreset(
-        decision === "e0_80" ? "suppleComplete" : "rejectComplete",
-        "plan",
-      );
-      showAlert(p.type, p.title, res.retMsg ?? p.message);
-    } else if (res != null) {
-      showAlert("error", "알림", res.retMsg ?? "처리에 실패했습니다.");
+// 우선순위 API 베이스 (호출 시점에 확인해 개발 시만 3000 직접 요청)
+function getRankApiBase() {
+  try {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.origin))
+        return "http://localhost:3000";
     }
-    return;
+  } catch {
+    /* window 미접근 환경 */
   }
-  if (type === "result" && resultCode) {
-    const res = await supportStore.decideResult(
-      resultCode,
-      decision,
-      reason ?? null,
-    );
-    if (res?.retCode === "Success") {
-      await supportStore.supportResultDetail(
-        code,
-        selectedPlanCode.value ?? undefined,
-      );
-      const p = getAlertPreset(
-        decision === "e0_80" ? "suppleComplete" : "rejectComplete",
-        "result",
-      );
-      showAlert(p.type, p.title, res.retMsg ?? p.message);
-    } else if (res != null) {
-      showAlert("error", "알림", res.retMsg ?? "처리에 실패했습니다.");
-    }
-    return;
-  }
-  if (type === "rank" && reqCode) {
-    try {
-      if (decision === "e0_80") {
-        const res = await fetch("/api/rank/supple", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ req_code: reqCode, rank_cmt: reason ?? null }),
-        });
-        const json = await res.json();
-        if (json?.retCode === "Success") {
-          showAlert("supple", "알림", "보완 처리가 완료되었습니다.");
-          await loadRankTab();
-        } else {
-          showAlert(
-            "error",
-            "알림",
-            json?.retMsg ?? "보완 처리에 실패했습니다.",
-          );
-        }
-      } else {
-        const res = await fetch("/api/rank/decide", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            req_code: reqCode,
-            sup_code: code,
-            decision: "e0_99",
-            rank_cmt: reason ?? null,
-          }),
-        });
-        const json = await res.json();
-        if (json?.retCode === "Success") {
-          showAlert("success", "알림", "우선순위 반려가 완료되었습니다.");
-          await loadRankTab();
-        } else {
-          showAlert("error", "알림", json?.retMsg ?? "처리에 실패했습니다.");
-        }
-      }
-    } catch (e) {
-      showAlert("error", "알림", "처리 중 오류가 발생했습니다.");
-    }
-  }
+  return "";
 }
 
 // 계획/결과 보완이력 모달 (한 번이라도 보완 판정된 건에서 버튼 노출)
@@ -328,13 +223,11 @@ async function uploadFilesToServer(files, filePath, categoryPk, uploadMem) {
   }
 }
 
-const planTabRef = ref(null);
 const planDetailRefs = {};
 function setPlanDetailRef(planCode, el) {
   if (el) planDetailRefs[planCode] = el;
   else delete planDetailRefs[planCode];
 }
-const resultTabRef = ref(null);
 const resultDetailRefs = {};
 function setResultDetailRef(resultCode, el) {
   if (el) resultDetailRefs[resultCode] = el;
@@ -347,6 +240,12 @@ async function loadPlanTab() {
   planLoading.value = true;
   await supportStore.supportPlanDetail(code);
   planLoading.value = false;
+  if (planData.value.length === 0) {
+    showAlert("info", "알림", "등록된 지원계획이 없습니다.");
+    if (isManager.value) {
+      planCreateConfirm.value = true;
+    }
+  }
 }
 
 async function loadResultForPlan(planCode) {
@@ -356,7 +255,33 @@ async function loadResultForPlan(planCode) {
   resultLoading.value = true;
   await supportStore.supportResultDetail(code, planCode);
   resultLoading.value = false;
+  const hasResult = resultData.value.length > 0;
+  if (!hasResult) {
+    showAlert("info", "알림", "등록된 지원결과가 없습니다.");
+    if (isManager.value) {
+      resultCreateConfirm.value = true;
+    }
+    // 결과가 0건이면 지원결과 탭으로 자동 이동하지 않는다.
+    return;
+  }
   leftTab.value = "result";
+}
+
+async function loadResultTab() {
+  const code = supCode.value;
+  if (!code) return;
+  resultLoading.value = true;
+  await supportStore.supportResultDetail(
+    code,
+    selectedPlanCode.value ?? undefined,
+  );
+  resultLoading.value = false;
+  if (resultData.value.length === 0) {
+    showAlert("info", "알림", "등록된 지원결과가 없습니다.");
+    if (isManager.value) {
+      resultCreateConfirm.value = true;
+    }
+  }
 }
 
 // ─── 계획 추가: 폼 토글·승인요청·취소·수정완료 ───
@@ -364,6 +289,12 @@ function toggleAddPlan() {
   showAddPlanForm.value = !showAddPlanForm.value;
   if (!showAddPlanForm.value) {
     planAddRef.value?.reset();
+  }
+}
+function onPlanCreateConfirmYes() {
+  planCreateConfirm.value = false;
+  if (!showAddPlanForm.value) {
+    toggleAddPlan();
   }
 }
 function openPlanCancelModal(context, planCode = null) {
@@ -587,6 +518,12 @@ function toggleAddResultForm() {
   showAddResultForm.value = !showAddResultForm.value;
   if (!showAddResultForm.value) {
     resultAddRef.value?.reset();
+  }
+}
+function onResultCreateConfirmYes() {
+  resultCreateConfirm.value = false;
+  if (!showAddResultForm.value) {
+    toggleAddResultForm();
   }
 }
 function openResultCancelModal(context, resultCode = null) {
@@ -902,8 +839,10 @@ async function onRankDecide(decision) {
   const reqCode = rankData.value?.req_code;
   const code = supCode.value;
   if (!reqCode || !code) return;
+  const base = getRankApiBase();
+  const decideUrl = base ? base + "/rank/decide" : "/api/rank/decide";
   try {
-    const res = await fetch("/api/rank/decide", {
+    const res = await fetch(decideUrl, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ req_code: reqCode, sup_code: code, decision }),
@@ -924,6 +863,59 @@ async function onRankDecide(decision) {
 function onRankCancel() {
   rankCodeLocal.value = rankData.value?.s_rank_code ?? "";
   rankCmtLocal.value = rankData.value?.rank_cmt ?? "";
+}
+
+/** 우선순위 반려 모달 확인 시 (reasonModal onConfirm) */
+async function onRankRejectConfirm({ context, reason }) {
+  const code = supCode.value;
+  const base = getRankApiBase();
+  const decideUrl = base ? base + "/rank/decide" : "/api/rank/decide";
+  try {
+    const res = await fetch(decideUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        req_code: context?.reqCode,
+        sup_code: code,
+        decision: "e0_99",
+        rank_cmt: reason ?? null,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (json?.retCode === "Success") {
+      showAlert("success", "알림", "우선순위 반려가 완료되었습니다.");
+      await loadRankTab();
+    } else {
+      showAlert("error", "알림", json?.retMsg ?? "처리에 실패했습니다.");
+    }
+  } catch (e) {
+    showAlert("error", "알림", "처리 중 오류가 발생했습니다.");
+  }
+}
+
+/** 우선순위 보완 모달 확인 시 (reasonModal onConfirm) */
+async function onRankSuppleConfirm({ context, reason }) {
+  const base = getRankApiBase();
+  const suppleUrl = base ? base + "/rank/supple" : "/api/rank/supple";
+  try {
+    const res = await fetch(suppleUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        req_code: context?.reqCode,
+        rank_cmt: reason ?? null,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (json?.retCode === "Success") {
+      showAlert("supple", "알림", "보완 처리가 완료되었습니다.");
+      await loadRankTab();
+    } else {
+      showAlert("error", "알림", json?.retMsg ?? "보완 처리에 실패했습니다.");
+    }
+  } catch (e) {
+    showAlert("error", "알림", "보완 처리 중 오류가 발생했습니다.");
+  }
 }
 
 // ─── 우선순위 보완이력 모달 ──────────────────────────────────────────────────
@@ -989,8 +981,9 @@ watch(
   },
 );
 
-// 지원신청서: survey_a 조사지 질문+답 (sup_code로 API 조회)
+// 지원신청서: survey_a 조사지 질문+답 (sup_code로 API 조회) — API는 { surveyName, items } 반환
 const surveyAnswers = ref([]);
+const surveyName = ref("");
 const surveyAnswersLoading = ref(false);
 const surveyAnswersError = ref(null);
 
@@ -1005,18 +998,23 @@ async function loadSurveyAnswers() {
     );
     if (!res.ok) throw new Error("조사지 답변 조회 실패");
     const data = await res.json();
-    surveyAnswers.value = (Array.isArray(data) ? data : []).map((r) => ({
+    const rawItems = Array.isArray(data) ? data : (data?.items ?? []);
+    surveyName.value = data?.surveyName ?? "";
+    surveyAnswers.value = rawItems.map((r) => ({
       a_code: r.a_code ?? "",
+      q_code: r.q_code ?? "",
       major_name: r.major_name ?? "",
       sub_name: r.sub_name ?? "",
       q_no: r.q_no,
       q_type: r.q_type ?? "f0_00",
       q_content: r.q_content ?? "",
       a_content: r.a_content ?? "",
+      views: Array.isArray(r.views) ? r.views : [],
     }));
   } catch (e) {
     surveyAnswersError.value = e.message;
     surveyAnswers.value = [];
+    surveyName.value = "";
   } finally {
     surveyAnswersLoading.value = false;
   }
@@ -1292,7 +1290,9 @@ const rankApproved = computed(() => rankData.value?.s_rank_res === "e0_10");
 const showReceiptTab = computed(
   () => isManager.value && hasCounsel.value && reqYn.value === "e0_00",
 );
-const showRankTab = computed(() => reqYn.value === "e0_10");
+const showRankTab = computed(
+  () => !isApplicant.value && reqYn.value === "e0_10",
+);
 const showPlanTab = computed(
   () => reqYn.value === "e0_10" && rankApproved.value,
 );
@@ -1300,8 +1300,17 @@ const showResultTab = computed(
   () =>
     reqYn.value === "e0_10" &&
     rankApproved.value &&
-    (selectedPlanCode.value || resultData.value.length > 0),
+    // 결정(승인/보완/반려) 처리 직후 재조회 과정에서 resultData가 잠깐 0이 되더라도
+    // 결과 탭이 사라지며 "빈 화면"처럼 보이지 않게 현재 탭이면 유지한다.
+    (leftTab.value === "result" ||
+      selectedPlanCode.value ||
+      resultData.value.length > 0),
 );
+
+async function refreshResultTabAfterDecision() {
+  if (leftTab.value !== "result") return;
+  await loadResultTab();
+}
 
 async function updateReqYn(decision) {
   const code = supCode.value;
@@ -1324,9 +1333,8 @@ async function updateReqYn(decision) {
         ? "신청이 접수되었습니다."
         : "신청이 반려되었습니다.";
     showAlert("success", "알림", label);
-    if (decision === "e0_10") {
-      leftTab.value = "rank";
-    }
+    // 신청접수 탭에서 처리 완료 후에는 우선순위 탭으로 이동
+    leftTab.value = "rank";
   } catch (e) {
     showAlert(
       "error",
@@ -1358,14 +1366,15 @@ function onReceiptReject() {
             :dsbl-loading="dsblLoading"
             :dsbl-error="dsblError"
             :show-right-panel="showRightPanel"
+            :is-applicant="isApplicant"
             @toggle-panel="toggleRightPanel"
           />
 
-          <!-- 이동 링크: 지원신청서 | 우선순위 | 지원계획 | 지원결과 -->
-          <div class="mb-2">
+          <!-- 탭: 지원신청서 | 신청접수 | 우선순위 | 지원계획 | 지원결과 (스타일·정렬 통일) -->
+          <div class="counsel-tab-bar d-flex flex-wrap align-items-center gap-2 mb-3">
             <button
               type="button"
-              class="counsel-tab-btn rounded px-2 py-1 text-decoration-none border-0"
+              class="counsel-tab-btn rounded px-3 py-1 text-decoration-none border-0"
               :class="
                 leftTab === 'application'
                   ? 'counsel-tab-active fw-bold text-dark'
@@ -1375,24 +1384,28 @@ function onReceiptReject() {
             >
               지원신청서
             </button>
-            <!-- 기관담당자용 신청접수: 상담내역이 있고 req_yn=e0_00 일 때 -->
             <button
               v-if="showReceiptTab"
               type="button"
-              class="btn btn-link btn-sm p-0 me-3 text-decoration-none"
+              class="counsel-tab-btn rounded px-3 py-1 text-decoration-none border-0"
               :class="
-                leftTab === 'receipt' ? 'fw-bold text-dark' : 'text-muted'
+                leftTab === 'receipt'
+                  ? 'counsel-tab-active fw-bold text-dark'
+                  : 'text-muted bg-transparent'
               "
               @click="leftTab = 'receipt'"
             >
               신청접수
             </button>
-            <!-- 우선순위: 신청접수 후(접수 상태 등) 사용 -->
             <button
               v-if="showRankTab"
               type="button"
-              class="btn btn-link btn-sm p-0 me-3 text-decoration-none"
-              :class="leftTab === 'rank' ? 'fw-bold text-dark' : 'text-muted'"
+              class="counsel-tab-btn rounded px-3 py-1 text-decoration-none border-0"
+              :class="
+                leftTab === 'rank'
+                  ? 'counsel-tab-active fw-bold text-dark'
+                  : 'text-muted bg-transparent'
+              "
               @click="leftTab = 'rank'"
             >
               우선순위
@@ -1400,8 +1413,12 @@ function onReceiptReject() {
             <button
               v-if="showPlanTab"
               type="button"
-              class="btn btn-link btn-sm p-0 me-3 text-decoration-none"
-              :class="leftTab === 'plan' ? 'fw-bold text-dark' : 'text-muted'"
+              class="counsel-tab-btn rounded px-3 py-1 text-decoration-none border-0"
+              :class="
+                leftTab === 'plan'
+                  ? 'counsel-tab-active fw-bold text-dark'
+                  : 'text-muted bg-transparent'
+              "
               @click="
                 leftTab = 'plan';
                 loadPlanTab();
@@ -1412,13 +1429,16 @@ function onReceiptReject() {
             <button
               v-if="showResultTab"
               type="button"
-              class="counsel-tab-btn rounded px-2 py-1 text-decoration-none border-0"
+              class="counsel-tab-btn rounded px-3 py-1 text-decoration-none border-0"
               :class="
                 leftTab === 'result'
                   ? 'counsel-tab-active fw-bold text-dark'
                   : 'text-muted bg-transparent'
               "
-              @click="leftTab = 'result'"
+              @click="
+                leftTab = 'result';
+                loadResultTab();
+              "
             >
               지원결과
             </button>
@@ -1431,6 +1451,7 @@ function onReceiptReject() {
               <CounselApplicationTab
                 v-if="leftTab === 'application'"
                 :support="support"
+                :survey-name="surveyName"
                 :survey-answers-grouped="surveyAnswersGrouped"
                 :survey-answers-loading="surveyAnswersLoading"
                 :survey-answers-error="surveyAnswersError"
@@ -1441,186 +1462,389 @@ function onReceiptReject() {
                 @save="saveApplicationEdit"
                 @cancel="cancelApplicationEdit"
               />
-
               <!-- 신청접수 -->
               <CounselReceiptTab
-                v-else-if="leftTab === 'receipt'"
+                v-if="leftTab === 'receipt'"
                 :has-counsel="hasCounsel"
                 :support="support"
                 :counsel-list="counselList"
                 @accept="onReceiptAccept"
                 @reject="onReceiptReject"
               />
-              <!-- 우선순위 -->
-              <CounselRankTab
-                v-else-if="leftTab === 'rank'"
-                :rank-data="rankData"
-                :rank-loading="rankLoading"
-                :rank-code-local="rankCodeLocal"
-                :rank-cmt-local="rankCmtLocal"
-                :rank-has-supple="rankHasSupple"
-                @refresh="loadRankTab"
-                @update:rank-code-local="(v) => (rankCodeLocal = v)"
-                @update:rank-cmt-local="(v) => (rankCmtLocal = v)"
-                @approval-request="onRankApprovalRequest"
-                @approve="onRankDecide('e0_10')"
-                @reject="onRankDecide('e0_99')"
-                @supple="onRankSupple"
-                @cancel="onRankCancel"
-                @open-supple-history="onOpenSuppleHistory"
-              />
+              <!-- 우선순위: 탭 선택 시 RankDetail 직접 표시 -->
+              <div v-if="leftTab === 'rank'">
+                <div class="counsel-section-header d-flex align-items-center justify-content-between mb-3">
+                  <h6 class="counsel-section-title text-sm text-uppercase text-muted mb-0">우선순위</h6>
+                  <ArgonButton
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    color="secondary"
+                    @click="loadRankTab"
+                  >
+                    새로고침
+                  </ArgonButton>
+                </div>
+                <p v-if="rankLoading" class="text-muted text-sm mb-0">로딩 중...</p>
+                <p v-else-if="!rankData" class="text-muted text-sm mb-0">
+                  우선순위 정보가 없습니다.
+                </p>
+                <RankDetail
+                  v-else
+                  :rank_code="rankCodeLocal"
+                  :rank_cmt="rankCmtLocal"
+                  :priority="rankData.priority ?? ''"
+                  :apply_for="rankData.apply_for ?? ''"
+                  :s_rank_res="rankData.s_rank_res ?? ''"
+                  :req_code="rankData.req_code ?? ''"
+                  :has_supple="rankHasSupple"
+                  :read-only="isApplicant"
+                  @update:rank_code="(v) => (rankCodeLocal = v)"
+                  @update:rank_cmt="(v) => (rankCmtLocal = v)"
+                  @approval-request="onRankApprovalRequest"
+                  @approve="onRankDecide('e0_10')"
+                  @reject="
+                    () =>
+                      openReasonModal({
+                        context: { type: 'rank', decision: 'e0_99', reqCode: rankData?.req_code },
+                        title: '반려 사유',
+                        message: '우선순위 반려 사유를 입력해 주세요.',
+                        reasonPlaceholder: '반려 사유를 입력해 주세요.',
+                        onConfirm: onRankRejectConfirm,
+                      })
+                  "
+                  @supple="
+                    () =>
+                      openReasonModal({
+                        context: { type: 'rank', decision: 'e0_80', reqCode: rankData?.req_code },
+                        title: '보완 사유',
+                        message: '우선순위 보완 사유를 입력해 주세요.',
+                        reasonPlaceholder: '보완 사유를 입력해 주세요.',
+                        onConfirm: onRankSuppleConfirm,
+                      })
+                  "
+                  @cancel="onRankCancel"
+                  @open-supple-history="onOpenSuppleHistory"
+                />
+              </div>
               <!-- 지원계획 -->
-              <CounselPlanTab
-                v-else-if="leftTab === 'plan'"
-                ref="planTabRef"
-                :show-add-plan-form="showAddPlanForm"
-                :add-plan-form="addPlanForm"
-                @update:add-plan-form="(obj) => Object.assign(addPlanForm, obj)"
-                :add-plan-file-names="addPlanFileNames"
-                :plan-loading="planLoading"
-                :plan-data="planData"
-                :cancel-request-plan-code="cancelRequestPlanCode"
-                @set-plan-detail-ref="setPlanDetailRef"
-                @toggle-add="toggleAddPlan"
-                @load-temp="onLoadTempPlan"
-                @temp-save="onTempSaveFromAddPlan"
-                @plan-file-change="onPlanFileChange"
-                @open-file-dialog="openPlanFileDialog"
-                @approval-request-add="onPlanApprovalRequestFromAdd"
-                @cancel-add="openPlanCancelModal('add')"
-                @result="loadResultForPlan"
-                @open-supple-history="openPlanSuppleHistory"
-                @approve="
-                  (pc) =>
-                    supportStore
-                      .decidePlan(pc, 'e0_10', null)
-                      .then(() => loadPlanTab())
-                "
-                @supple="
-                  (pc) =>
-                    supportStore
-                      .decidePlan(pc, 'e0_80', null)
-                      .then(() => loadPlanTab())
-                "
-                @reject="
-                  (pc) =>
-                    supportStore
-                      .decidePlan(pc, 'e0_99', null)
-                      .then(() => loadPlanTab())
-                "
-                @edit-complete="onPlanEditComplete"
-                @approval-request="onPlanApprovalRequest"
-                @request-cancel="
-                  (planCode) => openPlanCancelModal('edit', planCode)
-                "
-                @cancel-done="clearCancelRequestPlan"
-                @end="
-                  (pc) => supportStore.endPlan(pc).then(() => loadPlanTab())
-                "
-                @temp-save-detail="onTempSaveFromDetailPlan"
-                @history="openPlanHistory"
-                @alert="
-                  (p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')
-                "
-              />
+              <div v-if="leftTab === 'plan'">
+                <!-- 지원계획 추가 폼 -->
+                <PlanAdd
+                  ref="planAddRef"
+                  :sup-code="supCode"
+                  :show="showAddPlanForm"
+                  :read-only="isApplicant"
+                  @toggle="toggleAddPlan"
+                  @approval-request="onPlanApprovalRequestFromAdd"
+                  @cancel="openPlanCancelModal('add')"
+                  @alert="
+                    (p) =>
+                      showAlert(
+                        p.type ?? 'error',
+                        p.title ?? '알림',
+                        p.message ?? '',
+                      )
+                  "
+                />
+                <!-- 지원계획 -->
+                <SupportPlanDetail
+                  v-for="plan in planData"
+                  :key="plan.plan_code"
+                  :ref="(el) => setPlanDetailRef(plan.plan_code, el)"
+                  :plan_code="plan.plan_code"
+                  :support_plan_title="plan.plan_goal"
+                  :support_plan_content="plan.plan_content"
+                  :start_time="plan.start_time"
+                  :end_time="plan.end_time"
+                  :support_plan_file="plan.origin_file_name"
+                  :file_code="plan.file_code"
+                  :plan_result="plan.plan_tf"
+                  :plan_date="plan.plan_date"
+                  :support_plan_comment="plan.plan_cmt"
+                  :support_plan_reject_comment="plan.plan_cmt"
+                  :support_plan_updday="plan.plan_updday"
+                  :cancel-request="cancelRequestPlanCode"
+                  :has_supple="
+                    !!(plan.plan_tf === 'e0_80' || plan.prev_plan_code)
+                  "
+                  @result="loadResultForPlan"
+                  @open-supple-history="openPlanSuppleHistory(plan.plan_code)"
+                  @approve="
+                    (pc) =>
+                      supportStore
+                        .decidePlan(pc, 'e0_10', null)
+                        .then(() => loadPlanTab())
+                  "
+                  @supple="
+                    (pc) =>
+                      openReasonModal({
+                        context: {
+                          type: 'plan',
+                          decision: 'e0_80',
+                          planCode: pc,
+                        },
+                        title: '보완 사유',
+                        message: '지원계획 보완 사유를 입력해 주세요.',
+                        reasonPlaceholder: '보완 사유를 입력해 주세요.',
+                        onConfirm: async ({ context, reason }) => {
+                          const res = await supportStore.decidePlan(
+                            context.planCode,
+                            context.decision,
+                            reason ?? null,
+                          );
+                          if (res?.retCode === 'Success') {
+                            await loadPlanTab();
+                            const p = getAlertPreset(
+                              context.decision === 'e0_80'
+                                ? 'suppleComplete'
+                                : 'rejectComplete',
+                              'plan',
+                            );
+                            showAlert(p.type, p.title, res.retMsg ?? p.message);
+                          } else if (res != null) {
+                            showAlert(
+                              'error',
+                              '알림',
+                              res.retMsg ?? '처리에 실패했습니다.',
+                            );
+                          }
+                        },
+                      })
+                  "
+                  @reject="
+                    (pc) =>
+                      openReasonModal({
+                        context: {
+                          type: 'plan',
+                          decision: 'e0_99',
+                          planCode: pc,
+                        },
+                        title: '반려 사유',
+                        message: '지원계획 반려 사유를 입력해 주세요.',
+                        reasonPlaceholder: '반려 사유를 입력해 주세요.',
+                        onConfirm: async ({ context, reason }) => {
+                          const res = await supportStore.decidePlan(
+                            context.planCode,
+                            context.decision,
+                            reason ?? null,
+                          );
+                          if (res?.retCode === 'Success') {
+                            await loadPlanTab();
+                            const p = getAlertPreset(
+                              context.decision === 'e0_80'
+                                ? 'suppleComplete'
+                                : 'rejectComplete',
+                              'plan',
+                            );
+                            showAlert(p.type, p.title, res.retMsg ?? p.message);
+                          } else if (res != null) {
+                            showAlert(
+                              'error',
+                              '알림',
+                              res.retMsg ?? '처리에 실패했습니다.',
+                            );
+                          }
+                        },
+                      })
+                  "
+                  @edit-complete="onPlanEditComplete"
+                  @approval-request="onPlanApprovalRequest"
+                  @request-cancel="
+                    (planCode) => openPlanCancelModal('edit', planCode)
+                  "
+                  @cancel-done="clearCancelRequestPlan"
+                  @end="
+                    (pc) => supportStore.endPlan(pc).then(() => loadPlanTab())
+                  "
+                  @temp-save="onTempSaveFromDetailPlan"
+                  @history="(planCode) => openPlanHistory(planCode)"
+                  @alert="
+                    (p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')
+                  "
+                />
+              </div>
               <!-- 지원결과 -->
-              <CounselResultTab
-                v-else
-                ref="resultTabRef"
-                :show-add-result-form="showAddResultForm"
-                :add-result-form="addResultForm"
-                @update:add-result-form="
-                  (obj) => Object.assign(addResultForm, obj)
-                "
-                :add-result-file-names="addResultFileNames"
-                :result-loading="resultLoading"
-                :result-data="resultData"
-                :cancel-request-result-code="cancelRequestResultCode"
-                @set-result-detail-ref="setResultDetailRef"
-                @toggle-add="toggleAddResultForm"
-                @load-temp="onLoadTempResult"
-                @temp-save="onTempSaveFromAddResult"
-                @result-file-change="onResultFileChange"
-                @open-file-dialog="openResultFileDialog"
-                @approval-request-add="onResultApprovalRequestFromAdd"
-                @cancel-add="openResultCancelModal('add')"
-                @open-supple-history="openResultSuppleHistory"
-                @approve="
-                  (rc) =>
-                    supportStore
-                      .decideResult(rc, 'e0_10', null)
-                      .then(() =>
-                        supportStore.supportResultDetail(
-                          supCode.value,
-                          selectedPlanCode.value,
-                        ),
+              <div v-if="leftTab === 'result'">
+                <!-- 지원결과 추가 폼 -->
+                <ResultAdd
+                  ref="resultAddRef"
+                  :sup-code="supCode"
+                  :show="showAddResultForm"
+                  :read-only="isApplicant"
+                  @toggle="toggleAddResultForm"
+                  @approval-request="onResultApprovalRequestFromAdd"
+                  @cancel="openResultCancelModal('add')"
+                  @alert="
+                    (p) =>
+                      showAlert(
+                        p.type ?? 'error',
+                        p.title ?? '알림',
+                        p.message ?? '',
                       )
-                "
-                @supple="
-                  (rc) =>
-                    supportStore
-                      .decideResult(rc, 'e0_80', null)
-                      .then(() =>
-                        supportStore.supportResultDetail(
-                          supCode.value,
-                          selectedPlanCode.value,
-                        ),
-                      )
-                "
-                @reject="
-                  (rc) =>
-                    supportStore
-                      .decideResult(rc, 'e0_99', null)
-                      .then(() =>
-                        supportStore.supportResultDetail(
-                          supCode.value,
-                          selectedPlanCode.value,
-                        ),
-                      )
-                "
-                @edit-complete="onResultEditComplete"
-                @approval-request="onResultApprovalRequest"
-                @request-cancel="
-                  (resultCode) => openResultCancelModal('edit', resultCode)
-                "
-                @cancel-done="clearCancelRequestResult"
-                @temp-save-detail="onTempSaveFromDetailResult"
-                @history="openResultHistory"
-                @alert="
-                  (p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')
-                "
-              />
+                  "
+                />
+                <!-- 지원결과 -->
+                <SupportResultDetail
+                  v-for="result in resultData"
+                  :key="result.result_code"
+                  :ref="(el) => setResultDetailRef(result.result_code, el)"
+                  :result_code="result.result_code"
+                  :result_title="result.result_title"
+                  :result_content="result.result_content"
+                  :result_date="result.result_date"
+                  :result_tf="result.result_tf"
+                  :result_cmt="result.result_cmt"
+                  :result_updday="result.result_updday"
+                  :result_result="result.result_tf"
+                  :cancel-request="cancelRequestResultCode"
+                  :has_supple="
+                    !!(result.result_tf === 'e0_80' || result.prev_result_code)
+                  "
+                  @open-supple-history="
+                    openResultSuppleHistory(result.result_code)
+                  "
+                  @approve="
+                    async (rc) => {
+                      const res = await supportStore.decideResult(
+                        rc,
+                        'e0_10',
+                        null,
+                      );
+                      if (res?.retCode === 'Success') {
+                        const p = getAlertPreset('approvalComplete', 'result');
+                        showAlert(p.type, p.title, res.retMsg ?? p.message);
+                        await refreshResultTabAfterDecision();
+                      } else if (res != null) {
+                        showAlert(
+                          'error',
+                          '알림',
+                          res.retMsg ?? '처리에 실패했습니다.',
+                        );
+                      } else {
+                        showAlert('error', '알림', '처리에 실패했습니다.');
+                      }
+                    }
+                  "
+                  @supple="
+                    (rc) =>
+                      openReasonModal({
+                        context: {
+                          type: 'result',
+                          decision: 'e0_80',
+                          resultCode: rc,
+                        },
+                        title: '보완 사유',
+                        message: '지원결과 보완 사유를 입력해 주세요.',
+                        reasonPlaceholder: '보완 사유를 입력해 주세요.',
+                        onConfirm: async ({ context, reason }) => {
+                          const code = supCode.value;
+                          const res = await supportStore.decideResult(
+                            context.resultCode,
+                            context.decision,
+                            reason ?? null,
+                          );
+                          if (res?.retCode === 'Success') {
+                            await refreshResultTabAfterDecision();
+                            const p = getAlertPreset(
+                              context.decision === 'e0_80'
+                                ? 'suppleComplete'
+                                : 'rejectComplete',
+                              'result',
+                            );
+                            showAlert(p.type, p.title, res.retMsg ?? p.message);
+                          } else if (res != null) {
+                            showAlert(
+                              'error',
+                              '알림',
+                              res.retMsg ?? '처리에 실패했습니다.',
+                            );
+                          }
+                        },
+                      })
+                  "
+                  @reject="
+                    (rc) =>
+                      openReasonModal({
+                        context: {
+                          type: 'result',
+                          decision: 'e0_99',
+                          resultCode: rc,
+                        },
+                        title: '반려 사유',
+                        message: '지원결과 반려 사유를 입력해 주세요.',
+                        reasonPlaceholder: '반려 사유를 입력해 주세요.',
+                        onConfirm: async ({ context, reason }) => {
+                          const code = supCode.value;
+                          const res = await supportStore.decideResult(
+                            context.resultCode,
+                            context.decision,
+                            reason ?? null,
+                          );
+                          if (res?.retCode === 'Success') {
+                            await refreshResultTabAfterDecision();
+                            const p = getAlertPreset(
+                              context.decision === 'e0_80'
+                                ? 'suppleComplete'
+                                : 'rejectComplete',
+                              'result',
+                            );
+                            showAlert(p.type, p.title, res.retMsg ?? p.message);
+                          } else if (res != null) {
+                            showAlert(
+                              'error',
+                              '알림',
+                              res.retMsg ?? '처리에 실패했습니다.',
+                            );
+                          }
+                        },
+                      })
+                  "
+                  @edit-complete="onResultEditComplete"
+                  @approval-request="onResultApprovalRequest"
+                  @request-cancel="
+                    (resultCode) => openResultCancelModal('edit', resultCode)
+                  "
+                  @cancel-done="clearCancelRequestResult"
+                  @temp-save="onTempSaveFromDetailResult"
+                  @history="(resultCode) => openResultHistory(resultCode)"
+                  @alert="
+                    (p) => showAlert(p.type ?? 'error', '알림', p.message ?? '')
+                  "
+                />
+              </div>
             </div>
           </div>
         </div>
 
         <!-- ─── 우측: 상담내역 ─── -->
-        <div v-if="showRightPanel" class="col-lg-7">
-          <CounselRightPanel
-            :counsel-list="counselList"
-            :counsel-list-loading="counselListLoading"
-            :counsel-list-error="counselListError"
-            :writer-list="writerList"
-            :writer-list-loading="writerListLoading"
-            :show-form="showForm"
-            :counsel-form="counselForm"
-            @update:counsel-form="
-              (obj) => Object.assign(counselForm.value || {}, obj)
-            "
-            :counsel-form-saving="counselFormSaving"
-            :temp-save-loading="tempSaveLoading"
-            :temp-storage-list-loading="tempStorageListLoading"
-            :selected-counsel-detail="selectedCounselDetail"
-            @open-add-form="openAddForm"
-            @close-detail="closeDetail"
-            @open-detail="openDetail"
-            @cancel-form="cancelForm"
-            @save-counsel="(payload) => saveCounsel(payload)"
-            @temp-save="doTempSave"
-            @open-temp-load="openTempStorageModal"
-            @set-counsel-files="setCounselFiles"
-          />
-        </div>
+        <CounselRightPanel
+          v-if="showRightPanel"
+          class="col-lg-7"
+          :read-only="isApplicant"
+          :counsel-list="counselList"
+          :counsel-list-loading="counselListLoading"
+          :counsel-list-error="counselListError"
+          :writer-list="writerList"
+          :writer-list-loading="writerListLoading"
+          :show-form="showForm"
+          :counsel-form="counselForm"
+          @update:counsel-form="
+            (obj) => Object.assign(counselForm.value || {}, obj)
+          "
+          :counsel-form-saving="counselFormSaving"
+          :temp-save-loading="tempSaveLoading"
+          :temp-storage-list-loading="tempStorageListLoading"
+          :selected-counsel-detail="selectedCounselDetail"
+          @open-add-form="openAddForm"
+          @close-detail="closeDetail"
+          @open-detail="openDetail"
+          @cancel-form="cancelForm"
+          @save-counsel="(payload) => saveCounsel(payload)"
+          @temp-save="doTempSave"
+          @open-temp-load="openTempStorageModal"
+          @set-counsel-files="setCounselFiles"
+        />
       </div>
     </div>
 
@@ -1631,7 +1855,6 @@ function onReceiptReject() {
       :loading="tempStorageListLoading"
       @select="applyTempStorageItem"
     />
-
     <!-- 지원계획: 승인요청 확인 / 취소 확인 -->
     <ConfirmModal
       :show="planApprovalConfirm.show"
@@ -1664,17 +1887,33 @@ function onReceiptReject() {
       @close="closeResultCancelModal"
       @confirm="onResultCancelModalConfirm"
     />
+    <!-- 계획/결과 0건일 때 등록 유도 -->
+    <ConfirmModal
+      :show="planCreateConfirm"
+      title="지원계획 등록"
+      message="등록된 지원계획이 없습니다. 새 지원계획을 등록하시겠습니까?"
+      @close="planCreateConfirm = false"
+      @confirm="onPlanCreateConfirmYes"
+    />
+    <ConfirmModal
+      :show="resultCreateConfirm"
+      title="지원결과 등록"
+      message="등록된 지원결과가 없습니다. 새 지원결과를 등록하시겠습니까?"
+      @close="resultCreateConfirm = false"
+      @confirm="onResultCreateConfirmYes"
+    />
     <!-- 보완/반려 사유 입력 (우선순위·지원계획·지원결과) -->
     <ConfirmModal
-      :show="reasonConfirmModal.show"
-      :title="reasonConfirmModal.title"
-      :message="reasonConfirmModal.message"
-      :show-reason="reasonConfirmModal.showReason"
-      :reason-placeholder="reasonConfirmModal.reasonPlaceholder"
-      :reason-label="reasonConfirmModal.reasonLabel"
-      @close="closeReasonConfirmModal"
-      @confirm="onReasonConfirmModalConfirm"
+      :show="reasonModal.show"
+      :title="reasonModal.title"
+      :message="reasonModal.message"
+      :show-reason="reasonModal.showReason"
+      :reason-placeholder="reasonModal.reasonPlaceholder"
+      :reason-label="reasonModal.reasonLabel"
+      @close="closeReasonModal"
+      @confirm="onReasonConfirm"
     />
+    <!-- 알림 모달 -->
     <AlertModal
       :show="alertModal.show"
       :type="alertModal.type"
@@ -1682,7 +1921,6 @@ function onReceiptReject() {
       :message="alertModal.message"
       @close="closeAlertModal"
     />
-
     <!-- 수정이력 모달 (계획/결과 공용) -->
     <HistoryModal
       :show="historyModal.show"
@@ -1728,19 +1966,12 @@ function onReceiptReject() {
 .counsel-survey-list .counsel-survey-item:last-child {
   border-bottom: none !important;
 }
-/* 탭 제목: 현재 작업 중인 화면 음영 */
+/* 탭 버튼: 전역 .counsel-tab-btn / .counsel-tab-active 사용, 비활성만 보완 */
 .counsel-tab-btn {
-  font-size: 0.875rem;
   background: transparent;
   cursor: pointer;
 }
-.counsel-tab-active {
-  background: rgba(0, 0, 0, 0.08) !important;
-}
-/* 비활성화된 탭/버튼 공통 스타일 */
-.counsel-tab-btn:disabled,
-.btn:disabled,
-.btn[disabled] {
+.counsel-tab-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from "vue";
+import ArgonButton from "@/components/ArgonButton.vue";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -63,21 +64,23 @@ function onClose() {
               />
             </template>
             <div class="confirm-modal-actions">
-              <button
+              <ArgonButton
                 type="button"
-                class="btn btn-confirm-yes rounded"
+                color="success"
+                class="rounded"
                 :disabled="showReason && !(reasonText && reasonText.trim())"
                 @click="onConfirm"
               >
                 {{ showReason ? "확인" : "네" }}
-              </button>
-              <button
+              </ArgonButton>
+              <ArgonButton
                 type="button"
-                class="btn btn-confirm-no rounded"
+                color="danger"
+                class="rounded"
                 @click="onClose"
               >
                 아니오
-              </button>
+              </ArgonButton>
             </div>
           </div>
         </div>
@@ -97,9 +100,9 @@ function onClose() {
   z-index: 1050;
 }
 .confirm-modal {
-  background: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
+  background: var(--bs-body-bg, #fff);
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.5rem;
   width: min(90vw, 440px);
   min-height: 260px;
   max-height: min(80vh, 360px);
@@ -109,7 +112,7 @@ function onClose() {
   overflow: hidden;
 }
 .confirm-modal-header {
-  background: #808080;
+  background: var(--bs-secondary, #8392ab);
   color: #fff;
   padding: 0.75rem 1rem;
   font-weight: 600;
@@ -127,57 +130,40 @@ function onClose() {
 }
 .confirm-modal-message {
   margin: 0 0 0.5rem;
-  color: #212529;
+  color: var(--bs-body-color, #212529);
   font-size: 0.95rem;
 }
 .confirm-modal-warning {
   margin: 0 0 1.25rem;
-  color: #dc3545;
+  color: var(--bs-danger, #f5365c);
   font-size: 0.9rem;
 }
 .confirm-modal-reason-label {
   display: block;
   margin: 0.75rem 0 0.35rem;
   font-weight: 500;
-  color: #212529;
+  color: var(--bs-body-color, #212529);
   font-size: 0.9rem;
 }
 .confirm-modal-reason-input {
   width: 100%;
   margin-bottom: 1rem;
   padding: 0.5rem;
-  border: 1px solid #dee2e6;
-  border-radius: 0.25rem;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.5rem;
   font-size: 0.9rem;
   resize: vertical;
   min-height: 4.5rem;
+}
+.confirm-modal-reason-input:focus {
+  border-color: var(--bs-primary, #5e72e4);
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(94, 114, 228, 0.25);
 }
 .confirm-modal-actions {
   display: flex;
   justify-content: center;
   gap: 0.75rem;
-}
-.btn-confirm-yes {
-  background: #28a745;
-  border: 1px solid #1e7e34;
-  color: #fff;
-  padding: 0.35rem 1.25rem;
-}
-.btn-confirm-yes:hover {
-  background: #218838;
-  border-color: #1e7e34;
-  color: #fff;
-}
-.btn-confirm-no {
-  background: #dc3545;
-  border: 1px solid #c82333;
-  color: #fff;
-  padding: 0.35rem 1.25rem;
-}
-.btn-confirm-no:hover {
-  background: #c82333;
-  border-color: #bd2130;
-  color: #fff;
 }
 
 .confirm-modal-enter-active,

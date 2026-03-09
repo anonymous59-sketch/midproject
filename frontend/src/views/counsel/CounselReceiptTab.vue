@@ -1,5 +1,7 @@
 <!-- 신청접수 탭 (기관담당자용) -->
 <script setup>
+import ArgonButton from "@/components/ArgonButton.vue";
+
 defineProps({
   hasCounsel: { type: Boolean, default: false },
   support: { type: Object, default: null },
@@ -26,20 +28,12 @@ const emit = defineEmits(["accept", "reject"]);
       상담내역을 검토한 뒤, 이 신청을 접수하거나 반려할 수 있습니다.
     </p>
     <div class="d-flex gap-2 mt-3">
-      <button
-        type="button"
-        class="btn btn-sm btn-success"
-        @click="emit('accept')"
-      >
+      <ArgonButton type="button" size="sm" color="success" @click="emit('accept')">
         신청 접수
-      </button>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline-danger"
-        @click="emit('reject')"
-      >
+      </ArgonButton>
+      <ArgonButton type="button" size="sm" variant="outline" color="danger" @click="emit('reject')">
         신청 반려
-      </button>
+      </ArgonButton>
     </div>
   </div>
 </template>

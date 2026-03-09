@@ -1,5 +1,6 @@
 <script setup>
 import { watch, onBeforeUnmount } from "vue";
+import ArgonButton from "@/components/ArgonButton.vue";
 
 /**
  * 단순 알림용 모달 (브라우저 alert 대체)
@@ -127,13 +128,14 @@ onBeforeUnmount(() => {
             </div>
             <p class="alert-modal-message">{{ message }}</p>
             <div class="alert-modal-actions">
-              <button
+              <ArgonButton
                 type="button"
-                class="btn alert-modal-btn-ok rounded"
+                color="secondary"
+                class="rounded"
                 @click="onClose"
               >
                 확인
-              </button>
+              </ArgonButton>
             </div>
           </div>
         </div>

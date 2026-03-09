@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from "vue";
+import ArgonButton from "@/components/ArgonButton.vue";
 
 const props = defineProps({
   total: { type: Number, default: 0 },
@@ -50,18 +51,19 @@ function goTo(page) {
 <template>
   <div v-if="pageCount > 1" class="d-flex justify-content-center mt-3">
     <nav aria-label="페이지네이션">
-      <ul class="pagination pagination-sm mb-0">
-        <li
-          class="page-item"
-          :class="{ disabled: !canPrev }"
-        >
-          <button
+      <ul class="pagination pagination-sm mb-0 align-items-center">
+        <li class="page-item" :class="{ disabled: !canPrev }">
+          <ArgonButton
             type="button"
-            class="page-link"
+            size="sm"
+            variant="outline"
+            color="secondary"
+            class="page-link border-0 rounded"
+            :disabled="!canPrev"
             @click="goTo(currentPage - 1)"
           >
-            이전
-          </button>
+            ＜
+          </ArgonButton>
         </li>
 
         <li
@@ -70,26 +72,30 @@ function goTo(page) {
           class="page-item"
           :class="{ active: p === currentPage }"
         >
-          <button
+          <ArgonButton
             type="button"
-            class="page-link"
+            size="sm"
+            :variant="p === currentPage ? 'fill' : 'outline'"
+            :color="p === currentPage ? 'primary' : 'secondary'"
+            class="page-link border-0 rounded"
             @click="goTo(p)"
           >
             {{ p }}
-          </button>
+          </ArgonButton>
         </li>
 
-        <li
-          class="page-item"
-          :class="{ disabled: !canNext }"
-        >
-          <button
+        <li class="page-item" :class="{ disabled: !canNext }">
+          <ArgonButton
             type="button"
-            class="page-link"
+            size="sm"
+            variant="outline"
+            color="secondary"
+            class="page-link border-0 rounded"
+            :disabled="!canNext"
             @click="goTo(currentPage + 1)"
           >
-            다음
-          </button>
+            ＞
+          </ArgonButton>
         </li>
       </ul>
     </nav>
@@ -101,4 +107,3 @@ function goTo(page) {
   cursor: pointer;
 }
 </style>
-

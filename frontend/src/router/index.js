@@ -1,32 +1,40 @@
 import { createRouter, createWebHistory } from "vue-router";
-import MainLayout from "@/layouts/MainLayout.vue";
-import Signup from "../views/Signup.vue";
-import Signin from "../views/Signin.vue";
-import FindId from "../views/FindId.vue";
-import FindPassword from "../views/FindPassword.vue";
-import ResetPassword from "../views/ResetPassword.vue";
-import ProxyTest from "../views/ProxyTest.vue";
+// import MainLayout from "@/layouts/MainLayout.vue";
+import Signup from "../views/sign/Signup.vue";
+import Signin from "../views/sign/Signin.vue";
 import { useAuthStore } from "@/store/auth";
 import kjh from "./kjh";
 import psw from "./psw";
 import six from "./six";
-import yang from "./yang";
+// import yang from "./yang";
 
 /** 로그인이 필요한 경로 (접두어) */
-const AUTH_REQUIRED_PATHS = ["/applicant", "/manager", "/organmanager", "/admin", "/managermanage", "/applicantmanage", "/organmanagermanage", "/apply", "/mypage"];
+const AUTH_REQUIRED_PATHS = [
+  "/applicant",
+  "/manager",
+  "/organmanager",
+  "/admin",
+  "/managermanage",
+  "/applicantmanage",
+  "/organmanagermanage",
+  "/apply",
+  "/mypage",
+];
 function requiresAuth(path) {
-  return AUTH_REQUIRED_PATHS.some((p) => path === p || path.startsWith(p + "/"));
+  return AUTH_REQUIRED_PATHS.some(
+    (p) => path === p || path.startsWith(p + "/"),
+  );
 }
 const routesList = [
   // 1) 지원자(기존) 영역: MainLayout 아래
   {
     path: "/",
-    component: MainLayout,
+    // component: MainLayout,
     children: [
       {
         path: "",
         name: "home",
-        component: () => import("@/views/Signin.vue"),
+        component: () => import("@/views/sign/Signin.vue"),
       },
       {
         path: "apply",
@@ -56,19 +64,39 @@ const routesList = [
       {
         path: "mypage/manager",
         name: "mypage-manager",
-        component: () => import("@/views/Y_ManagerInfo.vue"),
+        component: () => import("@/views/mypage/ManagerInfo.vue"),
       },
       {
         path: "mypage/organmanager",
         name: "mypage-organmanager",
-        component: () => import("@/views/Y_OrganManagerInfo.vue"),
+        component: () => import("@/views/mypage/OrganManagerInfo.vue"),
+      },
+      {
+        path: "organmanager",
+        name: "organmanager-home",
+        component: () => import("@/views/organmanager/ApplicantList.vue"),
+      },
+      {
+        path: "managermanage",
+        name: "managermanage",
+        component: () => import("@/views/admin/ManagerControl.vue"),
+      },
+      {
+        path: "applicantmanage",
+        name: "applicantmanage",
+        component: () => import("@/views/admin/ApplicantControl.vue"),
+      },
+      {
+        path: "organmanagermanage",
+        name: "organmanagermanage",
+        component: () => import("@/views/admin/OrganManagerManage.vue"),
       },
     ],
   },
   ...kjh,
   ...psw,
   ...six,
-  ...yang,
+  // ...yang,
 
   // 기타 페이지
   {
@@ -84,38 +112,13 @@ const routesList = [
   {
     path: "/find-id",
     name: "FindId",
-    component: FindId,
-  },
-  {
-    path: "/reset-password",
-    name: "ResetPassword",
-    component: ResetPassword,
+    redirect: () => ({ path: "/signin", query: { open: "find-id" } }),
   },
   {
     path: "/find-password",
     name: "FindPassword",
-    component: FindPassword,
+    redirect: () => ({ path: "/signin", query: { open: "find-password" } }),
   },
-  {
-    path: "/proxy-test",
-    name: "ProxyTest",
-    component: ProxyTest,
-  },
-  // {
-  //   path: "/systemSurveyList",
-  //   name: "systemSurveyList",
-  //   component: () => import("../views/SystemManager_survey.vue"),
-  // },
-  // {
-  //   path: "/systemSurveyForm",
-  //   name: "SystemManagerSurveyForm",
-  //   component: () => import("../views/systemmanager_surveyComp/SurveyForm.vue"),
-  // },
-  // {
-  //   path: "/manager-control",
-  //   name: "managerControl",
-  //   component: ManagerControl,
-  // },
 ];
 
 const router = createRouter({

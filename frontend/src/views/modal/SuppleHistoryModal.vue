@@ -6,6 +6,7 @@
  */
 import { ref, computed, watch } from "vue";
 import TablePagination from "@/views/components/TablePagination.vue";
+import ArgonButton from "@/components/ArgonButton.vue";
 
 const props = defineProps({
   show:    { type: Boolean, default: false },
@@ -58,7 +59,16 @@ function getItemKey(item) {
         <div class="shm-dialog">
           <div class="shm-header">
             <span class="shm-title">보완이력</span>
-            <button type="button" class="btn-close btn-sm" @click="emit('close')" />
+            <ArgonButton
+              type="button"
+              size="sm"
+              variant="outline"
+              color="secondary"
+              class="text-white border-light"
+              @click="emit('close')"
+            >
+              닫기
+            </ArgonButton>
           </div>
 
           <div class="shm-body">

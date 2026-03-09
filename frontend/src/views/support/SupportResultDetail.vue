@@ -12,11 +12,15 @@
 // ========== import ==========
 import { ref, watch, onBeforeMount, computed } from "vue";
 import { useAuthStore } from "@/store/auth";
+import ArgonButton from "@/components/ArgonButton.vue";
+import ArgonInput from "@/components/ArgonInput.vue";
 
 // ========== auth (버튼 노출 권한) ==========
 const authStore = useAuthStore();
 /** 기관관리자(a0_40)일 때만 true. 승인/보완/반려는 기관관리자만 노출(일반 이용자/기관담당자/시스템관리자 제외) */
 const canManageResult = computed(() => authStore.user?.m_auth === "a0_40");
+/** 지원자(a0_20)면 결과 수정/보완이력/승인요청 등 전부 비활성화(조회만 허용) */
+const isApplicant = computed(() => authStore.user?.m_auth === "a0_20");
 
 // ========== props / emit ==========
 const props = defineProps({
@@ -298,16 +302,13 @@ watch(
       </p>
       <!-- 수정/보완하기로 편집 모드일 때만 노출 -->
       <div v-if="isEditing" class="d-flex justify-content-end gap-2 mb-3">
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="onLoadTemp"
-        >
+        <ArgonButton type="button" size="sm" variant="outline" color="secondary" @click="onLoadTemp">
           임시저장 불러오기
-        </button>
-        <button
+        </ArgonButton>
+        <ArgonButton
           type="button"
-          class="btn btn-sm btn-secondary"
+          size="sm"
+          color="secondary"
           @click="
             emit('temp-save', {
               resultCode: result_code,
@@ -317,18 +318,18 @@ watch(
           "
         >
           임시저장
-        </button>
+        </ArgonButton>
       </div>
       <div class="detail-fields mb-4">
         <div class="mb-3">
           <label class="form-label text-sm text-body mb-1">제목</label>
-          <input
+          <ArgonInput
             type="text"
-            class="form-control form-control-sm"
-            :value="isEditing ? titleLocal : result_title"
+            size="sm"
+            :model-value="isEditing ? titleLocal : result_title"
             :readonly="!isEditing"
             placeholder="지원 결과 제목"
-            @input="(e) => isEditing && updateTitle(e.target.value)"
+            @update:model-value="(v) => isEditing && updateTitle(v)"
           />
         </div>
         <div class="mb-3">
@@ -345,14 +346,16 @@ watch(
         <div v-if="isEditing || filesForResult.length" class="mb-3">
           <div class="d-flex justify-content-between align-items-center mb-1">
             <label class="form-label text-sm text-body mb-0">첨부</label>
-            <button
+            <ArgonButton
               v-if="filesForResult.length && !isEditing"
               type="button"
-              class="btn btn-xs btn-outline-primary"
+              size="sm"
+              variant="outline"
+              color="primary"
               @click="downloadAllFiles"
             >
               첨부파일 전체 다운로드
-            </button>
+            </ArgonButton>
           </div>
           <!-- 조회 모드: 파일별 다운로드 버튼 -->
           <template v-if="!isEditing">
@@ -379,16 +382,17 @@ watch(
               multiple
               @change="onEditFileChange"
             />
-            <button
+            <ArgonButton
               type="button"
-              class="form-control form-control-sm text-start bg-white mb-1"
+              size="sm"
+              variant="outline"
+              color="secondary"
+              class="text-start w-100 bg-white mb-1"
               @click="openEditFileDialog"
             >
-              <span v-if="editFiles.length">
-                {{ editFiles.map((f) => f.name).join(", ") }}
-              </span>
+              <span v-if="editFiles.length">{{ editFiles.map((f) => f.name).join(", ") }}</span>
               <span v-else class="text-muted">파일을 선택하세요</span>
-            </button>
+            </ArgonButton>
             <div
               v-if="filesForResult.length"
               class="mt-1 d-flex flex-wrap gap-1"
@@ -439,78 +443,82 @@ watch(
         class="actions d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"
       >
         <div class="d-flex gap-2">
-          <!-- 수정이력 / 보완이력: 조회상태일 때만 왼쪽에 표시 -->
-          <button
-            v-if="isViewMode()"
+          <ArgonButton
+            v-if="isViewMode() && !isApplicant"
             type="button"
-            class="btn btn-sm btn-success"
+            size="sm"
+            color="success"
             @click="emit('history', result_code)"
           >
             수정이력
-          </button>
-          <button
-            v-if="isViewMode() && has_supple"
+          </ArgonButton>
+          <ArgonButton
+            v-if="isViewMode() && has_supple && !isApplicant"
             type="button"
-            class="btn btn-sm btn-outline-purple"
+            size="sm"
+            variant="outline"
+            color="secondary"
+            class="btn-outline-purple"
             @click="emit('open-supple-history')"
           >
             보완이력
-          </button>
+          </ArgonButton>
         </div>
         <div class="d-flex flex-wrap gap-2 justify-content-end">
-          <!--
-            조회 모드 버튼 노출 기준:
-              e0_00 (검토대기) → 수정, 승인, 보완, 반려 모두 표시
-              e0_80 (보완요청) → 보완하기 버튼만 표시
-              e0_10 (승인) / e0_99 (반려) → 버튼 없음 (수정이력만)
-          -->
           <template v-if="isViewMode()">
-            <button
-              v-if="result_result === 'e0_00'"
+            <ArgonButton
+              v-if="result_result === 'e0_00' && !isApplicant"
               type="button"
-              class="btn btn-sm btn-primary"
+              size="sm"
+              color="primary"
               @click="startEdit"
             >
               수정
-            </button>
-            <button
-              v-if="result_result === 'e0_80'"
+            </ArgonButton>
+            <ArgonButton
+              v-if="result_result === 'e0_80' && !isApplicant"
               type="button"
-              class="btn btn-sm btn-primary"
+              size="sm"
+              color="primary"
               @click="startEdit"
             >
               보완하기
-            </button>
-            <button
+            </ArgonButton>
+            <ArgonButton
               v-if="canManageResult && result_result === 'e0_00'"
               type="button"
-              class="btn btn-sm btn-success"
+              size="sm"
+              color="success"
               @click="emit('approve', result_code)"
             >
               승인
-            </button>
-            <button
+            </ArgonButton>
+            <ArgonButton
               v-if="canManageResult && result_result === 'e0_00'"
               type="button"
-              class="btn btn-sm btn-warning"
+              size="sm"
+              color="warning"
               @click="emit('supple', result_code)"
             >
               보완
-            </button>
-            <button
+            </ArgonButton>
+            <ArgonButton
               v-if="canManageResult && result_result === 'e0_00'"
               type="button"
-              class="btn btn-sm btn-danger"
+              size="sm"
+              color="danger"
               @click="emit('reject', result_code)"
             >
               반려
-            </button>
+            </ArgonButton>
           </template>
-          <!-- 입력상태: 편집 중 + 내용 없음 → 승인요청, 취소 -->
           <template v-else-if="isInputMode()">
-            <button
+            <ArgonButton
+              v-if="!isApplicant"
               type="button"
-              class="btn btn-sm btn-outline-primary"
+              size="sm"
+              variant="outline"
+              color="primary"
               @click="
                 emit('approval-request', {
                   resultCode: result_code,
@@ -520,40 +528,47 @@ watch(
               "
             >
               승인요청
-            </button>
-            <button
+            </ArgonButton>
+            <ArgonButton
+              v-if="!isApplicant"
               type="button"
-              class="btn btn-sm btn-outline-secondary"
+              size="sm"
+              variant="outline"
+              color="secondary"
               @click="emit('request-cancel', result_code)"
             >
               취소
-            </button>
+            </ArgonButton>
           </template>
-          <!-- 수정상태: 편집 중 + 내용 있음 → 수정완료, 임시저장, 취소 -->
           <template v-else-if="isEditMode()">
-            <button
-              v-if="result_result === 'e0_00'"
+            <ArgonButton
+              v-if="result_result === 'e0_00' && !isApplicant"
               type="button"
-              class="btn btn-sm btn-success"
+              size="sm"
+              color="success"
               @click="onEditComplete"
             >
               수정완료
-            </button>
-            <button
-              v-if="result_result === 'e0_80'"
+            </ArgonButton>
+            <ArgonButton
+              v-if="result_result === 'e0_80' && !isApplicant"
               type="button"
-              class="btn btn-sm btn-success"
+              size="sm"
+              color="success"
               @click="onEditComplete"
             >
               승인재요청
-            </button>
-            <button
+            </ArgonButton>
+            <ArgonButton
+              v-if="!isApplicant"
               type="button"
-              class="btn btn-sm btn-outline-secondary"
+              size="sm"
+              variant="outline"
+              color="secondary"
               @click="emit('request-cancel', result_code)"
             >
               취소
-            </button>
+            </ArgonButton>
           </template>
         </div>
       </div>

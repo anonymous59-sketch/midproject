@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useAuthStore } from "@/store/auth";
+import ArgonButton from "@/components/ArgonButton.vue";
+import ArgonInput from "@/components/ArgonInput.vue";
 
 const authStore = useAuthStore();
 
@@ -384,10 +386,9 @@ const findAddress = () => {
                 <div v-if="!isEditMode" class="info-value">
                   {{ member.m_tel || "—" }}
                 </div>
-                <input
+                <ArgonInput
                   v-else
                   v-model="editForm.m_tel"
-                  class="form-control"
                   @blur="onProfileFieldBlur"
                 />
               </div>
@@ -397,10 +398,9 @@ const findAddress = () => {
                 <div v-if="!isEditMode" class="info-value">
                   {{ member.m_email || "—" }}
                 </div>
-                <input
+                <ArgonInput
                   v-else
                   v-model="editForm.m_email"
-                  class="form-control"
                   @blur="onProfileFieldBlur"
                 />
               </div>
@@ -410,38 +410,43 @@ const findAddress = () => {
                 <div v-if="!isEditMode" class="info-value">
                   {{ member.m_add || "—" }}
                 </div>
-                <input
+                <ArgonInput
                   v-else
                   v-model="editForm.m_add"
-                  class="form-control"
                   @blur="onProfileFieldBlur"
                 />
               </div>
             </template>
 
             <div class="mt-3">
-              <button
+              <ArgonButton
                 v-if="!isEditMode"
-                class="btn bg-gradient-success w-100 mb-2"
+                color="success"
+                variant="gradient"
+                class="w-100 mb-2"
                 @click="startEdit"
               >
                 회원정보 수정
-              </button>
+              </ArgonButton>
 
               <div v-else class="d-flex gap-2 mb-2">
-                <button
+                <ArgonButton
                   type="button"
-                  class="btn bg-gradient-success w-100"
+                  color="success"
+                  variant="gradient"
+                  class="w-100"
                   @click="saveEdit()"
                 >
                   저장
-                </button>
-                <button
-                  class="btn btn-outline-secondary w-100"
+                </ArgonButton>
+                <ArgonButton
+                  variant="outline"
+                  color="secondary"
+                  class="w-100"
                   @click="cancelEdit"
                 >
                   취소
-                </button>
+                </ArgonButton>
               </div>
             </div>
           </div>
@@ -464,13 +469,6 @@ const findAddress = () => {
             <p v-if="applicantsLoading" class="text-muted text-sm mb-2">
               로딩 중...
             </p>
-            <button
-              class="btn bg-gradient-success w-100 mb-3"
-              @click="openModal"
-            >
-              지원자 추가
-            </button>
-
             <ul class="list-group applicant-list">
               <li
                 v-for="a in applicants"
@@ -485,6 +483,14 @@ const findAddress = () => {
                 </div>
               </li>
             </ul>
+            <ArgonButton
+              color="success"
+              variant="gradient"
+              class="w-100 mt-3 mb-0"
+              @click="openModal"
+            >
+              지원대상자 등록
+            </ArgonButton>
           </div>
         </div>
       </div>
@@ -496,13 +502,16 @@ const findAddress = () => {
             class="card-header pb-0 d-flex justify-content-between align-items-center"
           >
             <h5 class="mb-0">지원자 정보</h5>
-            <button
+            <ArgonButton
               v-if="selectedApplicant && !isApplicantEditMode"
-              class="btn btn-sm bg-gradient-info mb-0"
+              size="sm"
+              color="info"
+              variant="gradient"
+              class="mb-0"
               @click="startApplicantEdit"
             >
               수정
-            </button>
+            </ArgonButton>
           </div>
 
           <div class="card-body">
@@ -562,19 +571,12 @@ const findAddress = () => {
               <div v-else>
                 <div class="info-box">
                   <div class="info-label">이름</div>
-                  <input
-                    v-model="applicantEditForm.mc_nm"
-                    class="form-control"
-                  />
+                  <ArgonInput v-model="applicantEditForm.mc_nm" />
                 </div>
 
                 <div class="info-box">
                   <div class="info-label">생년월일</div>
-                  <input
-                    v-model="applicantEditForm.mc_bd"
-                    type="date"
-                    class="form-control"
-                  />
+                  <ArgonInput v-model="applicantEditForm.mc_bd" type="date" />
                 </div>
 
                 <div class="info-box">
@@ -601,44 +603,41 @@ const findAddress = () => {
 
                 <div class="info-box">
                   <div class="info-label">주소</div>
-                  <input
-                    v-model="applicantEditForm.mc_address"
-                    class="form-control"
-                  />
+                  <ArgonInput v-model="applicantEditForm.mc_address" />
                 </div>
 
                 <div class="info-box">
                   <div class="info-label">장애유형</div>
-                  <input
-                    v-model="applicantEditForm.mc_type"
-                    class="form-control"
-                  />
+                  <ArgonInput v-model="applicantEditForm.mc_type" />
                 </div>
 
                 <div class="info-box">
                   <div class="info-label">등록일</div>
-                  <input
+                  <ArgonInput
                     v-model="applicantEditForm.mc_submitdate"
                     type="date"
-                    class="form-control"
                     readonly
                   />
                 </div>
 
                 <div class="d-flex gap-2 mt-3">
-                  <button
-                    class="btn bg-gradient-success w-100"
+                  <ArgonButton
+                    color="success"
+                    variant="gradient"
+                    class="w-100"
                     :disabled="applicantSaving"
                     @click="saveApplicantEdit"
                   >
                     {{ applicantSaving ? "저장 중..." : "저장" }}
-                  </button>
-                  <button
-                    class="btn btn-outline-secondary w-100"
+                  </ArgonButton>
+                  <ArgonButton
+                    variant="outline"
+                    color="secondary"
+                    class="w-100"
                     @click="cancelApplicantEdit"
                   >
                     취소
-                  </button>
+                  </ArgonButton>
                 </div>
               </div>
             </div>
@@ -656,18 +655,14 @@ const findAddress = () => {
           <div class="form-row">
             <div class="form-label-left">이름</div>
             <div class="form-input-right">
-              <input v-model="newApplicant.mc_nm" class="form-control" />
+              <ArgonInput v-model="newApplicant.mc_nm" />
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-label-left">생년월일</div>
             <div class="form-input-right">
-              <input
-                v-model="newApplicant.mc_bd"
-                type="date"
-                class="form-control"
-              />
+              <ArgonInput v-model="newApplicant.mc_bd" type="date" />
             </div>
           </div>
 
@@ -696,10 +691,14 @@ const findAddress = () => {
           <div class="form-row">
             <div class="form-label-left">주소</div>
             <div class="form-input-right d-flex gap-2">
-              <input v-model="newApplicant.mc_address" class="form-control" />
-              <button class="btn btn-outline-secondary" @click="findAddress">
+              <ArgonInput v-model="newApplicant.mc_address" />
+              <ArgonButton
+                variant="outline"
+                color="secondary"
+                @click="findAddress"
+              >
                 주소찾기
-              </button>
+              </ArgonButton>
             </div>
           </div>
 
@@ -712,26 +711,29 @@ const findAddress = () => {
                   :key="idx"
                   class="d-flex gap-2"
                 >
-                  <input
-                    v-model="newApplicant.mc_types[idx]"
-                    class="form-control"
-                  />
-                  <button
+                  <ArgonInput v-model="newApplicant.mc_types[idx]" />
+                  <ArgonButton
                     type="button"
-                    class="btn btn-outline-danger btn-sm mb-0"
+                    size="sm"
+                    variant="outline"
+                    color="danger"
+                    class="mb-0"
                     @click="removeDisabilityTypeField(idx)"
                   >
                     삭제
-                  </button>
+                  </ArgonButton>
                 </div>
 
-                <button
+                <ArgonButton
                   type="button"
-                  class="btn btn-outline-primary btn-sm mb-0 align-self-start"
+                  size="sm"
+                  variant="outline"
+                  color="primary"
+                  class="mb-0 align-self-start"
                   @click="addDisabilityTypeField"
                 >
                   장애유형 추가
-                </button>
+                </ArgonButton>
               </div>
             </div>
           </div>
@@ -739,30 +741,32 @@ const findAddress = () => {
           <div class="form-row">
             <div class="form-label-left">등록일</div>
             <div class="form-input-right">
-              <input
-                :value="todayYmd()"
-                type="text"
-                class="form-control"
-                readonly
-              />
-              <small class="text-muted"
-                >등록일은 오늘 날짜로 자동 저장됩니다.</small
-              >
+              <ArgonInput :model-value="todayYmd()" type="text" readonly />
+              <small class="text-muted">
+                등록일은 오늘 날짜로 자동 저장됩니다.
+              </small>
             </div>
           </div>
         </div>
 
         <div class="d-flex gap-2 mt-4">
-          <button
-            class="btn bg-gradient-success w-100"
+          <ArgonButton
+            color="success"
+            variant="gradient"
+            class="w-100"
             :disabled="addApplicantSaving"
             @click="addApplicant"
           >
             {{ addApplicantSaving ? "등록 중..." : "등록" }}
-          </button>
-          <button class="btn btn-outline-secondary w-100" @click="closeModal">
+          </ArgonButton>
+          <ArgonButton
+            variant="outline"
+            color="secondary"
+            class="w-100"
+            @click="closeModal"
+          >
             취소
-          </button>
+          </ArgonButton>
         </div>
       </div>
     </div>
