@@ -1,6 +1,6 @@
 <!-- 일반 이용자 / 기관담당자 / 기관관리자 레이아웃 (Argon Dashboard 스타일) -->
 <script setup>
-import { RouterView } from "vue-router";
+// import { RouterView } from "vue-router";
 import HeaderNavbar from "@/components/HeaderNavbar.vue";
 </script>
 
@@ -21,7 +21,7 @@ import HeaderNavbar from "@/components/HeaderNavbar.vue";
       class="main-content position-relative z-index-1 border-radius-xl mt-3 mt-md-4 mx-2 mx-md-4 bg-white shadow"
     >
       <div class="container-fluid py-4 pb-4">
-        <RouterView />
+        <slot />
       </div>
     </main>
   </div>

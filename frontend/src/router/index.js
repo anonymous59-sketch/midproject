@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import MainLayout from "@/layouts/MainLayout.vue";
+// import MainLayout from "@/layouts/MainLayout.vue";
 import Signup from "../views/sign/Signup.vue";
 import Signin from "../views/sign/Signin.vue";
 import { useAuthStore } from "@/store/auth";
@@ -29,7 +29,7 @@ const routesList = [
   // 1) 지원자(기존) 영역: MainLayout 아래
   {
     path: "/",
-    component: MainLayout,
+    // component: MainLayout,
     children: [
       {
         path: "",
@@ -70,6 +70,26 @@ const routesList = [
         path: "mypage/organmanager",
         name: "mypage-organmanager",
         component: () => import("@/views/mypage/OrganManagerInfo.vue"),
+      },
+      {
+        path: "organmanager",
+        name: "organmanager-home",
+        component: () => import("@/views/organmanager/ApplicantList.vue"),
+      },
+      {
+        path: "managermanage",
+        name: "managermanage",
+        component: () => import("@/views/admin/ManagerControl.vue"),
+      },
+      {
+        path: "applicantmanage",
+        name: "applicantmanage",
+        component: () => import("@/views/admin/ApplicantControl.vue"),
+      },
+      {
+        path: "organmanagermanage",
+        name: "organmanagermanage",
+        component: () => import("@/views/admin/OrganManagerManage.vue"),
       },
     ],
   },
