@@ -12,18 +12,29 @@ import ArgonButton from "@/components/ArgonButton.vue";
 const authStore = useAuthStore();
 /** 기관관리자(a0_40)일 때만 true. 승인/보완/반려는 기관관리자만 노출 */
 const canManageRank = computed(() => authStore.user?.m_auth === "a0_40");
-
+/** 접속한 사람 권한 a0_30 (기관담당자) */
+const isManagerRole = computed(() => authStore.user?.m_auth === "a0_30");
+const suppleEditMode = ref(false);
+/** 보완/반려 사유(관리자 피드백) 고정 표시용 - 신청사유 수정해도 안 바뀜 */
+const feedbackReasonFixed = ref("");
+/** 보완하기 클릭(suppleEditMode) 시 편집 가능. a0_30 + 보완(e0_80): 클릭 전까지 readonly, 클릭 후 편집. 그 외는 readOnly 그대로 */
+const effectiveReadOnly = computed(() => {
+  if (suppleEditMode.value) return false;
+  if (props.s_rank_res === "e0_80" && isManagerRole.value)
+    return !suppleEditMode.value;
+  return props.readOnly;
+});
 // ========== 변수 ==========
 const props = defineProps({
   /** 지원자(a0_20) 등 읽기 전용: 선택/승인요청/보완이력 등 버튼 숨김 */
-  readOnly:      { type: Boolean, default: false },
-  rank_code:     { type: String,  default: "" },  // 우선순위 코드 (d0_20/d0_30/d0_40)
-  rank_cmt:      { type: String,  default: "" },
-  priority:      { type: String,  default: "" },
-  apply_for:     { type: String,  default: "" },
-  s_rank_res:    { type: String,  default: "" },  // e0_00 검토대기, e0_80 보완, e0_10 승인, e0_99 반려
-  req_code:      { type: String,  default: "" },
-  has_supple:    { type: Boolean, default: false }, // 한 번이라도 보완 판정 있으면 true
+  readOnly: { type: Boolean, default: false },
+  rank_code: { type: String, default: "" }, // 우선순위 코드 (d0_20/d0_30/d0_40)
+  rank_cmt: { type: String, default: "" },
+  priority: { type: String, default: "" },
+  apply_for: { type: String, default: "" },
+  s_rank_res: { type: String, default: "" }, // e0_00 검토대기, e0_80 보완, e0_10 승인, e0_99 반려
+  req_code: { type: String, default: "" },
+  has_supple: { type: Boolean, default: false }, // 한 번이라도 보완 판정 있으면 true
 });
 
 const emit = defineEmits([
@@ -58,6 +69,26 @@ watch(
   () => [props.apply_for, props.s_rank_res],
   () => {
     if (props.s_rank_res === "e0_80") rankComment.value = props.apply_for || "";
+  },
+  { immediate: true },
+);
+// 보완판정이 아니면 편집 모드 해제
+watch(
+  () => props.s_rank_res,
+  (v) => {
+    if (v !== "e0_80") suppleEditMode.value = false;
+  },
+);
+// 보완/반려(e0_80, e0_99)로 진입할 때만 보완사유 고정 저장 (이후 신청사유 수정해도 표시값 유지)
+watch(
+  () => props.s_rank_res,
+  (res, prev) => {
+    const isFeedbackState = res === "e0_80" || res === "e0_99";
+    const enteredFeedbackState =
+      isFeedbackState &&
+      (prev === undefined || (prev !== "e0_80" && prev !== "e0_99"));
+    if (enteredFeedbackState && (props.rank_cmt || "").trim())
+      feedbackReasonFixed.value = (props.rank_cmt || "").trim();
   },
   { immediate: true },
 );
@@ -110,8 +141,17 @@ function updateComment(val) {
   onCommentInput();
 }
 
-/** 취소: 우선순위·사유 초기화 후 cancel 이벤트 발생 */
+/** 보완하기 클릭: 버튼 숨기고 textarea 편집 가능 */
+function onSuppleClick() {
+  suppleEditMode.value = true;
+}
+
+/** 취소: suppleEditMode면 편집만 해제, 아니면 초기화 후 cancel 이벤트 */
 function onCancel() {
+  if (suppleEditMode.value) {
+    suppleEditMode.value = false;
+    return;
+  }
   selectedCode.value = "";
   rankComment.value = "";
   emit("update:rank_code", "");
@@ -122,15 +162,6 @@ function onCancel() {
 
 <template>
   <div class="rank-detail">
-    <div
-      v-if="s_rank_res === 'e0_80'"
-      class="rank-detail-block rank-supple-reason mb-3"
-    >
-      <div class="rank-detail-block-inner py-3 px-3">
-        <div class="rank-supple-label text-muted small mb-1">보완 사유</div>
-        <div class="rank-supple-text">{{ rank_cmt || "—" }}</div>
-      </div>
-    </div>
     <!-- 우선순위: e0_99 반려 시 미표시, e0_10 승인 시 선택값만 읽기 전용, e0_00/e0_80 검토·보완 시 선택 가능 -->
     <div v-if="s_rank_res !== 'e0_99'" class="rank-detail-block mb-3">
       <div
@@ -166,43 +197,72 @@ function onCancel() {
         </span>
       </div>
     </div>
-    <!-- 우선순위 선택 사유 + 버튼 (선택된 경우에만 표시) -->
+    <!-- 우선순위 선택 사유 + 보완/반려 사유 + 버튼 -->
     <div
       v-if="
         selectedCode === 'd0_20' ||
         selectedCode === 'd0_30' ||
-        selectedCode === 'd0_40'
+        selectedCode === 'd0_40' ||
+        s_rank_res === 'e0_80' ||
+        s_rank_res === 'e0_99'
       "
       class="rank-detail-block mb-3"
     >
       <textarea
+        v-if="
+          selectedCode === 'd0_20' ||
+          selectedCode === 'd0_30' ||
+          selectedCode === 'd0_40' ||
+          s_rank_res === 'e0_80' ||
+          s_rank_res === 'e0_10' ||
+          s_rank_res === 'e0_99'
+        "
         :value="textareaValue()"
-        :readonly="readOnly ? true : textareaReadonly()"
+        :readonly="
+          suppleEditMode ? false : effectiveReadOnly ? true : textareaReadonly()
+        "
         class="form-control form-control-sm mb-3 rank-detail-textarea"
         rows="3"
         :placeholder="
-          (readOnly ? true : textareaReadonly())
+          (
+            suppleEditMode
+              ? false
+              : effectiveReadOnly
+                ? true
+                : textareaReadonly()
+          )
             ? ''
             : '우선순위 선택 사유를 작성해주시기 바랍니다.'
         "
         @input="
-            (e) => {
-              if (!readOnly && !textareaReadonly()) updateComment(e.target.value);
-            }
+          (e) => {
+            if (suppleEditMode || (!effectiveReadOnly && !textareaReadonly()))
+              updateComment(e.target.value);
+          }
         "
       />
-      <!-- 버튼 영역
-        - 신청 단계 (s_rank_res가 '' 등): 승인요청 / 취소만 표시
-        - 승인요청 상태 (e0_00): 승인 / 보완 / 반려만 표시
-        - 보완판정 상태 (e0_80): 승인요청 / 취소만 표시
-        - 승인(e0_10) / 반려(e0_99): 버튼 숨김
-      -->
+      <!-- 보완/반려 사유 고정 표시 (신청사유 수정해도 변경 안 됨) -->
       <div
-        v-if="!readOnly && s_rank_res !== 'e0_10' && s_rank_res !== 'e0_99'"
+        v-if="
+          (s_rank_res === 'e0_80' || s_rank_res === 'e0_99') &&
+          (feedbackReasonFixed || '').trim()
+        "
+        class="rank-detail-block rank-feedback-reason mb-3"
+      >
+        <div class="rank-detail-block-inner py-2 px-3">
+          <div class="rank-feedback-label text-muted small mb-1">
+            {{ s_rank_res === "e0_80" ? "보완" : "반려" }}
+          </div>
+          <div class="rank-feedback-text">{{ feedbackReasonFixed }}</div>
+        </div>
+      </div>
+      <!-- 버튼 영역: 승인요청/취소 또는 승인/보완/반려 (보완·반려 사유가 있어도 노출. 노출 여부는 readOnly만 사용) -->
+      <div
+        v-if="s_rank_res !== 'e0_10' && s_rank_res !== 'e0_99' && !readOnly"
         class="d-flex flex-wrap gap-2"
         :class="has_supple ? 'justify-content-between' : 'justify-content-end'"
       >
-        <!-- 보완이력 버튼 (좌측): 한 번이라도 보완 판정이 있었던 경우 노출 -->
+        <!-- 좌측: 보완이력만 -->
         <ArgonButton
           v-if="has_supple"
           type="button"
@@ -215,10 +275,21 @@ function onCancel() {
           보완이력
         </ArgonButton>
 
-        <!-- 우측 버튼 그룹 -->
+        <!-- 우측: 보완하기 + 승인요청/취소 또는 승인/보완/반려 -->
         <div class="d-flex flex-wrap gap-2">
-          <!-- 신청 단계('' 등) 및 보완판정(e0_80): 승인요청 / 취소 활성 -->
-          <template v-if="s_rank_res !== 'e0_00'">
+          <!-- e0_80(보완)일 때만 보완하기 -->
+          <ArgonButton
+            v-if="has_supple && s_rank_res === 'e0_80' && !suppleEditMode"
+            type="button"
+            size="sm"
+            variant="outline"
+            color="primary"
+            @click="onSuppleClick"
+          >
+            보완하기
+          </ArgonButton>
+          <!-- e0_80 readonly일 땐 보이지 않음. 보완하기 클릭(suppleEditMode) 후에만 재승인요청·취소 노출 -->
+          <template v-if="s_rank_res !== 'e0_00' && (s_rank_res !== 'e0_80' || suppleEditMode)">
             <ArgonButton
               type="button"
               size="sm"
@@ -232,7 +303,7 @@ function onCancel() {
                 })
               "
             >
-              승인요청
+              {{ s_rank_res === "e0_80" ? "재승인요청" : "승인요청" }}
             </ArgonButton>
             <ArgonButton
               type="button"
@@ -276,10 +347,10 @@ function onCancel() {
         </div>
       </div>
 
-      <!-- 승인(e0_10) / 반려(e0_99) 상태에서도 보완이력 버튼 노출 -->
+      <!-- 승인(e0_10) / 반려(e0_99) 상태: 보완이력만 (종결, 보완하기 없음) -->
       <div
         v-else-if="!readOnly && has_supple"
-        class="d-flex justify-content-start mt-2"
+        class="d-flex flex-wrap gap-2 justify-content-start mt-2"
       >
         <ArgonButton
           type="button"
@@ -305,10 +376,12 @@ function onCancel() {
 .rank-detail-block-inner {
   min-height: 2.5rem;
 }
-.rank-supple-reason .rank-supple-label {
+.rank-supple-reason .rank-supple-label,
+.rank-feedback-reason .rank-feedback-label {
   font-weight: 500;
 }
-.rank-supple-reason .rank-supple-text {
+.rank-supple-reason .rank-supple-text,
+.rank-feedback-reason .rank-feedback-text {
   white-space: pre-wrap;
   word-break: break-word;
   color: #212529;

@@ -144,7 +144,7 @@ CREATE TABLE `support` (
   CONSTRAINT `FK_member_TO_support_mgr` FOREIGN KEY (`mgr_no`) REFERENCES `member` (`m_no`),
   CONSTRAINT `FK_dsbl_prs_TO_support` FOREIGN KEY (`mc_pn`) REFERENCES `dsbl_prs` (`mc_pn`),
   CONSTRAINT `FK_sub_code_TO_support_req` FOREIGN KEY (`req_yn`) REFERENCES `sub_code` (`s_code`)
-  CONSTRAINT `FK_sub_code_TO_support` FOREIGN KEY (`rank_res`) REFERENCES `sub_code` (`s_code`)
+  CONSTRAINT `FK_rank_TO_support` FOREIGN KEY (`rank_res`) REFERENCES `rank` (`req_code`)
 );
 
 -- 5-1. 상담 기록
@@ -177,7 +177,7 @@ CREATE TABLE `support_plan` (
   `plan_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `plan_updday` DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP, -- 자동 업데이트 설정
   `plan_tf` VARCHAR(30) NOT NULL COMMENT '부코드 FK',
-  `plan_rej_cmt` VARCHAR(1000) NULL,
+  `plan_cmt` VARCHAR(1000) NULL,
   PRIMARY KEY (`plan_code`),
   CONSTRAINT `FK_support_TO_support_plan` FOREIGN KEY (`sup_code`) REFERENCES `support` (`sup_code`),
   CONSTRAINT `FK_dsbl_prs_TO_support_plan` FOREIGN KEY (`dsbl_no`) REFERENCES `dsbl_prs` (`mc_pn`),
@@ -195,7 +195,7 @@ CREATE TABLE `support_result` (
   `result_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `result_updday` DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP, -- 자동 업데이트 설정
   `result_tf` VARCHAR(30) NOT NULL COMMENT '부코드 FK',
-  `result_rej_cmt` VARCHAR(1000) NULL, -- 컬럼명 변경 반영
+  `result_cmt` VARCHAR(1000) NULL, -- 컬럼명 변경 반영
   PRIMARY KEY (`result_code`),
   CONSTRAINT `FK_support_plan_TO_support_result` FOREIGN KEY (`plan_code`) REFERENCES `support_plan` (`plan_code`),
   CONSTRAINT `FK_sub_code_TO_support_result_tf` FOREIGN KEY (`result_tf`) REFERENCES `sub_code` (`s_code`),
@@ -212,7 +212,7 @@ CREATE TABLE `rank` (
   `apply_for` VARCHAR(1000) NOT NULL,
   `adm_no` VARCHAR(20) NOT NULL,
   `s_rank_res` VARCHAR(30) NULL,
-  `rank_rej_cmt` VARCHAR(1000) NULL,
+  `rank_cmt` VARCHAR(1000) NULL,
   PRIMARY KEY (`req_code`),
   CONSTRAINT `FK_rank_TO_rank` FOREIGN KEY (`prev_req_code`) REFERENCES `rank` (`req_code`),
   CONSTRAINT `FK_support_TO_rank` FOREIGN KEY (`sup_code`) REFERENCES `support` (`sup_code`),

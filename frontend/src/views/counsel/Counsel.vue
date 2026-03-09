@@ -12,7 +12,8 @@ import { useAuthStore } from "@/store/auth";
 import CounselApplicantInfo from "@/views/counsel/CounselApplicantInfo.vue";
 import CounselReceiptTab from "@/views/counsel/CounselReceiptTab.vue";
 import CounselApplicationTab from "@/views/counsel/CounselApplicationTab.vue";
-import CounselRankTab from "@/views/counsel/CounselRankTab.vue";
+import RankDetail from "@/views/rank/RankDetail.vue";
+import ArgonButton from "@/components/ArgonButton.vue";
 import SupportPlanDetail from "@/views/support/SupportPlanDetail.vue";
 import SupportResultDetail from "@/views/support/SupportResultDetail.vue";
 import PlanAdd from "@/views/support/PlanAdd.vue";
@@ -122,6 +123,19 @@ const cancelRequestResultCode = ref(null);
 // 보완/반려 사유 입력용 ConfirmModal (우선순위·지원계획·지원결과)
 const { reasonModal, openReasonModal, closeReasonModal, onReasonConfirm } =
   useReasonModal();
+
+// 우선순위 API 베이스 (호출 시점에 확인해 개발 시만 3000 직접 요청)
+function getRankApiBase() {
+  try {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.origin))
+        return "http://localhost:3000";
+    }
+  } catch {
+    /* window 미접근 환경 */
+  }
+  return "";
+}
 
 // 계획/결과 보완이력 모달 (한 번이라도 보완 판정된 건에서 버튼 노출)
 const planSuppleHistoryShow = ref(false);
@@ -825,8 +839,10 @@ async function onRankDecide(decision) {
   const reqCode = rankData.value?.req_code;
   const code = supCode.value;
   if (!reqCode || !code) return;
+  const base = getRankApiBase();
+  const decideUrl = base ? base + "/rank/decide" : "/api/rank/decide";
   try {
-    const res = await fetch("/api/rank/decide", {
+    const res = await fetch(decideUrl, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ req_code: reqCode, sup_code: code, decision }),
@@ -847,6 +863,59 @@ async function onRankDecide(decision) {
 function onRankCancel() {
   rankCodeLocal.value = rankData.value?.s_rank_code ?? "";
   rankCmtLocal.value = rankData.value?.rank_cmt ?? "";
+}
+
+/** 우선순위 반려 모달 확인 시 (reasonModal onConfirm) */
+async function onRankRejectConfirm({ context, reason }) {
+  const code = supCode.value;
+  const base = getRankApiBase();
+  const decideUrl = base ? base + "/rank/decide" : "/api/rank/decide";
+  try {
+    const res = await fetch(decideUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        req_code: context?.reqCode,
+        sup_code: code,
+        decision: "e0_99",
+        rank_cmt: reason ?? null,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (json?.retCode === "Success") {
+      showAlert("success", "알림", "우선순위 반려가 완료되었습니다.");
+      await loadRankTab();
+    } else {
+      showAlert("error", "알림", json?.retMsg ?? "처리에 실패했습니다.");
+    }
+  } catch (e) {
+    showAlert("error", "알림", "처리 중 오류가 발생했습니다.");
+  }
+}
+
+/** 우선순위 보완 모달 확인 시 (reasonModal onConfirm) */
+async function onRankSuppleConfirm({ context, reason }) {
+  const base = getRankApiBase();
+  const suppleUrl = base ? base + "/rank/supple" : "/api/rank/supple";
+  try {
+    const res = await fetch(suppleUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        req_code: context?.reqCode,
+        rank_cmt: reason ?? null,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (json?.retCode === "Success") {
+      showAlert("supple", "알림", "보완 처리가 완료되었습니다.");
+      await loadRankTab();
+    } else {
+      showAlert("error", "알림", json?.retMsg ?? "보완 처리에 실패했습니다.");
+    }
+  } catch (e) {
+    showAlert("error", "알림", "보완 처리 중 오류가 발생했습니다.");
+  }
 }
 
 // ─── 우선순위 보완이력 모달 ──────────────────────────────────────────────────
@@ -1402,118 +1471,62 @@ function onReceiptReject() {
                 @accept="onReceiptAccept"
                 @reject="onReceiptReject"
               />
-              <!-- 우선순위 -->
-              <CounselRankTab
-                v-if="leftTab === 'rank'"
-                :rank-data="rankData"
-                :rank-loading="rankLoading"
-                :rank-code-local="rankCodeLocal"
-                :rank-cmt-local="rankCmtLocal"
-                :rank-has-supple="rankHasSupple"
-                :read-only="isApplicant"
-                @refresh="loadRankTab"
-                @update:rank-code-local="(v) => (rankCodeLocal = v)"
-                @update:rank-cmt-local="(v) => (rankCmtLocal = v)"
-                @approval-request="onRankApprovalRequest"
-                @approve="onRankDecide('e0_10')"
-                @reject="
-                  () =>
-                    openReasonModal({
-                      context: {
-                        type: 'rank',
-                        decision: 'e0_99',
-                        reqCode: rankData?.req_code,
-                      },
-                      title: '반려 사유',
-                      message: '우선순위 반려 사유를 입력해 주세요.',
-                      reasonPlaceholder: '반려 사유를 입력해 주세요.',
-                      onConfirm: async ({ context, reason }) => {
-                        const code = supCode.value;
-                        try {
-                          const res = await fetch('/api/rank/decide', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              req_code: context.reqCode,
-                              sup_code: code,
-                              decision: 'e0_99',
-                              rank_cmt: reason ?? null,
-                            }),
-                          });
-                          const json = await res.json();
-                          if (json?.retCode === 'Success') {
-                            showAlert(
-                              'success',
-                              '알림',
-                              '우선순위 반려가 완료되었습니다.',
-                            );
-                            await loadRankTab();
-                          } else {
-                            showAlert(
-                              'error',
-                              '알림',
-                              json?.retMsg ?? '처리에 실패했습니다.',
-                            );
-                          }
-                        } catch (e) {
-                          showAlert(
-                            'error',
-                            '알림',
-                            '처리 중 오류가 발생했습니다.',
-                          );
-                        }
-                      },
-                    })
-                "
-                @supple="
-                  () =>
-                    openReasonModal({
-                      context: {
-                        type: 'rank',
-                        decision: 'e0_80',
-                        reqCode: rankData?.req_code,
-                      },
-                      title: '보완 사유',
-                      message: '우선순위 보완 사유를 입력해 주세요.',
-                      reasonPlaceholder: '보완 사유를 입력해 주세요.',
-                      onConfirm: async ({ context, reason }) => {
-                        try {
-                          const res = await fetch('/api/rank/supple', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              req_code: context.reqCode,
-                              rank_cmt: reason ?? null,
-                            }),
-                          });
-                          const json = await res.json();
-                          if (json?.retCode === 'Success') {
-                            showAlert(
-                              'supple',
-                              '알림',
-                              '보완 처리가 완료되었습니다.',
-                            );
-                            await loadRankTab();
-                          } else {
-                            showAlert(
-                              'error',
-                              '알림',
-                              json?.retMsg ?? '보완 처리에 실패했습니다.',
-                            );
-                          }
-                        } catch (e) {
-                          showAlert(
-                            'error',
-                            '알림',
-                            '보완 처리 중 오류가 발생했습니다.',
-                          );
-                        }
-                      },
-                    })
-                "
-                @cancel="onRankCancel"
-                @open-supple-history="onOpenSuppleHistory"
-              />
+              <!-- 우선순위: 탭 선택 시 RankDetail 직접 표시 -->
+              <div v-if="leftTab === 'rank'">
+                <div class="counsel-section-header d-flex align-items-center justify-content-between mb-3">
+                  <h6 class="counsel-section-title text-sm text-uppercase text-muted mb-0">우선순위</h6>
+                  <ArgonButton
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    color="secondary"
+                    @click="loadRankTab"
+                  >
+                    새로고침
+                  </ArgonButton>
+                </div>
+                <p v-if="rankLoading" class="text-muted text-sm mb-0">로딩 중...</p>
+                <p v-else-if="!rankData" class="text-muted text-sm mb-0">
+                  우선순위 정보가 없습니다.
+                </p>
+                <RankDetail
+                  v-else
+                  :rank_code="rankCodeLocal"
+                  :rank_cmt="rankCmtLocal"
+                  :priority="rankData.priority ?? ''"
+                  :apply_for="rankData.apply_for ?? ''"
+                  :s_rank_res="rankData.s_rank_res ?? ''"
+                  :req_code="rankData.req_code ?? ''"
+                  :has_supple="rankHasSupple"
+                  :read-only="isApplicant"
+                  @update:rank_code="(v) => (rankCodeLocal = v)"
+                  @update:rank_cmt="(v) => (rankCmtLocal = v)"
+                  @approval-request="onRankApprovalRequest"
+                  @approve="onRankDecide('e0_10')"
+                  @reject="
+                    () =>
+                      openReasonModal({
+                        context: { type: 'rank', decision: 'e0_99', reqCode: rankData?.req_code },
+                        title: '반려 사유',
+                        message: '우선순위 반려 사유를 입력해 주세요.',
+                        reasonPlaceholder: '반려 사유를 입력해 주세요.',
+                        onConfirm: onRankRejectConfirm,
+                      })
+                  "
+                  @supple="
+                    () =>
+                      openReasonModal({
+                        context: { type: 'rank', decision: 'e0_80', reqCode: rankData?.req_code },
+                        title: '보완 사유',
+                        message: '우선순위 보완 사유를 입력해 주세요.',
+                        reasonPlaceholder: '보완 사유를 입력해 주세요.',
+                        onConfirm: onRankSuppleConfirm,
+                      })
+                  "
+                  @cancel="onRankCancel"
+                  @open-supple-history="onOpenSuppleHistory"
+                />
+              </div>
               <!-- 지원계획 -->
               <div v-if="leftTab === 'plan'">
                 <!-- 지원계획 추가 폼 -->
