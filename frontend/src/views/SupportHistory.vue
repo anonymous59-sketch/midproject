@@ -100,18 +100,18 @@ async function loadHistory() {
   }
 }
 
-function resolveReviewTab(activeTab) {
-  if (activeTab === "plan") return "plan";
-  if (activeTab === "result") return "result";
-  return "application";
-}
+// function resolveReviewTab(activeTab) {
+//   if (activeTab === "plan") return "plan";
+//   if (activeTab === "result") return "result";
+//   return "application";
+// }
 
 function goView(block) {
-  const tab = resolveReviewTab(block?.activeTab);
+  // const tab = resolveReviewTab(block?.activeTab);
   router.push({
     name: "review",
     params: { sup_code: block.sup_code },
-    query: { tab },
+    // query: { tab },
   });
 }
 
