@@ -574,9 +574,12 @@ const submitCreate = async () => {
               <ArgonInput
                 v-model="createForm.organ_tel"
                 type="text"
+                inputmode="numeric"
+                maxlength="11"
                 size="sm"
                 placeholder="하이픈 제외 11자"
-                maxlength="11"
+                @input="createForm.organ_tel = createForm.organ_tel.replace(/\D/g, '').slice(0, 11)"
+                @paste.prevent
               />
             </div>
             <div class="mb-3">
@@ -718,10 +721,13 @@ const submitCreate = async () => {
               <label class="form-label">연락처</label>
               <ArgonInput
                 v-model="editForm.organ_tel"
-                type="text"
                 size="sm"
                 placeholder="하이픈 제외 11자"
+                type="text"
+                inputmode="numeric"
                 maxlength="11"
+                @input="editForm.organ_tel = editForm.organ_tel.replace(/\D/g, '').slice(0, 11)"
+                @paste.prevent
               />
             </div>
             <div class="mb-3">

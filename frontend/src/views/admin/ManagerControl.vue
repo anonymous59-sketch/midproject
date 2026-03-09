@@ -113,10 +113,13 @@ const doApprove = async () => {
   if (!target) return;
   approvalSaving.value = true;
   try {
-    const res = await fetch(`/api/admin/members/${encodeURIComponent(target.id)}/approve`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-    });
+    const res = await fetch(
+      `/api/admin/members/${encodeURIComponent(target.id)}/approve`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
     if (!res.ok) throw new Error("승인 처리에 실패했습니다.");
     approvalSaving.value = false;
     alert("승인되었습니다.");
@@ -140,11 +143,14 @@ const doReject = async () => {
   if (!target) return;
   approvalSaving.value = true;
   try {
-    const res = await fetch(`/api/admin/members/${encodeURIComponent(target.id)}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reject_reason: rejectReason.value || "" }),
-    });
+    const res = await fetch(
+      `/api/admin/members/${encodeURIComponent(target.id)}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reject_reason: rejectReason.value || "" }),
+      },
+    );
     if (!res.ok) throw new Error("반려 처리에 실패했습니다.");
     approvalSaving.value = false;
     closeApprovalModal();
@@ -275,15 +281,21 @@ onMounted(() => loadManagers());
           </ArgonButton>
         </template>
         <template #header>
-          <th class="text-center text-xxs font-weight-bolder opacity-7">선택</th>
+          <th class="text-center text-xxs font-weight-bolder opacity-7">
+            선택
+          </th>
           <th class="text-xxs font-weight-bolder opacity-7 ps-2">No.</th>
           <th class="text-xxs font-weight-bolder opacity-7 ps-2">아이디</th>
           <th class="text-xxs font-weight-bolder opacity-7 ps-2">담당자명</th>
           <th class="text-xxs font-weight-bolder opacity-7 ps-2">소속기관</th>
           <th class="text-xxs font-weight-bolder opacity-7 ps-2">연락처</th>
           <th class="text-xxs font-weight-bolder opacity-7 ps-2">이메일</th>
-          <th class="text-center text-xxs font-weight-bolder opacity-7">상태</th>
-          <th class="text-center text-xxs font-weight-bolder opacity-7">수정</th>
+          <th class="text-center text-xxs font-weight-bolder opacity-7">
+            상태
+          </th>
+          <th class="text-center text-xxs font-weight-bolder opacity-7">
+            수정
+          </th>
         </template>
         <template #body>
           <tr v-for="(item, index) in pagedRows" :key="item.id">
@@ -359,7 +371,16 @@ onMounted(() => loadManagers());
               </div>
               <div class="mb-2">
                 <label class="form-label text-sm">연락처</label>
-                <ArgonInput v-model="editPhone" size="sm" />
+                <ArgonInput
+                  v-model="editPhone"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="11"
+                  size="sm"
+                  placeholder="하이픈 제외 11자"
+                  @input="editPhone = editPhone.replace(/\D/g, '').slice(0, 11)"
+                  @paste.prevent
+                />
               </div>
               <div class="mb-3">
                 <label class="form-label text-sm">이메일</label>
@@ -406,7 +427,8 @@ onMounted(() => loadManagers());
             <div class="card-body p-4">
               <template v-if="approvalStep === 'choice'">
                 <p class="text-sm text-muted mb-3">
-                  {{ approvalTarget?.userName }} ({{ approvalTarget?.userId }}) 담당자에 대해 승인 또는 반려를 선택하세요.
+                  {{ approvalTarget?.userName }} ({{ approvalTarget?.userId }})
+                  담당자에 대해 승인 또는 반려를 선택하세요.
                 </p>
                 <div class="d-flex justify-content-center gap-2 flex-wrap">
                   <ArgonButton
@@ -439,7 +461,9 @@ onMounted(() => loadManagers());
                 </div>
               </template>
               <template v-else>
-                <label class="form-label text-sm">반려사유 (선택, 향후 이메일 발송 예정)</label>
+                <label class="form-label text-sm"
+                  >반려사유 (선택, 향후 이메일 발송 예정)</label
+                >
                 <textarea
                   v-model="rejectReason"
                   class="form-control form-control-sm mb-3"

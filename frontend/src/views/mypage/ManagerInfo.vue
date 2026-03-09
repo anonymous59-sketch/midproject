@@ -154,8 +154,13 @@ const saveInfo = async () => {
                   <label class="form-label">연락처</label>
                   <ArgonInput
                     v-model="managerInfo.phone"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="11"
                     :disabled="!isEditMode"
                     class="organ-input"
+                    @input="managerInfo.phone = managerInfo.phone.replace(/\D/g, '').slice(0, 11)"
+                    @paste.prevent
                   />
                 </div>
 

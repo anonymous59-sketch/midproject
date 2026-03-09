@@ -270,6 +270,11 @@ function goToManagerControl() {
               <ArgonInput
                 v-if="!isManagerEditMode"
                 v-model="managerInfo.phone"
+                type="text"
+                inputmode="numeric"
+                maxlength="11"
+                @input="managerInfo.phone = managerInfo.phone.replace(/\D/g, '').slice(0, 11)"
+                @paste.prevent
                 disabled
               />
               <ArgonInput v-else v-model="managerInfo.phone" />

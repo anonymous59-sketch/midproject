@@ -611,18 +611,20 @@ const searchAddress = () => {
                     </p>
                   </div>
                 </div>
-
+                
                 <!-- 연락처 -->
                 <div class="mb-3">
                   <label class="form-label text-sm">연락처</label>
                   <ArgonInput
                     v-model="tel"
-                    type="tel"
+                    type="text"
+                    inputmode="numeric"
                     maxlength="11"
                     placeholder="연락처 (예시 : 01012345678)"
                     size="lg"
                     class="rounded-0"
-                    @update:model-value="(v) => (tel = (v || '').replace(/\D/g, ''))"
+                    @input="tel = tel.replace(/\D/g, '').slice(0, 11)"
+                    @paste.prevent
                   />
                 </div>
 
