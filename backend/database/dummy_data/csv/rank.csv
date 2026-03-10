@@ -1,0 +1,3 @@
+req_code,prev_req_code,sup_code,s_rank_code,mgr_no,apply_for,adm_no,s_rank_res,rank_rej_cmt
+REQ202602240001,\N,SUPT202602240001,d0_20,MEM20260224002,재활 지원 신청,MEM20260224004,e0_00,\N
+REQ202602240002,\N,SUPT202602240002,d0_30,MEM20260224002,교육 지원 신청,MEM20260224004,e0_10,\N

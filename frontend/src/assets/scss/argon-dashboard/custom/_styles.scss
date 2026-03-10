@@ -1,0 +1,291 @@
+// =========================================================
+// 뷰(views) 공통 스타일 — Argon Dashboard 색감·특징 통일
+// =========================================================
+// 버튼, 뱃지, 탭 등에 Argon 템플릿의 primary/success/warning/danger 를 일관 적용
+
+// ---------------------------------------------------------------------------
+// 0. 네비게이션 바 가시성 + 상단 여백 (배경과 대비, 정체성은 포인트로)
+// ---------------------------------------------------------------------------
+// 페이지 최상단 여백
+.layout-main,
+.layout-admin {
+  padding-top: 1rem;
+}
+// 일반/기관/담당자: 흰색 배경으로 가시성 확보, 하단 녹색 라인으로 정체성
+.layout-main .navbar-main {
+  background: $white !important;
+  box-shadow: $box-shadow-sm;
+  border-bottom: 3px solid $success;
+}
+// 시스템관리자: 연한 회색 배경으로 구분, 하단 primary 톤으로 차별
+.layout-admin .navbar-main {
+  background: $gray-100 !important;
+  box-shadow: $box-shadow-sm;
+  border-bottom: 3px solid $primary;
+}
+
+// ---------------------------------------------------------------------------
+// 1. 공통 버튼 래퍼 (헤더 액션, 저장, 보기 등)
+// ---------------------------------------------------------------------------
+
+.btn-header-action {
+  letter-spacing: 0.025em;
+  font-weight: 600;
+  border-radius: $border-radius-md;
+  &.btn-header-action--outline {
+    border-width: 1px;
+  }
+}
+
+.btn-edit-header {
+  letter-spacing: 0.025em;
+  font-weight: 600;
+  border-radius: $border-radius-md;
+}
+
+.btn-save {
+  letter-spacing: 0.025em;
+  font-weight: 600;
+  border-radius: $border-radius-md;
+  box-shadow: $btn-box-shadow;
+}
+
+.btn-view {
+  font-weight: 600;
+  border-radius: $border-radius-md;
+  letter-spacing: 0.025em;
+}
+
+// 보완이력 등 보조 액션 — Argon primary 계열 outline
+.btn-outline-purple {
+  border-radius: $border-radius-md;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  border-color: $primary;
+  color: $primary;
+  &:hover {
+    background-color: rgba($primary, 0.08);
+    border-color: $primary;
+    color: $primary;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2. 상담(Counsel) 탭 버튼 — Argon primary/success 톤
+// ---------------------------------------------------------------------------
+
+.counsel-tab-btn {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  &:hover {
+    background-color: rgba($success, 0.1);
+    color: $dark;
+  }
+}
+
+.counsel-tab-active {
+  background-color: rgba($success, 0.15);
+  color: $dark;
+}
+
+.counsel-tab-bar {
+  font-size: 0.875rem;
+}
+
+// 상담 탭 내부 섹션 제목 (지원신청서, 우선순위, 지원계획, 지원결과)
+.counsel-section-header {
+  min-height: 2rem;
+  align-items: center;
+}
+.counsel-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: $gray-600;
+}
+
+// ---------------------------------------------------------------------------
+// 3. 뱃지 공통 — Argon gradient/색상 통일
+// ---------------------------------------------------------------------------
+
+.badge.bg-light.text-dark {
+  background-color: $gray-100 !important;
+  color: $gray-700 !important;
+}
+
+.badge.bg-secondary {
+  background-color: $secondary !important;
+  color: $white;
+}
+
+// ---------------------------------------------------------------------------
+// 4. 파일 다운로드 버튼 (작은 아웃라인)
+// ---------------------------------------------------------------------------
+
+.file-dl-btn {
+  border-radius: $border-radius-sm;
+  font-weight: 500;
+}
+
+// ---------------------------------------------------------------------------
+// 5. 확인 모달 — Argon 톤 (ConfirmModal 등에서 사용하는 클래스)
+// ---------------------------------------------------------------------------
+
+.confirm-modal-header {
+  background: $secondary !important;
+  font-weight: 600;
+}
+
+.confirm-modal {
+  border-radius: $border-radius-lg !important;
+  box-shadow: $box-shadow-lg !important;
+}
+
+.confirm-modal-reason-input {
+  border-radius: $input-border-radius !important;
+  border-color: $input-border-color !important;
+  &:focus {
+    border-color: $input-focus-border-color !important;
+    box-shadow: $input-focus-box-shadow !important;
+  }
+}
+
+// =========================================================
+// 시스템관리자(admin) 페이지 통일 — 사이드바/컨텐츠 배치·카드·타이포
+// =========================================================
+
+.admin-page {
+  --admin-sidebar-width: 280px;
+  font-family: $font-family-base;
+
+  // 사이드바 고정 폭, 컨텐츠 영역 비율 고정 (권한/페이지 변경 시에도 동일한 느낌)
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .row > .col-lg-3:first-child {
+    flex: 0 0 var(--admin-sidebar-width);
+    max-width: var(--admin-sidebar-width);
+  }
+  .row > .col-lg-9 {
+    flex: 1;
+    min-width: 0;
+  }
+  @include media-breakpoint-down(lg) {
+    .row > .col-lg-3:first-child {
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+    .row > .col-lg-9 {
+      flex: 0 0 100%;
+    }
+  }
+
+  // 카드 테두리·그림자 통일
+  .card {
+    border-radius: $border-radius-lg;
+    box-shadow: $box-shadow-sm;
+    border: 0;
+  }
+  .card-header {
+    border-bottom: 1px solid $gray-200;
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+  }
+  .card-header h5,
+  .card-header h6 {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    margin-bottom: 0;
+    color: $dark;
+  }
+  .card-header .text-muted,
+  .card-header small {
+    font-size: 0.8125rem;
+    font-weight: 400;
+  }
+  .card-body {
+    font-size: 0.875rem;
+    padding: 1rem 1.25rem;
+    color: $body-color;
+  }
+
+  // 폼 라벨·입력 통일
+  .form-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $gray-700;
+    margin-bottom: 0.375rem;
+  }
+  .form-label.text-sm {
+    font-size: 0.8125rem;
+  }
+
+  // 테이블: 제목(thead)과 내용(본문) 구분, 전체 통일감
+  .table {
+    font-size: 0.8125rem;
+  }
+  .table thead th {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $gray-600;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid $gray-200;
+  }
+  .table tbody td {
+    padding: 0.65rem 0.5rem;
+    vertical-align: middle;
+    color: $body-color;
+  }
+  .table.text-xs thead th,
+  .table .text-xs {
+    font-size: 0.75rem;
+  }
+  .table .text-sm {
+    font-size: 0.8125rem;
+  }
+
+  // 조사지 목록/폼 페이지 클래스와의 통일
+  .survey-page .card,
+  .survey-form-page .card {
+    border-radius: $border-radius-lg;
+    box-shadow: $box-shadow-sm;
+  }
+  .survey-page .card-header h6,
+  .survey-form-page .card-header h5 {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .survey-table th {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .survey-table td {
+    font-size: 0.8125rem;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sign (로그인/회원가입/아이디·비밀번호 찾기) 공통
+// ---------------------------------------------------------------------------
+// readonly 전용: ArgonInput 대신 일반 input 사용 시 동일한 톤으로 표시
+.sign-input-readonly {
+  background-color: $gray-100 !important;
+  cursor: default;
+  border: 1px solid $input-border-color;
+  border-radius: 0;
+  font-size: 1rem;
+  padding: 0.625rem 1rem;
+  height: calc(1.5em + 1.25rem + 2px);
+  &.form-control-sm {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+    height: calc(1.5em + 0.75rem + 2px);
+  }
+}
