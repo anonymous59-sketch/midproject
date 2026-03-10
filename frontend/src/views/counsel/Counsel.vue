@@ -128,7 +128,11 @@ const { reasonModal, openReasonModal, closeReasonModal, onReasonConfirm } =
 function getRankApiBase() {
   try {
     if (typeof window !== "undefined" && window.location?.origin) {
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.origin))
+      if (
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(
+          window.location.origin,
+        )
+      )
         return "http://localhost:3000";
     }
   } catch {
@@ -241,7 +245,7 @@ async function loadPlanTab() {
   await supportStore.supportPlanDetail(code);
   planLoading.value = false;
   if (planData.value.length === 0) {
-    showAlert("info", "알림", "등록된 지원계획이 없습니다.");
+    showAlert("error", "알림", "등록된 지원계획이 없습니다.");
     if (isManager.value) {
       planCreateConfirm.value = true;
     }
@@ -257,7 +261,7 @@ async function loadResultForPlan(planCode) {
   resultLoading.value = false;
   const hasResult = resultData.value.length > 0;
   if (!hasResult) {
-    showAlert("info", "알림", "등록된 지원결과가 없습니다.");
+    showAlert("error", "알림", "등록된 지원결과가 없습니다.");
     if (isManager.value) {
       resultCreateConfirm.value = true;
     }
@@ -525,6 +529,9 @@ function onResultCreateConfirmYes() {
   if (!showAddResultForm.value) {
     toggleAddResultForm();
   }
+  // 지원계획에서 결과조회 시 0건이어서 등록 유도 ConfirmModal에서
+  // '예/확인'을 누르면 지원결과 탭으로 이동하도록 처리
+  leftTab.value = "result";
 }
 function openResultCancelModal(context, resultCode = null) {
   resultCancelModal.value = { show: true, context, resultCode };
@@ -998,7 +1005,7 @@ async function loadSurveyAnswers() {
     );
     if (!res.ok) throw new Error("조사지 답변 조회 실패");
     const data = await res.json();
-    const rawItems = Array.isArray(data) ? data : (data?.items ?? []);
+    const rawItems = Array.isArray(data) ? data : data?.items ?? [];
     surveyName.value = data?.surveyName ?? "";
     surveyAnswers.value = rawItems.map((r) => ({
       a_code: r.a_code ?? "",
@@ -1333,8 +1340,10 @@ async function updateReqYn(decision) {
         ? "신청이 접수되었습니다."
         : "신청이 반려되었습니다.";
     showAlert("success", "알림", label);
-    // 신청접수 탭에서 처리 완료 후에는 우선순위 탭으로 이동
-    leftTab.value = "rank";
+    // 신청접수 탭에서 처리 완료 후 탭 이동
+    // - 승인(e0_10) 시: 우선순위 탭으로 이동
+    // - 반려(e0_99) 시: 지원신청서 탭으로 이동
+    leftTab.value = decision === "e0_10" ? "rank" : "application";
   } catch (e) {
     showAlert(
       "error",
@@ -1371,7 +1380,9 @@ function onReceiptReject() {
           />
 
           <!-- 탭: 지원신청서 | 신청접수 | 우선순위 | 지원계획 | 지원결과 (스타일·정렬 통일) -->
-          <div class="counsel-tab-bar d-flex flex-wrap align-items-center gap-2 mb-3">
+          <div
+            class="counsel-tab-bar d-flex flex-wrap align-items-center gap-2 mb-3"
+          >
             <button
               type="button"
               class="counsel-tab-btn rounded px-3 py-1 text-decoration-none border-0"
@@ -1473,8 +1484,14 @@ function onReceiptReject() {
               />
               <!-- 우선순위: 탭 선택 시 RankDetail 직접 표시 -->
               <div v-if="leftTab === 'rank'">
-                <div class="counsel-section-header d-flex align-items-center justify-content-between mb-3">
-                  <h6 class="counsel-section-title text-sm text-uppercase text-muted mb-0">우선순위</h6>
+                <div
+                  class="counsel-section-header d-flex align-items-center justify-content-between mb-3"
+                >
+                  <h6
+                    class="counsel-section-title text-sm text-uppercase text-muted mb-0"
+                  >
+                    우선순위
+                  </h6>
                   <ArgonButton
                     type="button"
                     size="sm"
@@ -1485,7 +1502,9 @@ function onReceiptReject() {
                     새로고침
                   </ArgonButton>
                 </div>
-                <p v-if="rankLoading" class="text-muted text-sm mb-0">로딩 중...</p>
+                <p v-if="rankLoading" class="text-muted text-sm mb-0">
+                  로딩 중...
+                </p>
                 <p v-else-if="!rankData" class="text-muted text-sm mb-0">
                   우선순위 정보가 없습니다.
                 </p>
@@ -1506,7 +1525,11 @@ function onReceiptReject() {
                   @reject="
                     () =>
                       openReasonModal({
-                        context: { type: 'rank', decision: 'e0_99', reqCode: rankData?.req_code },
+                        context: {
+                          type: 'rank',
+                          decision: 'e0_99',
+                          reqCode: rankData?.req_code,
+                        },
                         title: '반려 사유',
                         message: '우선순위 반려 사유를 입력해 주세요.',
                         reasonPlaceholder: '반려 사유를 입력해 주세요.',
@@ -1516,7 +1539,11 @@ function onReceiptReject() {
                   @supple="
                     () =>
                       openReasonModal({
-                        context: { type: 'rank', decision: 'e0_80', reqCode: rankData?.req_code },
+                        context: {
+                          type: 'rank',
+                          decision: 'e0_80',
+                          reqCode: rankData?.req_code,
+                        },
                         title: '보완 사유',
                         message: '우선순위 보완 사유를 입력해 주세요.',
                         reasonPlaceholder: '보완 사유를 입력해 주세요.',
