@@ -33,7 +33,7 @@ app.get("/", function (req, res, next) {
 });
 
 const Router = require("./router/router.js"); // 모든 라우터가 모여있는 파일이 router.js
-app.use("/", Router);
+app.use("/api", Router);
 
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, "./public", "index.html"));
