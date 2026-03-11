@@ -738,8 +738,8 @@ onBeforeMount(() => {
             <h6 class="mb-0">
               {{
                 majorModalMode == "create"
-                  ? "지원서 항목 등록"
-                  : "지원서 항목 수정"
+                  ? "대분류 등록"
+                  : "대분류 수정"
               }}
             </h6>
           </div>
@@ -766,7 +766,7 @@ onBeforeMount(() => {
           <div class="modal-header">
             <h6 class="mb-0">
               {{
-                subModalMode == "create" ? "세부 항목 등록" : "세부 항목 수정"
+                subModalMode == "create" ? "소분류 등록" : "소분류 수정"
               }}
             </h6>
           </div>
