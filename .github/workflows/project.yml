@@ -32,6 +32,10 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          
+      - name: Copy built files to server
+        run: |
+          rsync -avz ./backend/public/ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/project/backend/public/
 
       - name: SSH into server and deploy
         run: |
