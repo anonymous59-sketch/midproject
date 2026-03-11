@@ -41,14 +41,21 @@ watch(
 watch(
   () => props.show,
   (visible) => {
-    if (!visible) page.value = 1;
+    if (!visible) {
+      page.value = 1;
+      expandedSet.value = new Set();
+    }
   },
 );
 
+/** 한 번에 하나만 열림: 다른 행 클릭 시 기존은 닫고 클릭한 행만 열기, 같은 행 클릭 시 닫기 */
 function toggleRow(historyNo) {
-  const s = new Set(expandedSet.value);
-  if (s.has(historyNo)) s.delete(historyNo);
-  else s.add(historyNo);
+  let s = new Set(expandedSet.value);
+  if (s.has(historyNo)) {
+    s.delete(historyNo);
+  } else {
+    s = new Set([historyNo]);
+  }
   expandedSet.value = s;
 }
 

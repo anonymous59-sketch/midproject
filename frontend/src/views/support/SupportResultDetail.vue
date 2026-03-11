@@ -236,7 +236,7 @@ function onEditComplete() {
     editFiles.value.length > 0 || deletedFileCodes.value.length > 0;
   if (title === origTitle && content === origContent && !hasFileChanges) {
     emit("alert", {
-      type: "error",
+      type: "info",
       message: "변경된 내용이 없습니다.",
     });
     isEditing.value = false;

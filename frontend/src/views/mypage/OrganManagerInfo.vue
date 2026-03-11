@@ -1,11 +1,13 @@
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 
 import ArgonInput from "@/components/ArgonInput.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import TablePagination from "@/views/components/TablePagination.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
+import { useVerificationTimer } from "@/composables/useVerificationTimer";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -21,6 +23,44 @@ const managerInfo = ref({
 const userName = ref("");
 const isManagerEditMode = ref(false);
 const managerSaving = ref(false);
+
+const originalManagerEmail = ref("");
+
+const {
+  countdown: managerEmailCountdown,
+  startTimer: startManagerEmailTimer,
+  stopTimer: stopManagerEmailTimer,
+} = useVerificationTimer("verifi_end_mypage_organ_manager_email", 180);
+
+const managerEmailAuthSectionVisible = ref(false);
+const managerEmailAuthCodeInput = ref("");
+const managerEmailAuthMessage = ref("");
+const isManagerEmailAuthSending = ref(false);
+const isManagerEmailAuthChecking = ref(false);
+const isManagerEmailAuthVerified = ref(false);
+
+const isManagerEmailChanged = computed(
+  () =>
+    (managerInfo.value.email ?? "").trim() !==
+    (originalManagerEmail.value ?? "").trim(),
+);
+
+const managerEmailAuthButtonLabel = computed(() => {
+  if (isManagerEmailAuthVerified.value) return "완료";
+  if (isManagerEmailAuthSending.value) return "발송 중...";
+  if (managerEmailAuthSectionVisible.value && managerEmailCountdown.value === 0)
+    return "재발송";
+  return "인증";
+});
+
+const managerEmailAuthButtonDisabled = computed(() => {
+  if (!isManagerEmailChanged.value) return true;
+  return (
+    isManagerEmailAuthVerified.value ||
+    isManagerEmailAuthSending.value ||
+    (managerEmailAuthSectionVisible.value && managerEmailCountdown.value > 0)
+  );
+});
 
 // 기관 정보
 const orgInfo = ref({
@@ -57,6 +97,32 @@ watch(showManagerModal, (visible) => {
   if (visible) managerPage.value = 1;
 });
 
+const alertModal = ref({
+  show: false,
+  type: "error",
+  title: "알림",
+  message: "",
+});
+
+function showAlert(type, title, message) {
+  alertModal.value = {
+    show: true,
+    type,
+    title: title ?? "알림",
+    message: message ?? "",
+  };
+}
+
+function resetManagerEmailAuthState() {
+  stopManagerEmailTimer();
+  managerEmailAuthSectionVisible.value = false;
+  managerEmailAuthCodeInput.value = "";
+  managerEmailAuthMessage.value = "";
+  isManagerEmailAuthSending.value = false;
+  isManagerEmailAuthChecking.value = false;
+  isManagerEmailAuthVerified.value = false;
+}
+
 function formatBizNumber(val) {
   if (!val || typeof val !== "string") return "";
   const digits = val.replace(/\D/g, "").slice(0, 10);
@@ -86,6 +152,7 @@ async function loadMypage() {
       address: member.m_add ?? "",
     };
     userName.value = member.m_nm ?? "";
+    originalManagerEmail.value = managerInfo.value.email ?? "";
 
     orgInfo.value = {
       orgTitle: organ.organ_name ?? "",
@@ -102,7 +169,7 @@ async function loadMypage() {
     };
   } catch (e) {
     console.error(e);
-    alert("정보를 불러오지 못했습니다.");
+    showAlert("error", "알림", "정보를 불러오지 못했습니다.");
   }
 }
 
@@ -112,16 +179,26 @@ onMounted(() => {
 
 // 왼쪽 카드: 기관 관리자 수정
 const startManagerEdit = () => {
+  originalManagerEmail.value = managerInfo.value.email ?? "";
+  resetManagerEmailAuthState();
   isManagerEditMode.value = true;
 };
 
 const cancelManagerEdit = () => {
   isManagerEditMode.value = false;
+  resetManagerEmailAuthState();
 };
 
 const saveManagerEdit = async () => {
   const mNo = authStore.user?.m_no;
   if (!mNo) return;
+  const emailChanged =
+    (managerInfo.value.email ?? "").trim() !==
+    (originalManagerEmail.value ?? "").trim();
+  if (emailChanged && !isManagerEmailAuthVerified.value) {
+    showAlert("error", "알림", "이메일 인증을 완료해주세요.");
+    return;
+  }
   managerSaving.value = true;
   try {
     const res = await fetch("/api/apply/mypage/profile", {
@@ -135,14 +212,135 @@ const saveManagerEdit = async () => {
       }),
     });
     if (!res.ok) throw new Error("저장 실패");
-    alert("기관 관리자 정보가 수정되었습니다.");
+    showAlert("success", "알림", "기관 관리자 정보가 수정되었습니다.");
     isManagerEditMode.value = false;
   } catch (e) {
-    alert(e.message || "저장에 실패했습니다.");
+    showAlert("error", "알림", e.message || "저장에 실패했습니다.");
   } finally {
     managerSaving.value = false;
   }
 };
+
+watch(
+  () => managerInfo.value.email,
+  (val) => {
+    if (!isManagerEditMode.value) return;
+    if ((val ?? "").trim() !== (originalManagerEmail.value ?? "").trim()) {
+      resetManagerEmailAuthState();
+    }
+  },
+);
+
+async function sendOrganManagerEmailVerification() {
+  const email = (managerInfo.value.email ?? "").trim();
+  if (!email) {
+    showAlert("error", "알림", "이메일을 입력해주세요.");
+    return;
+  }
+  if (!isManagerEmailChanged.value) {
+    showAlert("info", "알림", "이메일을 변경한 후 인증을 진행해 주세요.");
+    return;
+  }
+  isManagerEmailAuthSending.value = true;
+  managerEmailAuthMessage.value = "";
+  try {
+    const checkRes = await fetch(
+      `/api/auth/check-email?email=${encodeURIComponent(email)}`,
+    );
+    if (checkRes.ok) {
+      const body = await checkRes.json().catch(() => ({}));
+      if (body?.exists) {
+        managerEmailAuthMessage.value = "해당 이메일은 이미 사용 중입니다.";
+        showAlert("error", "알림", managerEmailAuthMessage.value);
+        managerEmailAuthSectionVisible.value = false;
+        stopManagerEmailTimer();
+        return;
+      }
+    }
+
+    await fetch("/api/verifi/expire", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, purpose: "i0_10" }),
+    }).catch(() => {});
+
+    const mNo = authStore.user?.m_no || null;
+    const res = await fetch("/api/verifi/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, m_no: mNo }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || "인증번호 발송에 실패했습니다.");
+    }
+    managerEmailAuthMessage.value =
+      data.message || "인증번호가 발송되었습니다.";
+    managerEmailAuthSectionVisible.value = true;
+    isManagerEmailAuthVerified.value = false;
+    managerEmailAuthCodeInput.value = "";
+    startManagerEmailTimer(async () => {
+      managerEmailAuthMessage.value =
+        "인증시간이 만료되었습니다. 다시 요청해주세요.";
+      isManagerEmailAuthVerified.value = false;
+      await fetch("/api/verifi/expire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, purpose: "i0_10" }),
+      }).catch(() => {});
+    });
+  } catch (e) {
+    managerEmailAuthMessage.value =
+      e.message || "인증번호 발송에 실패했습니다.";
+    showAlert("error", "알림", managerEmailAuthMessage.value);
+  } finally {
+    isManagerEmailAuthSending.value = false;
+  }
+}
+
+async function confirmOrganManagerEmailCode() {
+  const email = (managerInfo.value.email ?? "").trim();
+  if (!managerEmailAuthSectionVisible.value) {
+    managerEmailAuthMessage.value = "먼저 인증번호를 발송해 주세요.";
+    return;
+  }
+  if (!managerEmailAuthCodeInput.value) {
+    managerEmailAuthMessage.value = "인증번호를 입력해주세요.";
+    return;
+  }
+  isManagerEmailAuthChecking.value = true;
+  managerEmailAuthMessage.value = "";
+  try {
+    const res = await fetch("/api/verifi/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        code: managerEmailAuthCodeInput.value,
+        purpose: "i0_10",
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || "인증에 실패했습니다.");
+    }
+    isManagerEmailAuthVerified.value = true;
+    stopManagerEmailTimer();
+    managerEmailAuthMessage.value = data.message || "인증 성공";
+  } catch (e) {
+    managerEmailAuthMessage.value =
+      e.message || "인증에 실패했습니다. 다시 시도해주세요.";
+    isManagerEmailAuthVerified.value = false;
+    stopManagerEmailTimer();
+    managerEmailCountdown.value = 0;
+  } finally {
+    isManagerEmailAuthChecking.value = false;
+  }
+}
+
+onBeforeUnmount(() => {
+  stopManagerEmailTimer();
+});
 
 // 오른쪽 카드: 기관 정보 수정 (사업자번호, 기관담당자 수, 소속기관은 readonly)
 const startOrgEdit = () => {
@@ -176,10 +374,10 @@ const saveOrgEdit = async () => {
     if (!res.ok) throw new Error("저장 실패");
     orgInfo.value.address = orgEditForm.value.address;
     orgInfo.value.tel = orgEditForm.value.tel;
-    alert("기관 정보가 수정되었습니다.");
+    showAlert("success", "알림", "기관 정보가 수정되었습니다.");
     isOrgEditMode.value = false;
   } catch (e) {
-    alert(e.message || "저장에 실패했습니다.");
+    showAlert("error", "알림", e.message || "저장에 실패했습니다.");
   } finally {
     orgSaving.value = false;
   }
@@ -189,7 +387,7 @@ const saveOrgEdit = async () => {
 async function openManagerModal() {
   const mOrg = authStore.user?.m_org;
   if (!mOrg) {
-    alert("기관 정보가 없습니다.");
+    showAlert("error", "알림", "기관 정보가 없습니다.");
     return;
   }
   showManagerModal.value = true;
@@ -203,7 +401,7 @@ async function openManagerModal() {
     const list = await res.json();
     managerList.value = Array.isArray(list) ? list : [];
   } catch (e) {
-    alert(e.message || "담당자 목록을 불러오지 못했습니다.");
+    showAlert("error", "알림", e.message || "담당자 목록을 불러오지 못했습니다.");
   } finally {
     managerListLoading.value = false;
   }
@@ -281,12 +479,72 @@ function goToManagerControl() {
             </div>
             <div class="form-item">
               <div class="label-col">이메일</div>
-              <ArgonInput
-                v-if="!isManagerEditMode"
-                v-model="managerInfo.email"
-                disabled
-              />
-              <ArgonInput v-else v-model="managerInfo.email" />
+              <div class="w-100">
+                <ArgonInput
+                  v-if="!isManagerEditMode"
+                  v-model="managerInfo.email"
+                  disabled
+                />
+                <div v-else>
+                  <ArgonInput v-model="managerInfo.email" />
+                  <div class="d-flex align-items-center gap-2 mt-2">
+                    <ArgonButton
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      color="success"
+                      :disabled="managerEmailAuthButtonDisabled"
+                      @click="sendOrganManagerEmailVerification"
+                    >
+                      {{ managerEmailAuthButtonLabel }}
+                    </ArgonButton>
+                    <span
+                      v-if="
+                        managerEmailCountdown > 0 && !isManagerEmailAuthVerified
+                      "
+                      class="text-xs text-muted"
+                    >
+                      {{ managerEmailCountdown }}초 남음
+                    </span>
+                  </div>
+                  <div
+                    v-if="managerEmailAuthSectionVisible"
+                    class="mt-2"
+                  >
+                    <div class="d-flex gap-2">
+                      <ArgonInput
+                        v-model="managerEmailAuthCodeInput"
+                        placeholder="인증번호 6자리를 입력하세요."
+                        size="sm"
+                      />
+                      <ArgonButton
+                        type="button"
+                        size="sm"
+                        color="primary"
+                        class="email-auth-confirm-btn"
+                        :disabled="
+                          isManagerEmailAuthChecking ||
+                          isManagerEmailAuthVerified
+                        "
+                        @click="confirmOrganManagerEmailCode"
+                      >
+                        {{ isManagerEmailAuthVerified ? "완료" : "확인" }}
+                      </ArgonButton>
+                    </div>
+                    <p
+                      v-if="managerEmailAuthMessage"
+                      class="text-xs mt-1"
+                      :class="
+                        isManagerEmailAuthVerified
+                          ? 'text-success'
+                          : 'text-danger'
+                      "
+                    >
+                      {{ managerEmailAuthMessage }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div v-if="isManagerEditMode" class="d-flex gap-2 pt-2">
@@ -492,6 +750,14 @@ function goToManagerControl() {
       </div>
     </div>
   </div>
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>
 
 <style scoped>
@@ -563,6 +829,12 @@ function goToManagerControl() {
 
 .btn-view {
   white-space: nowrap;
+}
+
+.email-auth-confirm-btn {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
 }
 </style>
 

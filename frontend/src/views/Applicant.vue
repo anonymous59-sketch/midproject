@@ -7,6 +7,7 @@ import SearchNavbar from "@/views/components/SearchNavbar.vue";
 import MainTable from "@/views/components/MainTable.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -55,6 +56,11 @@ const appliedFilters = ref({
 const rows = ref([]);
 const listLoading = ref(false);
 const listError = ref("");
+
+const alertModal = ref({ show: false, type: "error", title: "알림", message: "" });
+function showAlert(type, title, message) {
+  alertModal.value = { show: true, type, title: title ?? "알림", message: message ?? "" };
+}
 
 function formatApplyDate(val) {
   if (!val) return "";
@@ -235,7 +241,7 @@ onMounted(() => {
 // 지원신청서 보기 → 상담/리뷰 페이지
 const viewApply = (row) => {
   if (row.sup_code) router.push(`/review/${encodeURIComponent(row.sup_code)}`);
-  else alert("지원 정보를 찾을 수 없습니다.");
+  else showAlert("error", "알림", "지원 정보를 찾을 수 없습니다.");
 };
 </script>
 
@@ -510,4 +516,12 @@ const viewApply = (row) => {
       </MainTable>
     </div>
   </div>
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>

@@ -7,6 +7,7 @@ import ArgonButton from "@/components/ArgonButton.vue";
  * - type: 'success' → ✅ 초록 체크 (승인요청 완료, 작성 취소 완료, 승인 완료)
  * - type: 'error' | 'reject' → ❌ 빨간/핑크 X (반려 완료, 데이터 없음)
  * - type: 'supple' → 📝 보완용 아이콘 (보완 완료)
+ * - type: 'info' → ℹ️ 정보 알림 (가입 승인 대기 등)
  * - 표시 후 3초 뒤 자동 닫힘
  */
 const props = defineProps({
@@ -14,7 +15,7 @@ const props = defineProps({
   type: {
     type: String,
     default: "success",
-    validator: (v) => ["success", "error", "reject", "supple"].includes(v),
+    validator: (v) => ["success", "error", "reject", "supple", "info"].includes(v),
   },
   title: { type: String, default: "알림" },
   message: { type: String, default: "" },
@@ -64,11 +65,10 @@ onBeforeUnmount(() => {
         <div class="alert-modal rounded">
           <div
             class="alert-modal-header rounded-top"
-            :class="
-              type === 'success' || type === 'supple'
-                ? ''
-                : 'alert-modal-header-dark'
-            "
+            :class="{
+              'alert-modal-header-dark': type === 'error' || type === 'reject',
+              'alert-modal-header-info': type === 'info',
+            }"
           >
             {{ title }}
           </div>
@@ -79,6 +79,7 @@ onBeforeUnmount(() => {
                 'alert-modal-icon-success': type === 'success',
                 'alert-modal-icon-error': type === 'error' || type === 'reject',
                 'alert-modal-icon-supple': type === 'supple',
+                'alert-modal-icon-info': type === 'info',
               }"
             >
               <!-- success: 체크마크 ✅ -->
@@ -124,6 +125,21 @@ onBeforeUnmount(() => {
                 <line x1="16" y1="13" x2="8" y2="13" />
                 <line x1="16" y1="17" x2="8" y2="17" />
                 <polyline points="10 9 9 9 8 9" />
+              </svg>
+              <!-- info: 정보 ℹ️ -->
+              <svg
+                v-else-if="type === 'info'"
+                class="alert-modal-icon-svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>
             </div>
             <p class="alert-modal-message">{{ message }}</p>
@@ -180,6 +196,10 @@ onBeforeUnmount(() => {
   background: #495057;
   color: #f8f9fa;
 }
+.alert-modal-header-info {
+  background: #0d6efd;
+  color: #fff;
+}
 .alert-modal-body {
   padding: 1.25rem 1rem;
   text-align: center;
@@ -215,6 +235,10 @@ onBeforeUnmount(() => {
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.alert-modal-icon-info {
+  background: linear-gradient(180deg, #42a5f5 0%, #0d6efd 100%);
+  color: #fff;
 }
 .alert-modal-icon-svg {
   width: 28px;

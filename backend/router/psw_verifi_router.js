@@ -8,17 +8,17 @@ const verifi = require("../services/svc.js");
 /* ============================
    1. 회원가입 이메일 인증번호 발송 (verifi_purpose: i0_10)
    POST /verifi/join
-   body: { email }
+   body: { email, m_no? }
 ============================ */
 router.post("/join", async (req, res) => {
     try {
-        const { email } = req.body;
+        const { email, m_no } = req.body;
 
         if (!email) {
             return res.status(400).json({ message: "이메일을 입력하세요." });
         }
 
-        const result = await verifi.sendJoinMail(email);
+        const result = await verifi.sendJoinMail(email, m_no);
 
         res.json(result);
 

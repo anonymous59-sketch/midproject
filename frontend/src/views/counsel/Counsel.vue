@@ -465,27 +465,36 @@ async function onPlanEditComplete(payload) {
     const planHasAttachmentChanges =
       (payload.deleteFileCodes && payload.deleteFileCodes.length > 0) ||
       (payload.newFiles && payload.newFiles.length > 0);
-    if (changed.length > 0) {
+    const beforeCount = Math.max(0, Number(payload.existingFileCount) || 0);
+    const delCount = Number(payload.deleteFileCodes?.length) || 0;
+    const addCount = Number(payload.newFiles?.length) || 0;
+    const afterCount = Math.max(0, beforeCount - delCount + addCount);
+    const beforeAttachValue = beforeCount === 0 ? "없음" : `${beforeCount}건`;
+    const afterAttachValue = afterCount === 0 ? "없음" : `${afterCount}건`;
+    if (changed.length > 0 || planHasAttachmentChanges) {
+      let beforeFields =
+        changed.length > 0
+          ? changed.map((f) => ({ field: f.field, value: f.bv }))
+          : [];
+      let afterFields =
+        changed.length > 0
+          ? changed.map((f) => ({ field: f.field, value: f.av }))
+          : [];
+      if (planHasAttachmentChanges) {
+        beforeFields = [
+          ...beforeFields,
+          { field: "첨부", value: beforeAttachValue },
+        ];
+        afterFields = [
+          ...afterFields,
+          { field: "첨부", value: afterAttachValue },
+        ];
+      }
       insertHistory(code, "j0_20", {
         updTarget: payload.planCode,
         updMember: authStore.user?.m_no ?? "",
-        beforeFields: changed.map((f) => ({ field: f.field, value: f.bv })),
-        afterFields: changed.map((f) => ({ field: f.field, value: f.av })),
-      });
-    } else if (planHasAttachmentChanges) {
-      const beforeCount = payload.existingFileCount ?? 0;
-      const delCount = payload.deleteFileCodes?.length ?? 0;
-      const addCount = payload.newFiles?.length ?? 0;
-      const afterCount = Math.max(0, beforeCount - delCount + addCount);
-      const beforeAttachText =
-        beforeCount === 0 ? "첨부파일 없음" : `첨부파일 ${beforeCount}건`;
-      const afterAttachText =
-        afterCount === 0 ? "첨부파일 없음" : `첨부파일 ${afterCount}건`;
-      insertHistory(code, "j0_20", {
-        updTarget: payload.planCode,
-        updMember: authStore.user?.m_no ?? "",
-        beforeFields: [{ field: "첨부파일", value: beforeAttachText }],
-        afterFields: [{ field: "첨부파일", value: afterAttachText }],
+        beforeFields,
+        afterFields,
       });
     }
     const codesToDelete = Array.isArray(payload.deleteFileCodes)
@@ -748,27 +757,36 @@ async function onResultEditComplete(payload) {
     const resultHasAttachmentChanges =
       (payload.deleteFileCodes && payload.deleteFileCodes.length > 0) ||
       (payload.newFiles && payload.newFiles.length > 0);
-    if (changed.length > 0) {
+    const beforeCount = Math.max(0, Number(payload.existingFileCount) || 0);
+    const delCount = Number(payload.deleteFileCodes?.length) || 0;
+    const addCount = Number(payload.newFiles?.length) || 0;
+    const afterCount = Math.max(0, beforeCount - delCount + addCount);
+    const beforeAttachValue = beforeCount === 0 ? "없음" : `${beforeCount}건`;
+    const afterAttachValue = afterCount === 0 ? "없음" : `${afterCount}건`;
+    if (changed.length > 0 || resultHasAttachmentChanges) {
+      let beforeFields =
+        changed.length > 0
+          ? changed.map((f) => ({ field: f.field, value: f.bv }))
+          : [];
+      let afterFields =
+        changed.length > 0
+          ? changed.map((f) => ({ field: f.field, value: f.av }))
+          : [];
+      if (resultHasAttachmentChanges) {
+        beforeFields = [
+          ...beforeFields,
+          { field: "첨부", value: beforeAttachValue },
+        ];
+        afterFields = [
+          ...afterFields,
+          { field: "첨부", value: afterAttachValue },
+        ];
+      }
       insertHistory(code, "j0_30", {
         updTarget: payload.resultCode,
         updMember: authStore.user?.m_no ?? "",
-        beforeFields: changed.map((f) => ({ field: f.field, value: f.bv })),
-        afterFields: changed.map((f) => ({ field: f.field, value: f.av })),
-      });
-    } else if (resultHasAttachmentChanges) {
-      const beforeCount = payload.existingFileCount ?? 0;
-      const delCount = payload.deleteFileCodes?.length ?? 0;
-      const addCount = payload.newFiles?.length ?? 0;
-      const afterCount = Math.max(0, beforeCount - delCount + addCount);
-      const beforeAttachText =
-        beforeCount === 0 ? "첨부파일 없음" : `첨부파일 ${beforeCount}건`;
-      const afterAttachText =
-        afterCount === 0 ? "첨부파일 없음" : `첨부파일 ${afterCount}건`;
-      insertHistory(code, "j0_30", {
-        updTarget: payload.resultCode,
-        updMember: authStore.user?.m_no ?? "",
-        beforeFields: [{ field: "첨부파일", value: beforeAttachText }],
-        afterFields: [{ field: "첨부파일", value: afterAttachText }],
+        beforeFields,
+        afterFields,
       });
     }
     const codesToDelete = Array.isArray(payload.deleteFileCodes)
@@ -901,7 +919,7 @@ async function openPlanHistory(planCode) {
     merged.sort((a, b) => {
       const da = new Date(a.upd_date || 0).getTime();
       const db = new Date(b.upd_date || 0).getTime();
-      return da - db;
+      return db - da;
     });
 
     historyModal.value.list = merged;
@@ -983,7 +1001,7 @@ async function openResultHistory(resultCode) {
     merged.sort((a, b) => {
       const da = new Date(a.upd_date || 0).getTime();
       const db = new Date(b.upd_date || 0).getTime();
-      return da - db;
+      return db - da;
     });
 
     historyModal.value.list = merged;
@@ -1028,7 +1046,7 @@ async function openCounselHistory(cslCode) {
     const sorted = [...list].sort((a, b) => {
       const da = new Date(a.upd_date || 0).getTime();
       const db = new Date(b.upd_date || 0).getTime();
-      return da - db;
+      return db - da;
     });
     historyModal.value.list = sorted;
     historyModal.value.loading = false;
@@ -1479,6 +1497,9 @@ const counselForm = ref({
 });
 const counselFormSaving = ref(false);
 const counselFormFiles = ref(null); // 첨부파일 (UI만, DB 저장은 추후)
+const counselRightPanelRef = ref(null);
+/** 임시저장 불러오기 시 적용 대상: 'add' = 상담추가 폼, 'detail' = 상담 상세 수정 폼 */
+const counselTempSource = ref("add");
 function setCounselFiles(files) {
   counselFormFiles.value = files;
 }
@@ -1584,7 +1605,9 @@ watch(editingCounselCode, (code) => {
   if (code) showForm.value = false;
 });
 
-// 임시저장 (상담등록 폼, j0_10 = 상담내역) — 재사용: 지원계획 j0_20, 지원결과 j0_30
+// 임시저장 (상담등록 폼 + 상담 상세 수정, j0_10 = 상담내역)
+let _counselAddTempPayload = null; // 추가 폼에서 클릭 시 자식이 넘긴 payload
+let _counselDetailTempPayload = null; // 상세 수정에서 클릭 시 자식이 넘긴 payload
 const {
   showModal: tempStorageModalVisible,
   tempList: tempStorageList,
@@ -1594,25 +1617,34 @@ const {
   openLoadModal: openTempStorageModal,
   applyItem: applyTempStorageItem,
 } = useTempStorage(() => supCode.value, "j0_10", {
-  getPayload: () => ({
-    save_title: (counselForm.value?.csl_title ?? "").trim(),
-    save_content: JSON.stringify({
-      counselDate: counselForm.value?.counselDate ?? "",
-      csl_content: counselForm.value?.csl_content ?? "",
-      csl_writer: counselForm.value?.csl_writer ?? "",
-    }),
-  }),
+  getPayload: () => {
+    if (_counselDetailTempPayload) return _counselDetailTempPayload;
+    if (_counselAddTempPayload) return _counselAddTempPayload;
+    return {
+      save_title: (counselForm.value?.csl_title ?? "").trim(),
+      save_content: JSON.stringify({
+        counselDate: counselForm.value?.counselDate ?? "",
+        csl_content: counselForm.value?.csl_content ?? "",
+        csl_writer: counselForm.value?.csl_writer ?? "",
+      }),
+    };
+  },
   setPayload: (item) => {
     if (!item) return;
-    counselForm.value.csl_title = item.save_title ?? "";
-    try {
-      const o = JSON.parse(item.save_content || "{}");
-      counselForm.value.counselDate = o.counselDate ?? "";
-      counselForm.value.csl_content = o.csl_content ?? "";
-      counselForm.value.csl_writer = o.csl_writer ?? "";
-    } catch {
-      // save_content가 JSON이 아닐 수 있음
+    if (counselTempSource.value === "detail") {
+      counselRightPanelRef.value?.setDetailFormFromTemp(item);
+    } else {
+      counselForm.value.csl_title = item.save_title ?? "";
+      try {
+        const o = JSON.parse(item.save_content || "{}");
+        counselForm.value.counselDate = o.counselDate ?? "";
+        counselForm.value.csl_content = o.csl_content ?? "";
+        counselForm.value.csl_writer = o.csl_writer ?? "";
+      } catch {
+        // save_content가 JSON이 아닐 수 있음
+      }
     }
+    counselTempSource.value = "add";
   },
   validate: (payload) => {
     if (!(payload.save_title && payload.save_title.trim())) {
@@ -1622,6 +1654,31 @@ const {
   },
   onAlert: showAlert,
 });
+
+/** 상담 추가 폼: 임시저장 불러오기 모달 열기 */
+function openTempStorageModalForAdd() {
+  counselTempSource.value = "add";
+  openTempStorageModal();
+}
+/** 상담 상세 수정: 임시저장 불러오기 모달 열기 */
+function openTempStorageModalForDetail() {
+  counselTempSource.value = "detail";
+  openTempStorageModal();
+}
+/** 상담 추가 폼: 임시저장 실행 (payload는 자식에서 전달) */
+function onTempSaveAdd(payload) {
+  _counselAddTempPayload = payload ?? null;
+  doTempSave().finally(() => {
+    _counselAddTempPayload = null;
+  });
+}
+/** 상담 상세 수정: 임시저장 실행 (payload는 자식에서 전달) */
+function onTempSaveDetail(payload) {
+  _counselDetailTempPayload = payload;
+  doTempSave().finally(() => {
+    _counselDetailTempPayload = null;
+  });
+}
 
 async function saveCounsel(payload) {
   const data =
@@ -1713,34 +1770,44 @@ async function saveCounsel(payload) {
     }
     const shouldInsertHistory =
       isEdit &&
-      (hasAttachmentChanges ||
-        (changedFields && changedFields.length > 0));
+      (hasAttachmentChanges || (changedFields && changedFields.length > 0));
     if (shouldInsertHistory) {
       const cslCode = editingCounselCode.value;
       const updMember = String(authStore.user?.m_no ?? "");
       let contentStr = "";
       let updContentStr = "";
       if (changedFields && changedFields.length > 0) {
-        const beforeFields = changedFields.map((f) => ({ field: f.field, value: f.bv }));
-        const afterFields = changedFields.map((f) => ({ field: f.field, value: f.av }));
+        const beforeFields = changedFields.map((f) => ({
+          field: f.field,
+          value: f.bv,
+        }));
+        const afterFields = changedFields.map((f) => ({
+          field: f.field,
+          value: f.av,
+        }));
         contentStr = JSON.stringify(beforeFields);
         updContentStr = JSON.stringify(afterFields);
       }
       if (hasAttachmentChanges) {
-        const beforeCount = data.existingFileCount ?? 0;
-        const delCount = data.deleteFileCodes?.length ?? 0;
-        const addCount = data.newFiles?.length ?? 0;
+        const beforeCount = Math.max(0, Number(data.existingFileCount) || 0);
+        const delCount = Number(data.deleteFileCodes?.length) || 0;
+        const addCount = Number(data.newFiles?.length) || 0;
         const afterCount = Math.max(0, beforeCount - delCount + addCount);
-        const beforeAttachText =
-          beforeCount === 0 ? "첨부파일 없음" : `첨부파일 ${beforeCount}건`;
-        const afterAttachText =
-          afterCount === 0 ? "첨부파일 없음" : `첨부파일 ${afterCount}건`;
+        const beforeAttachValue =
+          beforeCount === 0 ? "없음" : `${beforeCount}건`;
+        const afterAttachValue = afterCount === 0 ? "없음" : `${afterCount}건`;
+        const attachBeforeRow = { field: "첨부", value: beforeAttachValue };
+        const attachAfterRow = { field: "첨부", value: afterAttachValue };
         if (contentStr || updContentStr) {
-          contentStr = contentStr ? `${contentStr}; ${beforeAttachText}` : beforeAttachText;
-          updContentStr = updContentStr ? `${updContentStr}; ${afterAttachText}` : afterAttachText;
+          const beforeArr = contentStr ? JSON.parse(contentStr) : [];
+          const afterArr = updContentStr ? JSON.parse(updContentStr) : [];
+          if (Array.isArray(beforeArr)) beforeArr.push(attachBeforeRow);
+          if (Array.isArray(afterArr)) afterArr.push(attachAfterRow);
+          contentStr = JSON.stringify(beforeArr);
+          updContentStr = JSON.stringify(afterArr);
         } else {
-          contentStr = beforeAttachText;
-          updContentStr = afterAttachText;
+          contentStr = JSON.stringify([attachBeforeRow]);
+          updContentStr = JSON.stringify([attachAfterRow]);
         }
       }
       if (!contentStr && !updContentStr) {
@@ -2352,6 +2419,7 @@ function onReceiptReject() {
         <!-- ─── 우측: 상담내역 ─── -->
         <CounselRightPanel
           v-if="showRightPanel"
+          ref="counselRightPanelRef"
           class="col-lg-7"
           :read-only="isApplicant"
           :counsel-list="counselList"
@@ -2378,8 +2446,10 @@ function onReceiptReject() {
           @request-save-counsel="onCounselSaveRequest"
           @request-cancel-form="onCounselCancelRequest"
           @save-counsel="(payload) => saveCounsel(payload)"
-          @temp-save="doTempSave"
-          @open-temp-load="openTempStorageModal"
+          @temp-save="onTempSaveAdd"
+          @open-temp-load="openTempStorageModalForAdd"
+          @open-temp-load-detail="openTempStorageModalForDetail"
+          @temp-save-detail="onTempSaveDetail"
           @set-counsel-files="setCounselFiles"
         />
       </div>

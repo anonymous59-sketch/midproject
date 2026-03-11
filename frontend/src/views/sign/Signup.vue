@@ -7,6 +7,7 @@ import Navbar from "@/examples/PageLayout/Navbar.vue";
 import AppFooter from "@/examples/PageLayout/Footer.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
 import { useRouter } from "vue-router";
 import { useVerificationTimer } from "@/composables/useVerificationTimer";
 
@@ -41,21 +42,20 @@ const org = ref("");
 
 const organList = ref([]);
 
-const openModal = (message) => {
-  modalMessage.value = message;
-  showModal.value = true;
-};
-
 const redirectAfterSuccess = ref(false);
 
-const handleModalConfirm = () => {
-  showModal.value = false;
+const alertModal = ref({ show: false, type: "success", title: "알림", message: "" });
+function showAlert(type, title, message) {
+  alertModal.value = { show: true, type, title: title ?? "알림", message: message ?? "" };
+}
 
+function onAlertClose() {
+  alertModal.value.show = false;
   if (redirectAfterSuccess.value) {
     redirectAfterSuccess.value = false;
     router.push("/signin");
   }
-};
+}
 
 // 주소(도시명: 대구/부산 등) 기반 기관 필터링용
 const filteredOrganList = computed(() => {
@@ -90,8 +90,6 @@ const authCodeMap = {
   기관관리자: "a0_41",
 };
 
-const showModal = ref(false);
-const modalMessage = ref("");
 const {
   countdown,
   startTimer,
@@ -196,8 +194,7 @@ const passwordValidationMessage = computed(() => {
 const checkIdDuplication = async () => {
   // 1. 기본 길이 검증
   if (idValidationMessage.value) {
-    modalMessage.value = idValidationMessage.value;
-    showModal.value = true;
+    showAlert("error", "알림", idValidationMessage.value);
     return;
   }
 
@@ -212,21 +209,18 @@ const checkIdDuplication = async () => {
     } else {
       idErrorMessage.value = "";
       isIdChecked.value = true;
-      modalMessage.value = "사용 가능한 아이디입니다.";
-      showModal.value = true;
+      showAlert("success", "알림", "사용 가능한 아이디입니다.");
     }
   } catch (err) {
     console.error(err);
-    modalMessage.value = "중복 검사 중 오류 발생";
-    showModal.value = true;
+    showAlert("error", "알림", "중복 검사 중 오류 발생");
   }
 };
 
 // 이메일 인증번호 발송
 const sendEmailVerification = async () => {
   if (!email.value) {
-    modalMessage.value = "이메일을 입력해주세요.";
-    showModal.value = true;
+    showAlert("error", "알림", "이메일을 입력해주세요.");
     return;
   }
   emailErrorMessage.value = "";
@@ -308,22 +302,19 @@ const selectUserType = (type) => {
 
 const handleSignUp = async () => {
   if (!isIdChecked.value) {
-    modalMessage.value = "아이디 중복 검사를 해주세요.";
-    showModal.value = true;
+    showAlert("info", "알림", "아이디 중복 검사를 해주세요.");
     return;
   }
   if (!isEmailVerified.value) {
-    modalMessage.value = "이메일 인증을 완료해주세요.";
-    showModal.value = true;
+    showAlert("info", "알림", "이메일 인증을 완료해주세요.");
     return;
   }
   if (!address.value.trim() || !detailAddress.value.trim()) {
-    modalMessage.value = "주소를 입력해주세요.";
-    showModal.value = true;
+    showAlert("error", "알림", "주소를 입력해주세요.");
     return;
   }
   if (password.value !== confirmPassword.value) {
-    openModal("비밀번호 확인 요망");
+    showAlert("error", "알림", "비밀번호 확인 요망");
     return;
   }
 
@@ -347,13 +338,13 @@ const handleSignUp = async () => {
 
     if (res.data.success) {
       redirectAfterSuccess.value = true;
-      openModal("회원가입 완료! 가입 승인을 기다려주세요.");
+      showAlert("success", "알림", "회원가입 완료! 가입 승인을 기다려주세요.");
     } else {
-      openModal(res.data.message || "회원가입에 실패했습니다.");
+      showAlert("error", "알림", res.data.message || "회원가입에 실패했습니다.");
     }
   } catch (err) {
     console.error(err);
-    openModal("회원가입 실패");
+    showAlert("error", "알림", "회원가입 실패");
   }
 };
 const fetchInstitutionsByZip = async (zip) => {
@@ -721,35 +712,14 @@ const searchAddress = () => {
     </div>
   </main>
 
-  <!-- 모달: 알림 -->
-  <div
-    v-if="showModal"
-    class="modal fade show d-block"
-    style="background: rgba(0, 0, 0, 0.5); z-index: 9999"
-  >
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content rounded-0 border-0 shadow-lg">
-        <div class="modal-header border-0 pb-0">
-          <h5 class="modal-title font-weight-bolder">알림</h5>
-        </div>
-        <div class="modal-body py-4 text-center text-dark font-weight-bold">
-          {{ modalMessage }}
-        </div>
-        <div class="modal-footer border-0 pt-0 justify-content-center">
-          <ArgonButton
-            type="button"
-            color="success"
-            variant="gradient"
-            size="lg"
-            class="rounded-0 px-5"
-            @click="handleModalConfirm"
-          >
-            확인
-          </ArgonButton>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- 알림 모달 -->
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="onAlertClose"
+  />
 
   <app-footer />
 </template>
@@ -758,9 +728,6 @@ const searchAddress = () => {
 .form-select:focus {
   border-color: #2dce89;
   box-shadow: 0 0 0 2px rgba(45, 206, 137, 0.2);
-}
-.modal.show {
-  display: block;
 }
 </style>
 

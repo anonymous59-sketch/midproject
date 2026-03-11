@@ -42,4 +42,11 @@ module.exports = {
   deleteMember: `
     DELETE FROM member WHERE m_no = ?
   `,
+
+  // 회원 이메일/이름 조회 (반려 메일 발송용)
+  selectMemberEmailByNo: `
+    SELECT m_email, m_nm
+    FROM member
+    WHERE m_no = ?
+  `,
 };

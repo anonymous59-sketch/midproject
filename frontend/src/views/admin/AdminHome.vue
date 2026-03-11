@@ -6,6 +6,12 @@ import SearchNavbar from "@/views/components/SearchNavbar.vue";
 import MainTable from "@/views/components/MainTable.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
+
+const alertModal = ref({ show: false, type: "success", title: "알림", message: "" });
+function showAlert(type, title, message) {
+  alertModal.value = { show: true, type, title: title ?? "알림", message: message ?? "" };
+}
 
 // ✅ 체크박스 선택 상태(선택된 기관 no 목록)
 const selectedNos = ref(new Set());
@@ -232,15 +238,15 @@ const submitEdit = async () => {
   const f = editForm.value;
   const name = (f.organ_name || "").trim();
   if (!name) {
-    alert("기관명을 입력해주세요.");
+    showAlert("error", "알림", "기관명을 입력해주세요.");
     return;
   }
   if (!(f.organ_address || "").trim()) {
-    alert("주소를 입력해주세요.");
+    showAlert("error", "알림", "주소를 입력해주세요.");
     return;
   }
   if (!(f.start_time || "").trim()) {
-    alert("시작일을 입력해주세요.");
+    showAlert("error", "알림", "시작일을 입력해주세요.");
     return;
   }
 
@@ -252,7 +258,7 @@ const submitEdit = async () => {
     if (!checkRes.ok) throw new Error("중복 확인 실패");
     const { exists } = await checkRes.json();
     if (exists) {
-      alert("이미 등록된 기관명이 존재합니다.");
+      showAlert("error", "알림", "이미 등록된 기관명이 존재합니다.");
       editSubmitting.value = false;
       return;
     }
@@ -277,7 +283,7 @@ const submitEdit = async () => {
     showEditModal.value = false;
     await loadOrgans();
   } catch (e) {
-    alert(e.message || "처리 중 오류가 발생했습니다.");
+    showAlert("error", "알림", e.message || "처리 중 오류가 발생했습니다.");
   } finally {
     editSubmitting.value = false;
   }
@@ -322,20 +328,20 @@ const submitCreate = async () => {
   const organNoRaw = (f.organ_no || "").trim();
   const organNo = normalizeOrganNo(organNoRaw);
   if (organNo.length !== 10) {
-    alert("사업자번호를 10자리로 입력해주세요. (예: 123-45-67890)");
+    showAlert("error", "알림", "사업자번호를 10자리로 입력해주세요. (예: 123-45-67890)");
     return;
   }
   const name = (f.organ_name || "").trim();
   if (!name) {
-    alert("기관명을 입력해주세요.");
+    showAlert("error", "알림", "기관명을 입력해주세요.");
     return;
   }
   if (!(f.organ_address || "").trim()) {
-    alert("주소를 입력해주세요.");
+    showAlert("error", "알림", "주소를 입력해주세요.");
     return;
   }
   if (!(f.start_time || "").trim()) {
-    alert("시작일을 입력해주세요.");
+    showAlert("error", "알림", "시작일을 입력해주세요.");
     return;
   }
 
@@ -347,7 +353,7 @@ const submitCreate = async () => {
     if (!checkRes.ok) throw new Error("중복 확인 실패");
     const { exists } = await checkRes.json();
     if (exists) {
-      alert("이미 등록된 사업자번호가 존재합니다.");
+      showAlert("error", "알림", "이미 등록된 사업자번호가 존재합니다.");
       createSubmitting.value = false;
       return;
     }
@@ -372,7 +378,7 @@ const submitCreate = async () => {
     showCreateModal.value = false;
     await loadOrgans();
   } catch (e) {
-    alert(e.message || "처리 중 오류가 발생했습니다.");
+    showAlert("error", "알림", e.message || "처리 중 오류가 발생했습니다.");
   } finally {
     createSubmitting.value = false;
   }
@@ -792,6 +798,14 @@ const submitCreate = async () => {
       </div>
     </div>
   </div>
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>
 
 <style scoped>

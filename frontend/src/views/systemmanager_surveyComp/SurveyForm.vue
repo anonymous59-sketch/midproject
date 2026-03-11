@@ -6,6 +6,7 @@ import axios from "axios";
 import { useAuthStore } from "@/store/auth";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
 // 라우터에 있는 정보를 가지고 와서 사용
 const route = useRoute();
 // 라우터에 정보를 입력하고 그 라우터로 이동
@@ -282,11 +283,17 @@ const previewStructure = computed(() => {
   return result;
 });
 
+// 알림 모달 상태
+const alertModal = ref({ show: false, type: "success", title: "알림", message: "" });
+function showAlert(type, title, message) {
+  alertModal.value = { show: true, type, title: title ?? "알림", message: message ?? "" };
+}
+
 // 전체저장 클릭 → 미리보기 모달 열기
 const openPreviewModal = () => {
   // create 모드에서는 작성자(로그인 사용자)가 없으면 저장 막기
   if (mode.value == "create" && !writerNo.value) {
-    alert("로그인 정보를 찾지 못했습니다. 다시 로그인 후 시도해주세요.");
+    showAlert("error", "알림", "로그인 정보를 찾지 못했습니다. 다시 로그인 후 시도해주세요.");
     return;
   }
   pendingPreviewPayload.value = buildPayload();
@@ -1098,6 +1105,15 @@ onBeforeMount(() => {
       </div>
     </div>
   </div>
+
+  <!-- 알림 모달 -->
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>
 
 <!-- 스타일은 다시 확인해봐야할 것, 스크롤 기능이 CSS로 생김 -->

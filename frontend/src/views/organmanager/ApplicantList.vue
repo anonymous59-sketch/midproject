@@ -7,6 +7,7 @@ import SearchNavbar from "@/views/components/SearchNavbar.vue";
 import MainTable from "@/views/components/MainTable.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -48,6 +49,22 @@ const appliedFilters = ref({
 const rows = ref([]);
 const listLoading = ref(false);
 const listError = ref("");
+
+const alertModal = ref({
+  show: false,
+  type: "error",
+  title: "알림",
+  message: "",
+});
+
+function showAlert(type, title, message) {
+  alertModal.value = {
+    show: true,
+    type,
+    title: title ?? "알림",
+    message: message ?? "",
+  };
+}
 
 // 기관 내 담당자 목록 (배정용)
 const managers = ref([]);
@@ -183,7 +200,7 @@ async function confirmAssignManager() {
     assigningMgrNo.value = "";
     await loadOrganManagerList();
   } catch (e) {
-    alert(e.message || "담당자 배정에 실패했습니다.");
+    showAlert("error", "알림", e.message || "담당자 배정에 실패했습니다.");
   }
 }
 
@@ -265,11 +282,11 @@ onMounted(() => {
 
 const viewApply = (row) => {
   if (row.sup_code) router.push(`/review/${encodeURIComponent(row.sup_code)}`);
-  else alert("지원 정보를 찾을 수 없습니다.");
+  else showAlert("error", "알림", "지원 정보를 찾을 수 없습니다.");
 };
 const viewCounseling = (row) => {
   if (row.sup_code) router.push(`/review/${encodeURIComponent(row.sup_code)}`);
-  else alert("지원 정보를 찾을 수 없습니다.");
+  else showAlert("error", "알림", "지원 정보를 찾을 수 없습니다.");
 };
 </script>
 
@@ -541,4 +558,12 @@ const viewCounseling = (row) => {
       </MainTable>
     </div>
   </div>
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>

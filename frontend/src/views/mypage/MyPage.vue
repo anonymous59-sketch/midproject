@@ -1,8 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch, onBeforeUnmount } from "vue";
 import { useAuthStore } from "@/store/auth";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
+import { useVerificationTimer } from "@/composables/useVerificationTimer";
 
 const authStore = useAuthStore();
 
@@ -23,6 +25,54 @@ const editForm = ref({
   m_email: "",
   m_add: "",
 });
+
+const {
+  countdown: emailCountdown,
+  startTimer: startEmailTimer,
+  stopTimer: stopEmailTimer,
+} = useVerificationTimer("verifi_end_mypage_email", 180);
+
+const emailAuthSectionVisible = ref(false);
+const emailAuthCodeInput = ref("");
+const emailAuthMessage = ref("");
+const isEmailAuthSending = ref(false);
+const isEmailAuthChecking = ref(false);
+const isEmailAuthVerified = ref(false);
+const lastVerifiedEmail = ref("");
+
+const isEmailChanged = computed(
+  () =>
+    (editForm.value.m_email ?? "").trim() !==
+    (member.value.m_email ?? "").trim(),
+);
+
+const emailAuthButtonLabel = computed(() => {
+  if (isEmailAuthVerified.value) return "완료";
+  if (isEmailAuthSending.value) return "발송 중...";
+  if (emailAuthSectionVisible.value && emailCountdown.value === 0)
+    return "재발송";
+  return "인증";
+});
+
+const emailAuthButtonDisabled = computed(() => {
+  if (!isEmailChanged.value) return true;
+  return (
+    isEmailAuthVerified.value ||
+    isEmailAuthSending.value ||
+    (emailAuthSectionVisible.value && emailCountdown.value > 0)
+  );
+});
+
+function resetEmailAuthState() {
+  stopEmailTimer();
+  emailAuthSectionVisible.value = false;
+  emailAuthCodeInput.value = "";
+  emailAuthMessage.value = "";
+  isEmailAuthSending.value = false;
+  isEmailAuthChecking.value = false;
+  isEmailAuthVerified.value = false;
+  lastVerifiedEmail.value = "";
+}
 
 /** 회원정보: 백엔드 m_bd, m_tel, m_add 사용. 로그인 정보로 보강 */
 async function loadMemberProfile() {
@@ -68,18 +118,24 @@ const startEdit = () => {
   editForm.value.m_email = member.value.m_email ?? "";
   editForm.value.m_add = member.value.m_add ?? "";
   isEditMode.value = true;
+  resetEmailAuthState();
 };
 
 /** 회원정보 저장 (skipClose: true면 blur 시 자동 저장, 알림/모드 전환 없음) */
 const saveEdit = async (skipClose = false) => {
   const mNo = member.value.m_no || authStore.user?.m_no;
   if (!mNo) {
-    if (!skipClose) alert("로그인 정보가 없습니다.");
+    if (!skipClose) showAlert("error", "알림", "로그인 정보가 없습니다.");
     return;
   }
   const tel = (editForm.value.m_tel ?? "").trim();
   const email = (editForm.value.m_email ?? "").trim();
   const add = (editForm.value.m_add ?? "").trim();
+   const emailChanged = email !== (member.value.m_email ?? "");
+   if (!skipClose && emailChanged && !isEmailAuthVerified.value) {
+     showAlert("error", "알림", "이메일 인증을 완료해주세요.");
+     return;
+   }
   try {
     const res = await fetch("/api/apply/mypage/profile", {
       method: "PUT",
@@ -105,27 +161,140 @@ const saveEdit = async (skipClose = false) => {
     }
     if (!skipClose) {
       isEditMode.value = false;
-      setTimeout(() => alert("성공적으로 저장되었습니다."), 0);
+      showAlert("success", "알림", "성공적으로 저장되었습니다.");
     }
   } catch (e) {
-    if (!skipClose) alert(e.message || "저장에 실패했습니다.");
+    if (!skipClose) {
+      showAlert("error", "알림", e.message || "저장에 실패했습니다.");
+    }
   }
 };
 
 /** 수정 모드에서 입력 필드 blur 시 값이 변동된 경우에만 백엔드 저장 */
 const onProfileFieldBlur = () => {
+  // 자동 저장은 사용하지 않고, '저장' 버튼으로만 저장 처리
   if (!isEditMode.value) return;
-  const t = (editForm.value.m_tel ?? "").trim();
-  const e = (editForm.value.m_email ?? "").trim();
-  const a = (editForm.value.m_add ?? "").trim();
-  if (
-    t !== (member.value.m_tel ?? "").trim() ||
-    e !== (member.value.m_email ?? "").trim() ||
-    a !== (member.value.m_add ?? "").trim()
-  ) {
-    saveEdit(true);
-  }
 };
+
+watch(
+  () => editForm.value.m_email,
+  (val) => {
+    if (!isEditMode.value) return;
+    if ((val ?? "").trim() !== (member.value.m_email ?? "").trim()) {
+      resetEmailAuthState();
+    }
+  },
+);
+
+async function sendProfileEmailVerification() {
+  const email = (editForm.value.m_email ?? "").trim();
+  if (!email) {
+    showAlert("error", "알림", "이메일을 입력해주세요.");
+    return;
+  }
+  if (!isEmailChanged.value) {
+    showAlert("info", "알림", "이메일을 변경한 후 인증을 진행해 주세요.");
+    return;
+  }
+  isEmailAuthSending.value = true;
+  emailAuthMessage.value = "";
+  try {
+    // 이메일 중복 체크
+    const checkRes = await fetch(
+      `/api/auth/check-email?email=${encodeURIComponent(email)}`,
+    );
+    if (checkRes.ok) {
+      const body = await checkRes.json().catch(() => ({}));
+      if (body?.exists) {
+        emailAuthMessage.value = "해당 이메일은 이미 사용 중입니다.";
+        showAlert("error", "알림", emailAuthMessage.value);
+        emailAuthSectionVisible.value = false;
+        stopEmailTimer();
+        return;
+      }
+    }
+
+    // 이전 인증 만료 처리
+    await fetch("/api/verifi/expire", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, purpose: "i0_10" }),
+    }).catch(() => {});
+
+    const mNo = member.value.m_no || authStore.user?.m_no || null;
+    const res = await fetch("/api/verifi/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, m_no: mNo }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || "인증번호 발송에 실패했습니다.");
+    }
+    emailAuthMessage.value =
+      data.message || "인증번호가 발송되었습니다.";
+    emailAuthSectionVisible.value = true;
+    isEmailAuthVerified.value = false;
+    emailAuthCodeInput.value = "";
+    startEmailTimer(async () => {
+      emailAuthMessage.value =
+        "인증시간이 만료되었습니다. 다시 요청해주세요.";
+      isEmailAuthVerified.value = false;
+      await fetch("/api/verifi/expire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, purpose: "i0_10" }),
+      }).catch(() => {});
+    });
+  } catch (e) {
+    emailAuthMessage.value =
+      e.message || "인증번호 발송에 실패했습니다.";
+    showAlert("error", "알림", emailAuthMessage.value);
+  } finally {
+    isEmailAuthSending.value = false;
+  }
+}
+
+async function confirmProfileEmailCode() {
+  const email = (editForm.value.m_email ?? "").trim();
+  if (!emailAuthSectionVisible.value) {
+    emailAuthMessage.value = "먼저 인증번호를 발송해 주세요.";
+    return;
+  }
+  if (!emailAuthCodeInput.value) {
+    emailAuthMessage.value = "인증번호를 입력해주세요.";
+    return;
+  }
+  isEmailAuthChecking.value = true;
+  emailAuthMessage.value = "";
+  try {
+    const res = await fetch("/api/verifi/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        code: emailAuthCodeInput.value,
+        purpose: "i0_10",
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || "인증에 실패했습니다.");
+    }
+    isEmailAuthVerified.value = true;
+    lastVerifiedEmail.value = email;
+    stopEmailTimer();
+    emailAuthMessage.value = data.message || "인증 성공";
+  } catch (e) {
+    emailAuthMessage.value =
+      e.message || "인증에 실패했습니다. 다시 시도해주세요.";
+    isEmailAuthVerified.value = false;
+    stopEmailTimer();
+    emailCountdown.value = 0;
+  } finally {
+    isEmailAuthChecking.value = false;
+  }
+}
 
 const cancelEdit = () => {
   isEditMode.value = false;
@@ -231,9 +400,9 @@ const saveApplicantEdit = async () => {
       mc_submitdate: applicantEditForm.value.mc_submitdate,
     });
     isApplicantEditMode.value = false;
-    alert("지원대상자 정보가 수정되었습니다.");
+    showAlert("success", "알림", "지원대상자 정보가 수정되었습니다.");
   } catch (e) {
-    alert(e.message || "저장에 실패했습니다.");
+    showAlert("error", "알림", e.message || "저장에 실패했습니다.");
   } finally {
     applicantSaving.value = false;
   }
@@ -246,6 +415,10 @@ const cancelApplicantEdit = () => {
 onMounted(() => {
   loadMemberProfile();
   loadApplicants();
+});
+
+onBeforeUnmount(() => {
+  stopEmailTimer();
 });
 
 /* ================= 모달 ================= */
@@ -282,9 +455,25 @@ const removeDisabilityTypeField = (idx) => {
 
 const addApplicantSaving = ref(false);
 
+const alertModal = ref({
+  show: false,
+  type: "error",
+  title: "알림",
+  message: "",
+});
+
+function showAlert(type, title, message) {
+  alertModal.value = {
+    show: true,
+    type,
+    title: title ?? "알림",
+    message: message ?? "",
+  };
+}
+
 const addApplicant = async () => {
   if (!newApplicant.value.mc_nm?.trim()) {
-    alert("이름을 입력하세요.");
+    showAlert("error", "알림", "이름을 입력하세요.");
     return;
   }
 
@@ -293,13 +482,13 @@ const addApplicant = async () => {
     .filter(Boolean);
 
   if (disabilityTypes.length === 0) {
-    alert("장애유형을 1개 이상 입력하세요.");
+    showAlert("error", "알림", "장애유형을 1개 이상 입력하세요.");
     return;
   }
 
   const gdnNo = authStore.user?.m_no;
   if (!gdnNo) {
-    alert("로그인 정보가 없습니다.");
+    showAlert("error", "알림", "로그인 정보가 없습니다.");
     return;
   }
 
@@ -331,9 +520,9 @@ const addApplicant = async () => {
       mc_types: [""],
     };
     showModal.value = false;
-    alert("지원대상자가 등록되었습니다.");
+    showAlert("success", "알림", "지원대상자가 등록되었습니다.");
   } catch (e) {
-    alert(e.message || "등록에 실패했습니다.");
+    showAlert("error", "알림", e.message || "등록에 실패했습니다.");
   } finally {
     addApplicantSaving.value = false;
   }
@@ -342,7 +531,11 @@ const addApplicant = async () => {
 /** 주소찾기: 회원가입(Signup)과 동일하게 다음(다움) 주소 API 사용 */
 const findAddress = () => {
   if (typeof window.daum === "undefined" || !window.daum.Postcode) {
-    alert("주소 검색 서비스를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    showAlert(
+      "error",
+      "알림",
+      "주소 검색 서비스를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    );
     return;
   }
   new window.daum.Postcode({
@@ -403,11 +596,52 @@ const findAddress = () => {
                 <div v-if="!isEditMode" class="info-value">
                   {{ member.m_email || "—" }}
                 </div>
-                <ArgonInput
-                  v-else
-                  v-model="editForm.m_email"
-                  @blur="onProfileFieldBlur"
-                />
+                <div v-else class="w-100">
+                  <ArgonInput
+                    v-model="editForm.m_email"
+                    @blur="onProfileFieldBlur"
+                  />
+                  <div class="d-flex align-items-center gap-2 mt-2">
+                    <ArgonButton
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      color="success"
+                      :disabled="emailAuthButtonDisabled"
+                      @click="sendProfileEmailVerification"
+                    >
+                      {{ emailAuthButtonLabel }}
+                    </ArgonButton>
+                    <span
+                      v-if="emailCountdown > 0 && !isEmailAuthVerified"
+                      class="text-xs text-muted"
+                    >
+                      {{ emailCountdown }}초 남음
+                    </span>
+                  </div>
+                  <div v-if="emailAuthSectionVisible" class="mt-2">
+                    <div class="d-flex gap-2">
+                      <ArgonInput
+                        v-model="emailAuthCodeInput"
+                        placeholder="인증번호 6자리를 입력하세요."
+                        size="sm"
+                      />
+                      <ArgonButton
+                        type="button"
+                        size="sm"
+                        color="primary"
+                        class="email-auth-confirm-btn"
+                        :disabled="isEmailAuthChecking || isEmailAuthVerified"
+                        @click="confirmProfileEmailCode"
+                      >
+                        {{ isEmailAuthVerified ? "완료" : "확인" }}
+                      </ArgonButton>
+                    </div>
+                    <p v-if="emailAuthMessage" class="text-xs mt-1" :class="isEmailAuthVerified ? 'text-success' : 'text-danger'">
+                      {{ emailAuthMessage }}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div class="info-box">
@@ -776,6 +1010,14 @@ const findAddress = () => {
       </div>
     </div>
   </div>
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>
 
 <style scoped>
@@ -836,6 +1078,12 @@ const findAddress = () => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.email-auth-confirm-btn {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .form-row {

@@ -59,6 +59,8 @@ const emit = defineEmits([
   "save-counsel",
   "temp-save",
   "open-temp-load",
+  "open-temp-load-detail",
+  "temp-save-detail",
   "set-counsel-files",
   "open-counsel-history",
   "edit-counsel",
@@ -90,6 +92,8 @@ const detailEditFiles = ref([]);
 /** 수정 모드에서 삭제 표시한 file_code. 수정완료 시 부모가 DELETE */
 const detailDeletedFileCodes = ref([]);
 const detailFileInputRef = ref(null);
+/** 상세 수정 모드 진입 시점의 첨부파일 개수 (이력용, 비동기 로딩 보정) */
+const initialCounselAttachmentCountWhenEdit = ref(0);
 
 async function loadCounselFiles() {
   const cslCode = props.selectedCounselDetail?.csl_code;
@@ -102,6 +106,9 @@ async function loadCounselFiles() {
     const data = await res.json().catch(() => ({}));
     const list = Array.isArray(data?.data) ? data.data : [];
     filesForCounsel.value = list;
+    if (isDetailEditMode.value) {
+      initialCounselAttachmentCountWhenEdit.value = list.length;
+    }
   } catch (e) {
     filesForCounsel.value = [];
   }
@@ -175,11 +182,25 @@ watch(
   { deep: true },
 );
 
+// 부모에서 임시저장 불러오기로 counselForm을 채우면 추가 폼 로컬 form에 반영
+watch(
+  () => props.counselForm,
+  (newVal) => {
+    if (!props.showForm || isDetailEditMode.value || !newVal) return;
+    form.csl_title = newVal.csl_title ?? "";
+    form.counselDate = newVal.counselDate ?? "";
+    form.csl_content = newVal.csl_content ?? "";
+    form.csl_writer = newVal.csl_writer ?? "";
+  },
+  { deep: true },
+);
+
 // 상세 수정 모드 진입 시 detailEditForm을 선택된 상담 데이터로 초기화
 watch(
   () => [props.selectedCounselDetail, props.editingCounselCode],
   () => {
     if (!isDetailEditMode.value || !props.selectedCounselDetail) return;
+    initialCounselAttachmentCountWhenEdit.value = filesForCounsel.value?.length ?? 0;
     const item = props.selectedCounselDetail;
     const d = item.csl_date ? new Date(item.csl_date) : null;
     const counselDate = d
@@ -203,6 +224,62 @@ watch(
   },
   { immediate: true, deep: true },
 );
+
+/** 상담 추가 폼 임시저장용 payload (제목 + JSON: counselDate, csl_content, csl_writer) */
+function getAddFormTempPayload() {
+  return {
+    save_title: (form.csl_title ?? "").trim(),
+    save_content: JSON.stringify({
+      counselDate: form.counselDate ?? "",
+      csl_content: form.csl_content ?? "",
+      csl_writer: form.csl_writer ?? "",
+    }),
+  };
+}
+
+/** 상세 수정 모드 임시저장용 payload (제목 + JSON: counselDate, csl_content, csl_writer) */
+function getDetailEditTempPayload() {
+  return {
+    save_title: (detailEditForm.csl_title ?? "").trim(),
+    save_content: JSON.stringify({
+      counselDate: detailEditForm.counselDate ?? "",
+      csl_content: detailEditForm.csl_content ?? "",
+      csl_writer: detailEditForm.csl_writer ?? "",
+    }),
+  };
+}
+
+/** 부모에서 임시저장 불러오기 선택 시 상세 수정 폼에 반영 */
+function setDetailFormFromTemp(item) {
+  if (!item) return;
+  detailEditForm.csl_title = item.save_title ?? "";
+  try {
+    const o = JSON.parse(item.save_content || "{}");
+    detailEditForm.counselDate = o.counselDate ?? "";
+    detailEditForm.csl_content = o.csl_content ?? "";
+    detailEditForm.csl_writer = o.csl_writer ?? "";
+  } catch {
+    // ignore
+  }
+}
+
+/** 상세 수정 완료 시 부모로 보낼 payload (수정 전/후 첨부 개수 포함, 스크립트에서 .value로 계산) */
+function getDetailEditSavePayload() {
+  const existing = filesForCounsel.value?.length ?? 0;
+  const deleted = detailDeletedFileCodes.value?.length ?? 0;
+  const existingFileCount = Math.max(
+    initialCounselAttachmentCountWhenEdit.value ?? 0,
+    existing + deleted,
+  );
+  return {
+    ...detailEditForm,
+    deleteFileCodes: detailDeletedFileCodes.value?.slice() ?? [],
+    newFiles: detailEditFiles.value?.slice() ?? [],
+    existingFileCount,
+  };
+}
+
+defineExpose({ setDetailFormFromTemp });
 </script>
 
 <template>
@@ -245,8 +322,28 @@ watch(
       >
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h6 class="text-sm text-uppercase text-muted mb-0">상담 상세</h6>
+          <div v-if="isDetailEditMode" class="d-flex gap-2">
+            <ArgonButton
+              type="button"
+              size="sm"
+              variant="outline"
+              color="secondary"
+              @click="emit('open-temp-load-detail')"
+            >
+              임시저장 불러오기
+            </ArgonButton>
+            <ArgonButton
+              type="button"
+              size="sm"
+              color="secondary"
+              :disabled="counselFormSaving || tempSaveLoading"
+              @click="emit('temp-save-detail', getDetailEditTempPayload())"
+            >
+              {{ tempSaveLoading ? "저장 중..." : "임시저장" }}
+            </ArgonButton>
+          </div>
           <ArgonButton
-            v-if="!isDetailEditMode"
+            v-else
             type="button"
             size="sm"
             variant="outline"
@@ -303,7 +400,7 @@ watch(
           <div
             v-if="
               isDetailEditMode &&
-              (filesForCounsel.length || detailEditFiles.length)
+              ((filesForCounsel?.length ?? 0) || (detailEditFiles?.length ?? 0))
             "
             class="mb-2"
           >
@@ -326,7 +423,7 @@ watch(
               파일 선택
             </ArgonButton>
             <div
-              v-if="detailEditFiles.length"
+              v-if="(detailEditFiles?.length ?? 0) > 0"
               class="d-flex flex-wrap gap-1 mb-1"
             >
               <span
@@ -344,8 +441,8 @@ watch(
                 </button>
               </span>
             </div>
-            <div v-if="filesForCounsel.length" class="d-flex flex-wrap gap-1">
-              <template v-for="file in filesForCounsel" :key="file.file_code">
+            <div v-if="(filesForCounsel?.length ?? 0) > 0" class="d-flex flex-wrap gap-1">
+              <template v-for="file in (filesForCounsel ?? [])" :key="file.file_code">
                 <span class="badge bg-light text-dark border">
                   {{ formatFileDisplayName(file) }}
                   <button
@@ -386,14 +483,7 @@ watch(
               size="sm"
               color="primary"
               :disabled="counselFormSaving"
-              @click="
-                emit('save-counsel', {
-                  ...detailEditForm,
-                  deleteFileCodes: detailDeletedFileCodes.slice(),
-                  newFiles: detailEditFiles.slice(),
-                  existingFileCount: filesForCounsel.value.length + detailDeletedFileCodes.value.length,
-                })
-              "
+              @click="emit('save-counsel', getDetailEditSavePayload())"
             >
               {{ counselFormSaving ? "수정 중..." : "수정완료" }}
             </ArgonButton>
@@ -451,7 +541,7 @@ watch(
             />
           </div>
           <!-- 읽기 전용: 첨부파일 목록 + 전체 ZIP 다운로드 -->
-          <div v-if="filesForCounsel.length" class="mb-2">
+          <div v-if="(filesForCounsel?.length ?? 0) > 0" class="mb-2">
             <div class="d-flex justify-content-between align-items-center mb-1">
               <label class="form-label text-xs mb-0">첨부파일</label>
               <ArgonButton
@@ -466,7 +556,7 @@ watch(
             </div>
             <div class="d-flex flex-wrap gap-1">
               <button
-                v-for="file in filesForCounsel"
+                v-for="file in (filesForCounsel ?? [])"
                 :key="file.file_code"
                 type="button"
                 class="btn btn-sm btn-outline-primary"
@@ -516,20 +606,18 @@ watch(
               size="sm"
               variant="outline"
               color="secondary"
-              :disabled="tempSaveLoading"
-              @click="emit('temp-save')"
+              @click="emit('open-temp-load')"
             >
-              {{ tempSaveLoading ? "저장 중..." : "임시저장" }}
+              임시저장 불러오기
             </ArgonButton>
             <ArgonButton
               type="button"
               size="sm"
-              variant="outline"
-              color="primary"
-              :disabled="tempStorageListLoading"
-              @click="emit('open-temp-load')"
+              color="secondary"
+              :disabled="counselFormSaving || tempSaveLoading"
+              @click="emit('temp-save', getAddFormTempPayload())"
             >
-              {{ tempStorageListLoading ? "로딩..." : "임시저장 불러오기" }}
+              {{ tempSaveLoading ? "저장 중..." : "임시저장" }}
             </ArgonButton>
           </div>
         </div>
@@ -576,7 +664,9 @@ watch(
             multiple
             @change="emit('set-counsel-files', $event.target.files)"
           />
-          <small class="text-muted">파일 1개당 10MB를 초과할 수 없습니다.</small>
+          <small class="text-muted"
+            >파일 1개당 10MB를 초과할 수 없습니다.</small
+          >
         </div>
         <div class="d-flex justify-content-end gap-2">
           <ArgonButton

@@ -2,12 +2,33 @@
 import { ref, computed, onMounted } from "vue";
 import { useAuthStore } from "@/store/auth";
 import { usePagination } from "@/composables/usePagination";
+import { useReasonModal } from "@/composables/useReasonModal";
 import SearchNavbar from "@/views/components/SearchNavbar.vue";
 import MainTable from "@/views/components/MainTable.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
+import ConfirmModal from "@/views/modal/ConfirmModal.vue";
 
 const authStore = useAuthStore();
+
+const alertModal = ref({
+  show: false,
+  type: "success",
+  title: "알림",
+  message: "",
+});
+function showAlert(type, title, message) {
+  alertModal.value = {
+    show: true,
+    type,
+    title: title ?? "알림",
+    message: message ?? "",
+  };
+}
+
+const { reasonModal, openReasonModal, closeReasonModal, onReasonConfirm } =
+  useReasonModal();
 
 const tableData = ref([]);
 const searchBy = ref("m_nm");
@@ -15,10 +36,10 @@ const searchValue = ref("");
 const listLoading = ref(false);
 const listError = ref("");
 
-/** m_auth: a0_30 → 승인됨, a0_31 → 승인요청 */
+/** m_auth: a0_30 → 승인됨, 기타 → 미승인 */
 function mapRow(item, index) {
   const auth = item.m_auth || "";
-  const status = auth === "a0_31" ? "승인요청" : "승인됨";
+  const status = auth === "a0_30" ? "승인됨" : "미승인";
   return {
     id: item.m_no || index + 1,
     selected: false,
@@ -75,46 +96,21 @@ const {
   rowDisplayNo,
 } = usePagination(() => filteredRows.value, 10);
 
+const approvalSaving = ref(false);
 // ====== 상태별 배지 ======
 const statusBadge = (status) => ({
   "bg-gradient-success": status === "승인됨",
-  "bg-gradient-warning": status === "승인요청",
-  "bg-gradient-secondary": status === "대기중",
-  "bg-gradient-danger": status === "반려",
 });
 
-// ====== 승인/반려 모달 (승인요청 클릭 시) ======
-const approvalModalOpen = ref(false);
-const approvalTarget = ref(null);
-const rejectReason = ref("");
-const approvalStep = ref("choice"); // 'choice' | 'reject'
-const approvalSaving = ref(false);
-
-const openApprovalModal = (item) => {
-  if (item.status !== "승인요청") return;
-  approvalTarget.value = item;
-  rejectReason.value = "";
-  approvalStep.value = "choice";
-  approvalModalOpen.value = true;
-};
-
-const closeApprovalModal = () => {
-  if (!approvalSaving.value) {
-    approvalModalOpen.value = false;
-    approvalTarget.value = null;
-    rejectReason.value = "";
-    approvalStep.value = "choice";
-  }
-};
-
-/** 승인: a0_31 → a0_30 */
-const doApprove = async () => {
-  const target = approvalTarget.value;
-  if (!target) return;
+/** 승인: 미승인 → a0_30 */
+const approveManager = async (item) => {
+  if (!item?.id) return;
   approvalSaving.value = true;
   try {
     const res = await fetch(
-      `/api/admin/members/${encodeURIComponent(target.id)}/approve`,
+      `/api/admin/members/${encodeURIComponent(
+        item.id,
+      )}/approve-organ-manager`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -122,51 +118,61 @@ const doApprove = async () => {
     );
     if (!res.ok) throw new Error("승인 처리에 실패했습니다.");
     approvalSaving.value = false;
-    alert("승인되었습니다.");
-    closeApprovalModal();
+    showAlert("success", "알림", "승인되었습니다.");
     await loadManagers();
   } catch (e) {
-    alert(e.message);
+    showAlert("error", "알림", e.message ?? "처리에 실패했습니다.");
   } finally {
     approvalSaving.value = false;
   }
 };
 
-/** 반려: 1단계에서 반려 클릭 시 textarea 단계로 */
-const showRejectForm = () => {
-  approvalStep.value = "reject";
-};
-
-/** 반려 제출: DELETE + 반려사유 (향후 m_email 발송용) */
-const doReject = async () => {
-  const target = approvalTarget.value;
-  if (!target) return;
-  approvalSaving.value = true;
-  try {
-    const res = await fetch(
-      `/api/admin/members/${encodeURIComponent(target.id)}`,
-      {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reject_reason: rejectReason.value || "" }),
-      },
-    );
-    if (!res.ok) throw new Error("반려 처리에 실패했습니다.");
-    approvalSaving.value = false;
-    closeApprovalModal();
-    await loadManagers();
-  } catch (e) {
-    alert(e.message);
-  } finally {
-    approvalSaving.value = false;
-  }
+/** 반려: ReasonModal에서 사유 입력 후 DELETE */
+const rejectManager = (item) => {
+  if (!item?.id) return;
+  openReasonModal({
+    context: {
+      mNo: item.id,
+      email: item.email,
+      userName: item.userName,
+      userId: item.userId,
+      kind: "manager",
+    },
+    title: "가입 요청 반려",
+    message: `${item.userName} (${item.userId}) 담당자의 가입 요청을 반려하시겠습니까?`,
+    reasonPlaceholder: "반려 사유를 입력해 주세요.",
+    onConfirm: async ({ context, reason }) => {
+      if (!context?.mNo) return;
+      approvalSaving.value = true;
+      try {
+        const res = await fetch(
+          `/api/admin/members/${encodeURIComponent(context.mNo)}`,
+          {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reject_reason: reason }),
+          },
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "반려 처리에 실패했습니다.");
+        }
+        showAlert("success", "알림", "반려되었습니다.");
+        await loadManagers();
+      } catch (e) {
+        showAlert("error", "알림", e.message || "반려 처리에 실패했습니다.");
+      } finally {
+        approvalSaving.value = false;
+      }
+    },
+  });
 };
 
 // ====== 선택 삭제 ======
 const deleteSelected = () => {
   const selectedCount = tableData.value.filter((i) => i.selected).length;
   if (!selectedCount) {
-    alert("삭제할 항목을 선택해주세요.");
+    showAlert("info", "알림", "삭제할 항목을 선택해주세요.");
     return;
   }
   if (confirm(`${selectedCount}개의 항목을 삭제하시겠습니까?`)) {
@@ -196,7 +202,7 @@ const confirmEdit = async () => {
   if (!editTarget.value) return;
   const mNo = editTarget.value.id;
   if (!mNo) {
-    alert("대상 회원 정보가 없습니다.");
+    showAlert("error", "알림", "대상 회원 정보가 없습니다.");
     return;
   }
   editSaving.value = true;
@@ -220,7 +226,7 @@ const confirmEdit = async () => {
     closeEditModal();
     await loadManagers();
   } catch (e) {
-    alert(e.message || "저장에 실패했습니다.");
+    showAlert("error", "알림", e.message || "저장에 실패했습니다.");
   } finally {
     editSaving.value = false;
   }
@@ -313,21 +319,36 @@ onMounted(() => loadManagers());
             <td>{{ item.phone }}</td>
             <td>{{ item.email }}</td>
             <td class="text-center">
-              <span
-                v-if="item.status === '승인요청'"
-                class="badge badge-sm cursor-pointer"
-                :class="statusBadge(item.status)"
-                @click="openApprovalModal(item)"
-              >
-                {{ item.status }}
-              </span>
-              <span
-                v-else
-                class="badge badge-sm"
-                :class="statusBadge(item.status)"
-              >
-                {{ item.status }}
-              </span>
+              <template v-if="item.m_auth === 'a0_30'">
+                <span
+                  class="badge badge-sm"
+                  :class="statusBadge('승인됨')"
+                >
+                  승인됨
+                </span>
+              </template>
+              <template v-else>
+                <div class="d-flex justify-content-center gap-1">
+                  <ArgonButton
+                    size="xs"
+                    color="success"
+                    variant="gradient"
+                    :disabled="approvalSaving"
+                    @click="approveManager(item)"
+                  >
+                    승인
+                  </ArgonButton>
+                  <ArgonButton
+                    size="xs"
+                    color="danger"
+                    variant="outline"
+                    :disabled="approvalSaving"
+                    @click="rejectManager(item)"
+                  >
+                    반려
+                  </ArgonButton>
+                </div>
+              </template>
             </td>
             <td class="text-center">
               <a
@@ -497,6 +518,26 @@ onMounted(() => loadManagers());
       </div>
     </div>
   </div>
+
+  <!-- 반려 사유 입력 모달 -->
+  <ConfirmModal
+    :show="reasonModal.show"
+    :title="reasonModal.title"
+    :message="reasonModal.message"
+    :show-reason="reasonModal.showReason"
+    :reason-placeholder="reasonModal.reasonPlaceholder"
+    :reason-label="reasonModal.reasonLabel"
+    @close="closeReasonModal"
+    @confirm="onReasonConfirm"
+  />
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>
 
 <style scoped>

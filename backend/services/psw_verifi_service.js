@@ -66,9 +66,9 @@ async function createAndSendVerification(email, m_no, purpose) {
 // verifi_purpose: i0_10 이메일인증, i0_20 아이디찾기, i0_30 패스워드찾기
 // verifi_success: h0_00 미인증, h0_10 인증성공, h0_99 인증실패
 const svc = {
-    // 회원가입 이메일 인증 (용도 i0_10, m_no 없음)
-    sendJoinMail: async (email) => {
-        return await createAndSendVerification(email, null, "i0_10");
+    // 이메일 인증번호 발송 (용도 i0_10). m_no는 선택적으로 전달 (회원가입 시 null, 마이페이지 수정 시 m_no 사용)
+    sendJoinMail: async (email, m_no = null) => {
+        return await createAndSendVerification(email, m_no, "i0_10");
     },
 
     // 아이디 찾기 인증번호 발송 (용도 i0_20, member에서 m_no 사용)
