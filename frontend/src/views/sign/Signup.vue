@@ -422,9 +422,7 @@ const searchAddress = () => {
                   size="lg"
                   class="rounded-0 py-2 text-nowrap"
                   @click="selectUserType('일반회원')"
-                >
-                  일반 회원
-                </ArgonButton>
+                >일반 회원</ArgonButton>
               </div>
               <div class="col-4 px-1">
                 <ArgonButton
@@ -434,9 +432,7 @@ const searchAddress = () => {
                   size="lg"
                   class="rounded-0 py-2 text-nowrap"
                   @click="selectUserType('기관담당자')"
-                >
-                  기관 담당자
-                </ArgonButton>
+                >기관 담당자</ArgonButton>
               </div>
               <div class="col-4 px-1">
                 <ArgonButton
@@ -446,9 +442,7 @@ const searchAddress = () => {
                   size="lg"
                   class="rounded-0 py-2 text-nowrap"
                   @click="selectUserType('기관관리자')"
-                >
-                  기관 관리자
-                </ArgonButton>
+                >기관 관리자</ArgonButton>
               </div>
               <p class="text-xs font-weight-bold mt-3 mb-0 text-secondary">
                 회원 유형을 선택해주세요

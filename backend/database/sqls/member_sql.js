@@ -8,7 +8,7 @@ module.exports = {
     FROM member m
     LEFT JOIN organ o ON o.organ_no = m.m_org
     WHERE m.m_auth = ?
-    ORDER BY m.m_nm
+    ORDER BY m.m_no desc
   `,
 
   // 담당자 목록: 승인(a0_30) + 승인요청(a0_31) 동시 조회
@@ -17,7 +17,7 @@ module.exports = {
     FROM member m
     LEFT JOIN organ o ON o.organ_no = m.m_org
     WHERE m.m_auth IN (?, ?)
-    ORDER BY m.m_nm
+    ORDER BY m.m_no desc
   `,
 
   // 담당자 정보 수정 (m_nm, m_tel, m_email만, m_auth=a0_30인 경우만)
