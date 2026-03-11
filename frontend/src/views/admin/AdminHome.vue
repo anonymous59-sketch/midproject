@@ -795,8 +795,4 @@ const submitCreate = async () => {
 </template>
 
 <style scoped>
-.organ-table-scroll {
-  max-height: 60vh;
-  overflow-y: auto;
-}
 </style>

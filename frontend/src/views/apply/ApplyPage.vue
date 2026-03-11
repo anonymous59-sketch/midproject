@@ -441,7 +441,6 @@ const onCancel = () => {
             <!-- 전체 질문 스크롤 영역 (대분류 > 소분류 > 질문 순) -->
             <div
               class="survey-questions-scroll border rounded p-3 bg-light"
-              style="max-height: 60vh; overflow-y: auto"
             >
               <template v-for="mj in survey.majors" :key="mj.major_code">
                 <div class="mb-4">

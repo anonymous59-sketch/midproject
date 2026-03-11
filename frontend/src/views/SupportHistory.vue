@@ -194,7 +194,7 @@ onMounted(() => {
       <div v-else-if="!loading && supports.length === 0" class="text-muted">
         지원 이력이 없습니다.
       </div>
-      <div v-else class="psw-history-scroll">
+      <div v-else>
         <div
           v-for="block in supports"
           :key="block.sup_code"
@@ -370,10 +370,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.psw-history-scroll {
-  max-height: calc(100vh - 220px);
-  overflow-y: auto;
-}
 
 .psw-block-body {
   background-color: #f9fafb;
