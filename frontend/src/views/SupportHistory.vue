@@ -82,6 +82,22 @@ function statusLabel(code) {
   if (code === "e0_99") return "반려";
   return code;
 }
+// 상태 문자열(statusLabel) 기준으로 클래스 반환
+function statusClass(code) {
+  const status = statusLabel(code); // 승인, 반려, 검토, 보완
+  switch (status) {
+    case "승인":
+      return "badge bg-success text-white fw-bold";
+    case "반려":
+      return "badge bg-danger text-white fw-bold";
+    case "보완":
+      return "badge bg-warning text-dark fw-bold";
+    case "검토":
+      return "badge bg-light text-dark fw-bold";
+    default:
+      return "badge bg-secondary text-white fw-bold";
+  }
+}
 
 async function loadHistory() {
   if (!supCode.value) {
@@ -146,7 +162,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="container-fluid py-4">
+    <div class="container-fluid">
       <h5 class="mb-3">지원대상 정보</h5>
 
       <!-- 상단: 지원대상 기본 정보 -->
@@ -194,7 +210,7 @@ onMounted(() => {
       <div v-else-if="!loading && supports.length === 0" class="text-muted">
         지원 이력이 없습니다.
       </div>
-      <div v-else>
+      <div v-else style="overflow-y: auto; max-height: 60vh;">
         <div
           v-for="block in supports"
           :key="block.sup_code"
@@ -309,7 +325,7 @@ onMounted(() => {
                   </div>
                   <div class="text-muted small mb-1">
                     상태:
-                    <span class="badge bg-light text-dark ms-1">
+                    <span :class="statusClass(plan.plan_tf)">
                       {{ statusLabel(plan.plan_tf) }}
                     </span>
                   </div>
@@ -346,7 +362,7 @@ onMounted(() => {
                   </div>
                   <div class="text-muted small mb-1">
                     계획번호: {{ result.plan_code }}
-                    <span class="badge bg-light text-dark ms-2">
+                    <span :class="statusClass(result.result_tf)" class="ms-2">
                       {{ statusLabel(result.result_tf) }}
                     </span>
                   </div>

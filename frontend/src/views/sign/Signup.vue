@@ -420,7 +420,7 @@ const searchAddress = () => {
                   :color="userType === '일반회원' ? 'success' : 'secondary'"
                   fullWidth
                   size="lg"
-                  class="rounded-0 py-2 text-nowrap"
+                  class="rounded-0 py-2 d-flex justify-content-center align-items-center text-nowrap"
                   @click="selectUserType('일반회원')"
                 >일반 회원</ArgonButton>
               </div>
@@ -430,7 +430,7 @@ const searchAddress = () => {
                   :color="userType === '기관담당자' ? 'success' : 'secondary'"
                   fullWidth
                   size="lg"
-                  class="rounded-0 py-2 text-nowrap"
+                  class="rounded-0 py-2 d-flex justify-content-center align-items-center text-nowrap"
                   @click="selectUserType('기관담당자')"
                 >기관 담당자</ArgonButton>
               </div>
@@ -440,7 +440,7 @@ const searchAddress = () => {
                   :color="userType === '기관관리자' ? 'success' : 'secondary'"
                   fullWidth
                   size="lg"
-                  class="rounded-0 py-2 text-nowrap"
+                  class="rounded-0 py-2 d-flex justify-content-center align-items-center text-nowrap"
                   @click="selectUserType('기관관리자')"
                 >기관 관리자</ArgonButton>
               </div>
