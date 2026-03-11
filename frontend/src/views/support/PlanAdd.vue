@@ -1,6 +1,6 @@
 <!-- 지원계획 추가 폼 컴포넌트 -->
 <script setup>
-import { ref, reactive, computed } from "vue";
+import { ref, reactive } from "vue";
 import { useTempStorage } from "@/composables/useTempStorage";
 import TempStorageModal from "@/components/TempStorageModal.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
@@ -24,10 +24,6 @@ const form = reactive({
 const files = ref([]);
 const fileInput = ref(null);
 
-const fileNames = computed(() =>
-  files.value.length ? files.value.map((f) => f.name).join(", ") : "",
-);
-
 function onFileChange(e) {
   const selected = Array.from(e.target.files || []);
   const oversized = selected.filter((f) => f.size > 10 * 1024 * 1024);
@@ -41,10 +37,6 @@ function onFileChange(e) {
     return;
   }
   files.value = selected;
-}
-
-function openFileDialog() {
-  if (fileInput.value) fileInput.value.click();
 }
 
 const {
@@ -162,21 +154,11 @@ defineExpose({ reset, deleteTempAfterInsert: deleteSelectedTemp });
           <input
             ref="fileInput"
             type="file"
-            class="d-none"
+            class="form-control form-control-sm"
             multiple
             @change="onFileChange"
           />
-          <ArgonButton
-            type="button"
-            size="sm"
-            variant="outline"
-            color="secondary"
-            class="text-start w-100 bg-white"
-            @click="openFileDialog"
-          >
-            <span v-if="fileNames">{{ fileNames }}</span>
-            <span v-else class="text-muted">파일을 선택하세요. 10MB 초과 불가.</span>
-          </ArgonButton>
+          <small class="text-muted">파일 1개당 10MB를 초과할 수 없습니다.</small>
         </div>
         <div class="d-flex justify-content-end gap-2">
           <ArgonButton type="button" size="sm" variant="outline" color="primary" @click="onApprovalRequest">

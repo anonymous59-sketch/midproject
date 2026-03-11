@@ -1,10 +1,12 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { useAuthStore } from "@/store/auth";
 
 // Argon components
 import ArgonInput from "@/components/ArgonInput.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
+import { useVerificationTimer } from "@/composables/useVerificationTimer";
 
 const authStore = useAuthStore();
 
@@ -20,6 +22,70 @@ const userName = ref("");
 
 const isEditMode = ref(false);
 const saving = ref(false);
+
+const originalEmail = ref("");
+
+const {
+  countdown: emailCountdown,
+  startTimer: startEmailTimer,
+  stopTimer: stopEmailTimer,
+} = useVerificationTimer("verifi_end_mypage_managerinfo_email", 180);
+
+const emailAuthSectionVisible = ref(false);
+const emailAuthCodeInput = ref("");
+const emailAuthMessage = ref("");
+const isEmailAuthSending = ref(false);
+const isEmailAuthChecking = ref(false);
+const isEmailAuthVerified = ref(false);
+
+const isEmailChanged = computed(
+  () =>
+    (managerInfo.value.email ?? "").trim() !==
+    (originalEmail.value ?? "").trim(),
+);
+
+const emailAuthButtonLabel = computed(() => {
+  if (isEmailAuthVerified.value) return "완료";
+  if (isEmailAuthSending.value) return "발송 중...";
+  if (emailAuthSectionVisible.value && emailCountdown.value === 0)
+    return "재발송";
+  return "인증";
+});
+
+const emailAuthButtonDisabled = computed(() => {
+  if (!isEmailChanged.value) return true;
+  return (
+    isEmailAuthVerified.value ||
+    isEmailAuthSending.value ||
+    (emailAuthSectionVisible.value && emailCountdown.value > 0)
+  );
+});
+
+const alertModal = ref({
+  show: false,
+  type: "error",
+  title: "알림",
+  message: "",
+});
+
+function showAlert(type, title, message) {
+  alertModal.value = {
+    show: true,
+    type,
+    title: title ?? "알림",
+    message: message ?? "",
+  };
+}
+
+function resetEmailAuthState() {
+  stopEmailTimer();
+  emailAuthSectionVisible.value = false;
+  emailAuthCodeInput.value = "";
+  emailAuthMessage.value = "";
+  isEmailAuthSending.value = false;
+  isEmailAuthChecking.value = false;
+  isEmailAuthVerified.value = false;
+}
 
 // API 응답이 배열이면 첫 번째 행 사용 (호환)
 function normalizeProfile(data) {
@@ -46,10 +112,11 @@ const loadMyInfo = async () => {
         address: data.m_add ?? "",
       };
       userName.value = data.m_nm ?? "";
+      originalEmail.value = managerInfo.value.email ?? "";
     }
   } catch (e) {
     console.error(e);
-    alert("정보를 불러오지 못했습니다.");
+    showAlert("error", "알림", "정보를 불러오지 못했습니다.");
   }
 };
 
@@ -58,13 +125,27 @@ onMounted(() => {
 });
 
 const toggleEdit = () => {
-  isEditMode.value = !isEditMode.value;
+  if (!isEditMode.value) {
+    originalEmail.value = managerInfo.value.email ?? "";
+    resetEmailAuthState();
+    isEditMode.value = true;
+  } else {
+    isEditMode.value = false;
+    resetEmailAuthState();
+  }
 };
 
 const saveInfo = async () => {
   const mNo = authStore.user?.m_no;
   if (!mNo) {
-    alert("로그인 정보가 없습니다.");
+    showAlert("error", "알림", "로그인 정보가 없습니다.");
+    return;
+  }
+  const emailChanged =
+    (managerInfo.value.email ?? "").trim() !==
+    (originalEmail.value ?? "").trim();
+  if (emailChanged && !isEmailAuthVerified.value) {
+    showAlert("error", "알림", "이메일 인증을 완료해주세요.");
     return;
   }
   saving.value = true;
@@ -83,14 +164,135 @@ const saveInfo = async () => {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || "저장 실패");
     }
-    alert("정보가 수정되었습니다.");
+    showAlert("success", "알림", "정보가 수정되었습니다.");
     isEditMode.value = false;
   } catch (e) {
-    alert(e.message || "저장에 실패했습니다.");
+    showAlert("error", "알림", e.message || "저장에 실패했습니다.");
   } finally {
     saving.value = false;
   }
 };
+
+watch(
+  () => managerInfo.value.email,
+  (val) => {
+    if (!isEditMode.value) return;
+    if ((val ?? "").trim() !== (originalEmail.value ?? "").trim()) {
+      resetEmailAuthState();
+    }
+  },
+);
+
+async function sendManagerEmailVerification() {
+  const email = (managerInfo.value.email ?? "").trim();
+  if (!email) {
+    showAlert("error", "알림", "이메일을 입력해주세요.");
+    return;
+  }
+  if (!isEmailChanged.value) {
+    showAlert("info", "알림", "이메일을 변경한 후 인증을 진행해 주세요.");
+    return;
+  }
+  isEmailAuthSending.value = true;
+  emailAuthMessage.value = "";
+  try {
+    const checkRes = await fetch(
+      `/api/auth/check-email?email=${encodeURIComponent(email)}`,
+    );
+    if (checkRes.ok) {
+      const body = await checkRes.json().catch(() => ({}));
+      if (body?.exists) {
+        emailAuthMessage.value = "해당 이메일은 이미 사용 중입니다.";
+        showAlert("error", "알림", emailAuthMessage.value);
+        emailAuthSectionVisible.value = false;
+        stopEmailTimer();
+        return;
+      }
+    }
+
+    await fetch("/api/verifi/expire", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, purpose: "i0_10" }),
+    }).catch(() => {});
+
+    const mNo = authStore.user?.m_no || null;
+    const res = await fetch("/api/verifi/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, m_no: mNo }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || "인증번호 발송에 실패했습니다.");
+    }
+    emailAuthMessage.value =
+      data.message || "인증번호가 발송되었습니다.";
+    emailAuthSectionVisible.value = true;
+    isEmailAuthVerified.value = false;
+    emailAuthCodeInput.value = "";
+    startEmailTimer(async () => {
+      emailAuthMessage.value =
+        "인증시간이 만료되었습니다. 다시 요청해주세요.";
+      isEmailAuthVerified.value = false;
+      await fetch("/api/verifi/expire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, purpose: "i0_10" }),
+      }).catch(() => {});
+    });
+  } catch (e) {
+    emailAuthMessage.value =
+      e.message || "인증번호 발송에 실패했습니다.";
+    showAlert("error", "알림", emailAuthMessage.value);
+  } finally {
+    isEmailAuthSending.value = false;
+  }
+}
+
+async function confirmManagerEmailCode() {
+  const email = (managerInfo.value.email ?? "").trim();
+  if (!emailAuthSectionVisible.value) {
+    emailAuthMessage.value = "먼저 인증번호를 발송해 주세요.";
+    return;
+  }
+  if (!emailAuthCodeInput.value) {
+    emailAuthMessage.value = "인증번호를 입력해주세요.";
+    return;
+  }
+  isEmailAuthChecking.value = true;
+  emailAuthMessage.value = "";
+  try {
+    const res = await fetch("/api/verifi/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        code: emailAuthCodeInput.value,
+        purpose: "i0_10",
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || "인증에 실패했습니다.");
+    }
+    isEmailAuthVerified.value = true;
+    stopEmailTimer();
+    emailAuthMessage.value = data.message || "인증 성공";
+  } catch (e) {
+    emailAuthMessage.value =
+      e.message || "인증에 실패했습니다. 다시 시도해주세요.";
+    isEmailAuthVerified.value = false;
+    stopEmailTimer();
+    emailCountdown.value = 0;
+  } finally {
+    isEmailAuthChecking.value = false;
+  }
+}
+
+onBeforeUnmount(() => {
+  stopEmailTimer();
+});
 </script>
 
 <template>
@@ -166,11 +368,67 @@ const saveInfo = async () => {
 
                 <div class="form-item">
                   <label class="form-label">이메일</label>
-                  <ArgonInput
-                    v-model="managerInfo.email"
-                    :disabled="!isEditMode"
-                    class="organ-input"
-                  />
+                  <div class="w-100">
+                    <ArgonInput
+                      v-model="managerInfo.email"
+                      :disabled="!isEditMode"
+                      class="organ-input"
+                    />
+                    <div
+                      v-if="isEditMode"
+                      class="d-flex align-items-center gap-2 mt-2"
+                    >
+                      <ArgonButton
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        color="success"
+                        :disabled="emailAuthButtonDisabled"
+                        @click="sendManagerEmailVerification"
+                      >
+                        {{ emailAuthButtonLabel }}
+                      </ArgonButton>
+                      <span
+                        v-if="emailCountdown > 0 && !isEmailAuthVerified"
+                        class="text-xs text-muted"
+                      >
+                        {{ emailCountdown }}초 남음
+                      </span>
+                    </div>
+                    <div
+                      v-if="isEditMode && emailAuthSectionVisible"
+                      class="mt-2"
+                    >
+                      <div class="d-flex gap-2">
+                        <ArgonInput
+                          v-model="emailAuthCodeInput"
+                          placeholder="인증번호 6자리를 입력하세요."
+                          size="sm"
+                        />
+                        <ArgonButton
+                          type="button"
+                          size="sm"
+                          color="primary"
+                        class="email-auth-confirm-btn"
+                          :disabled="
+                            isEmailAuthChecking || isEmailAuthVerified
+                          "
+                          @click="confirmManagerEmailCode"
+                        >
+                          {{ isEmailAuthVerified ? "완료" : "확인" }}
+                        </ArgonButton>
+                      </div>
+                      <p
+                        v-if="emailAuthMessage"
+                        class="text-xs mt-1"
+                        :class="
+                          isEmailAuthVerified ? 'text-success' : 'text-danger'
+                        "
+                      >
+                        {{ emailAuthMessage }}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="form-item">
@@ -205,6 +463,14 @@ const saveInfo = async () => {
       </div>
     </div>
   </div>
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>
 
 <style scoped>
@@ -282,6 +548,12 @@ const saveInfo = async () => {
   font-size: 0.875rem;
   color: #67748e;
   background-color: #f8f9fa;
+}
+
+.email-auth-confirm-btn {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* 수정 버튼 - 잘 보이게 */

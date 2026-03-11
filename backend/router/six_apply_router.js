@@ -303,6 +303,25 @@ router.post("/support/:supCode/counsels", async (req, res) => {
   }
 });
 
+// ✅ 상담 1건 수정: PUT /support/:supCode/counsels/:cslCode
+router.put("/support/:supCode/counsels/:cslCode", async (req, res) => {
+  try {
+    const { cslCode } = req.params;
+    const payload = req.body || {};
+    await sixApplyService.updateCounsel(cslCode, payload);
+    return res.json({ message: "ok", csl_code: cslCode });
+  } catch (err) {
+    if (err.message === "제목과 상담일은 필수입니다.") {
+      return res.status(400).json({ message: err.message });
+    }
+    console.error("[PUT /support/:supCode/counsels/:cslCode]", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message || String(err),
+    });
+  }
+});
+
 // 질문지 트리 조회
 router.get("/surveys/:sverCode", async (req, res) => {
   try {

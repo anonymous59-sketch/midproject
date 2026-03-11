@@ -512,6 +512,38 @@ exports.createCounsel = async (supCode, payload) => {
   }
 };
 
+/**
+ * 상담 1건 수정 (csl_code 기준)
+ * @param {string} cslCode - 상담 코드
+ * @param {{ csl_title: string, csl_date: string, csl_content: string, csl_writer?: string }} payload
+ */
+exports.updateCounsel = async (cslCode, payload) => {
+  const { csl_title, csl_date, csl_content, csl_writer } = payload || {};
+  if (!csl_title || !csl_date) {
+    throw new Error("제목과 상담일은 필수입니다.");
+  }
+  let conn;
+  try {
+    conn = await pools.getConnection();
+    const cslDateVal =
+      String(csl_date).length <= 10 ? `${csl_date} 00:00:00` : csl_date;
+    await conn.query(surveySql.updateCounsel, [
+      csl_title,
+      cslDateVal,
+      csl_content || "",
+      csl_writer || "",
+      cslCode,
+    ]);
+    await conn.commit();
+    return { csl_code: cslCode };
+  } catch (err) {
+    if (conn) await conn.rollback();
+    throw err;
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
 // 지원신청 저장: support INSERT(mc_pn=지원대상자, mem_no=로그인 회원) → sup_code(PK) → survey_a INSERT(ans_no=mem_no, sup_code), a_code(PK) 수집 반환
 exports.createApplication = async ({ mc_pn, mem_no, req_yn, answers }) => {
   let conn;

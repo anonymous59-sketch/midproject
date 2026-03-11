@@ -6,6 +6,7 @@ import axios from "axios";
 import { useAuthStore } from "@/store/auth";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
 // 라우터에 있는 정보를 가지고 와서 사용
 const route = useRoute();
 // 라우터에 정보를 입력하고 그 라우터로 이동
@@ -13,7 +14,7 @@ const router = useRouter();
 
 const mode = computed(() => (route.query.mode == "edit" ? "edit" : "create"));
 
-const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD 형식으로 오늘 날짜 구하기
+const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD 형식으로 오늘 날짜 구하기
 
 // 로그인 사용자 정보 (Pinia 우선, 없으면 localStorage fallback)
 const authStore = useAuthStore();
@@ -75,7 +76,7 @@ const isExpiredSurvey = ref(false); // 유효종료일을 확인해서 만료된
 const isInvalidDateRange = computed(() => {
   if (!form.value.sver_ondate || !form.value.sver_enddate) {
     return false; // 날짜가 하나라도 없으면 유효성 검사 통과로 간주
-  };
+  }
   return form.value.sver_ondate > form.value.sver_enddate;
 });
 
@@ -220,9 +221,7 @@ const buildPayload = () => {
     sv_name: form.value.sv_name,
     sver_ondate: form.value.sver_ondate,
     sver_enddate:
-      form.value.sver_enddate == "2999-12-31"
-        ? null
-        : form.value.sver_enddate,
+      form.value.sver_enddate == "2999-12-31" ? null : form.value.sver_enddate,
   };
 
   const majorList = majorCategories.value.map((majorC) => ({
@@ -284,11 +283,17 @@ const previewStructure = computed(() => {
   return result;
 });
 
+// 알림 모달 상태
+const alertModal = ref({ show: false, type: "success", title: "알림", message: "" });
+function showAlert(type, title, message) {
+  alertModal.value = { show: true, type, title: title ?? "알림", message: message ?? "" };
+}
+
 // 전체저장 클릭 → 미리보기 모달 열기
 const openPreviewModal = () => {
   // create 모드에서는 작성자(로그인 사용자)가 없으면 저장 막기
   if (mode.value == "create" && !writerNo.value) {
-    alert("로그인 정보를 찾지 못했습니다. 다시 로그인 후 시도해주세요.");
+    showAlert("error", "알림", "로그인 정보를 찾지 못했습니다. 다시 로그인 후 시도해주세요.");
     return;
   }
   pendingPreviewPayload.value = buildPayload();
@@ -303,8 +308,7 @@ const closePreviewModal = () => {
 
 // 미리보기 모달의 저장 클릭 → DB 전송
 const handleSave = async () => {
-  const payload =
-    pendingPreviewPayload.value || buildPayload();
+  const payload = pendingPreviewPayload.value || buildPayload();
 
   try {
     const surveyInfo = payload.survey;
@@ -496,11 +500,9 @@ onBeforeMount(() => {
   }
 
   // 유효종료일이 오늘보다 과거면 isExpiredSurvey를 true로 설정해서 화면에서 수정 불가 처리
-  if (
-      route.query.sver_enddate <= today
-    ) {
-      isExpiredSurvey.value = true;
-    }
+  if (route.query.sver_enddate <= today) {
+    isExpiredSurvey.value = true;
+  }
 });
 </script>
 
@@ -520,15 +522,30 @@ onBeforeMount(() => {
         <div class="d-flex gap-2 align-items-end">
           <div v-if="mode == 'edit'" class="me-3">
             <label class="form-label mb-1">조사지 Ver</label>
-            <ArgonInput v-model="form.sver_code" type="text" size="sm" readonly />
+            <ArgonInput
+              v-model="form.sver_code"
+              type="text"
+              size="sm"
+              readonly
+            />
           </div>
           <div class="me-3">
             <label class="form-label mb-1">작성자</label>
-            <ArgonInput :model-value="writerName || '(로그인 필요)'" type="text" size="sm" readonly />
+            <ArgonInput
+              :model-value="writerName || '(로그인 필요)'"
+              type="text"
+              size="sm"
+              readonly
+            />
           </div>
           <div class="me-3">
             <label class="form-label mb-1">조사지명</label>
-            <ArgonInput v-model="form.sv_name" type="text" size="sm" placeholder="조사지명을 입력하세요" />
+            <ArgonInput
+              v-model="form.sv_name"
+              type="text"
+              size="sm"
+              placeholder="조사지명을 입력하세요"
+            />
           </div>
           <div class="me-3">
             <label class="form-label mb-1">유효시작일</label>
@@ -549,7 +566,13 @@ onBeforeMount(() => {
           <div class="major-list">
             <div class="panel-header mb-2 d-flex justify-content-between">
               <span>대분류 항목</span>
-              <ArgonButton size="sm" variant="outline" color="secondary" type="button" @click="openMajorCreate">
+              <ArgonButton
+                size="sm"
+                variant="outline"
+                color="secondary"
+                type="button"
+                @click="openMajorCreate"
+              >
                 등록
               </ArgonButton>
             </div>
@@ -561,7 +584,14 @@ onBeforeMount(() => {
               @click="selectedMajorId = major.id"
             >
               <span>{{ major.name }}</span>
-              <ArgonButton size="sm" variant="outline" color="secondary" class="ms-2" type="button" @click.stop="openMajorEdit(major)">
+              <ArgonButton
+                size="sm"
+                variant="outline"
+                color="secondary"
+                class="ms-2"
+                type="button"
+                @click.stop="openMajorEdit(major)"
+              >
                 수정
               </ArgonButton>
             </div>
@@ -571,7 +601,13 @@ onBeforeMount(() => {
           <div class="sub-list">
             <div class="panel-header mb-2 d-flex justify-content-between">
               <span>소분류 항목</span>
-              <ArgonButton size="sm" variant="outline" color="secondary" type="button" @click="openSubCreate">
+              <ArgonButton
+                size="sm"
+                variant="outline"
+                color="secondary"
+                type="button"
+                @click="openSubCreate"
+              >
                 등록
               </ArgonButton>
             </div>
@@ -587,7 +623,14 @@ onBeforeMount(() => {
                 <div class="category-text">
                   <div class="category-name">{{ sub.name }}</div>
                 </div>
-                <ArgonButton size="sm" variant="outline" color="secondary" class="ms-2" type="button" @click.stop="openSubEdit(sub)">
+                <ArgonButton
+                  size="sm"
+                  variant="outline"
+                  color="secondary"
+                  class="ms-2"
+                  type="button"
+                  @click.stop="openSubEdit(sub)"
+                >
                   수정
                 </ArgonButton>
               </div>
@@ -617,7 +660,13 @@ onBeforeMount(() => {
                   </template>
                 </p>
               </div>
-              <ArgonButton size="sm" color="primary" type="button" :disabled="!selectedSub" @click="openQuestionCreate">
+              <ArgonButton
+                size="sm"
+                color="primary"
+                type="button"
+                :disabled="!selectedSub"
+                @click="openQuestionCreate"
+              >
                 질문 추가
               </ArgonButton>
             </div>
@@ -692,7 +741,13 @@ onBeforeMount(() => {
                       </div>
                     </td>
                     <td>
-                      <ArgonButton size="sm" variant="outline" color="secondary" type="button" @click="openQuestionEdit(idx, question)">
+                      <ArgonButton
+                        size="sm"
+                        variant="outline"
+                        color="secondary"
+                        type="button"
+                        @click="openQuestionEdit(idx, question)"
+                      >
                         수정
                       </ArgonButton>
                     </td>
@@ -713,10 +768,20 @@ onBeforeMount(() => {
         class="card-footer d-flex flex-column align-items-end bg-transparent"
       >
         <div class="d-flex gap-2">
-          <ArgonButton color="success" type="button" :disabled="isExpiredSurvey || isInvalidDateRange" @click="openPreviewModal">
+          <ArgonButton
+            color="success"
+            type="button"
+            :disabled="isExpiredSurvey || isInvalidDateRange"
+            @click="openPreviewModal"
+          >
             전체저장
           </ArgonButton>
-          <ArgonButton variant="outline" color="secondary" type="button" @click="handleCancel">
+          <ArgonButton
+            variant="outline"
+            color="secondary"
+            type="button"
+            @click="handleCancel"
+          >
             취소
           </ArgonButton>
         </div>
@@ -736,24 +801,28 @@ onBeforeMount(() => {
         <div class="modal-card">
           <div class="modal-header">
             <h6 class="mb-0">
-              {{
-                majorModalMode == "create"
-                  ? "지원서 항목 등록"
-                  : "지원서 항목 수정"
-              }}
+              {{ majorModalMode == "create" ? "대분류 등록" : "대분류 수정" }}
             </h6>
           </div>
           <div class="modal-body">
             <div class="mb-3">
               <label class="form-label">제목</label>
-              <ArgonInput v-model="majorForm.name" type="text" placeholder="제목을 입력하세요" />
+              <ArgonInput
+                v-model="majorForm.name"
+                type="text"
+                placeholder="제목을 입력하세요"
+              />
             </div>
           </div>
           <div class="modal-footer d-flex justify-content-end gap-2">
             <ArgonButton color="success" type="button" @click="saveMajor">
               {{ majorModalMode == "create" ? "등록" : "수정" }}
             </ArgonButton>
-            <ArgonButton color="warning" type="button" @click="showMajorModal = false">
+            <ArgonButton
+              color="warning"
+              type="button"
+              @click="showMajorModal = false"
+            >
               취소
             </ArgonButton>
           </div>
@@ -765,22 +834,28 @@ onBeforeMount(() => {
         <div class="modal-card">
           <div class="modal-header">
             <h6 class="mb-0">
-              {{
-                subModalMode == "create" ? "세부 항목 등록" : "세부 항목 수정"
-              }}
+              {{ subModalMode == "create" ? "소분류 등록" : "소분류 수정" }}
             </h6>
           </div>
           <div class="modal-body">
             <div class="mb-3">
               <label class="form-label">제목</label>
-              <ArgonInput v-model="subForm.name" type="text" placeholder="제목을 입력하세요" />
+              <ArgonInput
+                v-model="subForm.name"
+                type="text"
+                placeholder="제목을 입력하세요"
+              />
             </div>
           </div>
           <div class="modal-footer d-flex justify-content-end gap-2">
             <ArgonButton color="success" type="button" @click="saveSub">
               {{ subModalMode == "create" ? "등록" : "수정" }}
             </ArgonButton>
-            <ArgonButton color="warning" type="button" @click="showSubModal = false">
+            <ArgonButton
+              color="warning"
+              type="button"
+              @click="showSubModal = false"
+            >
               취소
             </ArgonButton>
           </div>
@@ -885,7 +960,11 @@ onBeforeMount(() => {
             <ArgonButton color="primary" type="button" @click="saveQuestion">
               {{ questionModalMode == "create" ? "저장" : "수정" }}
             </ArgonButton>
-            <ArgonButton color="warning" type="button" @click="showQuestionModal = false">
+            <ArgonButton
+              color="warning"
+              type="button"
+              @click="showQuestionModal = false"
+            >
               취소
             </ArgonButton>
           </div>
@@ -901,7 +980,7 @@ onBeforeMount(() => {
           <div class="modal-header">
             <h6 class="mb-0">조사지 미리보기</h6>
           </div>
-          <div class="modal-body preview-modal-body pt-3">
+          <div class="modal-body pt-3">
             <div class="mb-3" style="max-width: 420px">
               <label class="form-label text-sm">조사지</label>
               <div class="bg-light border rounded px-3 py-2 text-sm">
@@ -958,11 +1037,15 @@ onBeforeMount(() => {
                           v-if="q.answerType == 'OX'"
                           class="ms-4 d-flex flex-wrap gap-3"
                         >
-                          <label class="mb-0 d-flex align-items-center gap-1 text-sm">
+                          <label
+                            class="mb-0 d-flex align-items-center gap-1 text-sm"
+                          >
                             <input type="radio" disabled />
                             예
                           </label>
-                          <label class="mb-0 d-flex align-items-center gap-1 text-sm">
+                          <label
+                            class="mb-0 d-flex align-items-center gap-1 text-sm"
+                          >
                             <input type="radio" disabled />
                             아니오
                           </label>
@@ -1010,7 +1093,11 @@ onBeforeMount(() => {
             <ArgonButton color="success" type="button" @click="handleSave">
               저장
             </ArgonButton>
-            <ArgonButton color="warning" type="button" @click="closePreviewModal">
+            <ArgonButton
+              color="warning"
+              type="button"
+              @click="closePreviewModal"
+            >
               취소
             </ArgonButton>
           </div>
@@ -1018,6 +1105,15 @@ onBeforeMount(() => {
       </div>
     </div>
   </div>
+
+  <!-- 알림 모달 -->
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>
 
 <!-- 스타일은 다시 확인해봐야할 것, 스크롤 기능이 CSS로 생김 -->
@@ -1211,10 +1307,6 @@ onBeforeMount(() => {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-}
-
-.preview-modal-body {
-  overflow-y: auto;
 }
 
 textarea {

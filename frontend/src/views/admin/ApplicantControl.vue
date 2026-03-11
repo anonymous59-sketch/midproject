@@ -2,12 +2,33 @@
 import { ref, computed, onMounted } from "vue";
 import { useAuthStore } from "@/store/auth";
 import { usePagination } from "@/composables/usePagination";
+import { useReasonModal } from "@/composables/useReasonModal";
 import SearchNavbar from "@/views/components/SearchNavbar.vue";
 import MainTable from "@/views/components/MainTable.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
+import ConfirmModal from "@/views/modal/ConfirmModal.vue";
 
 const authStore = useAuthStore();
+
+const alertModal = ref({
+  show: false,
+  type: "success",
+  title: "알림",
+  message: "",
+});
+function showAlert(type, title, message) {
+  alertModal.value = {
+    show: true,
+    type,
+    title: title ?? "알림",
+    message: message ?? "",
+  };
+}
+
+const { reasonModal, openReasonModal, closeReasonModal, onReasonConfirm } =
+  useReasonModal();
 
 const tableData = ref([]);
 const searchBy = ref("m_nm");
@@ -15,10 +36,10 @@ const searchValue = ref("");
 const listLoading = ref(false);
 const listError = ref("");
 
-/** m_auth: a0_20 → 승인됨, a0_21 → 승인요청 */
+/** m_auth: a0_20 → 승인됨, 기타 → 미승인 */
 function mapRow(item, index) {
   const auth = item.m_auth || "";
-  const status = auth === "a0_21" ? "승인요청" : "승인됨";
+  const status = auth === "a0_20" ? "승인됨" : "미승인";
   return {
     id: item.m_no || index + 1,
     selected: false,
@@ -75,84 +96,77 @@ const {
   rowDisplayNo,
 } = usePagination(() => filteredRows.value, 10);
 
+const approvalSaving = ref(false);
 const statusBadge = (status) => ({
   "bg-gradient-success": status === "승인됨",
-  "bg-gradient-warning": status === "승인요청",
 });
 
-const approvalModalOpen = ref(false);
-const approvalTarget = ref(null);
-const rejectReason = ref("");
-const approvalStep = ref("choice");
-const approvalSaving = ref(false);
-
-const openApprovalModal = (item) => {
-  if (item.status !== "승인요청") return;
-  approvalTarget.value = item;
-  rejectReason.value = "";
-  approvalStep.value = "choice";
-  approvalModalOpen.value = true;
-};
-
-const closeApprovalModal = () => {
-  if (!approvalSaving.value) {
-    approvalModalOpen.value = false;
-    approvalTarget.value = null;
-    rejectReason.value = "";
-    approvalStep.value = "choice";
-  }
-};
-
-const doApprove = async () => {
-  const target = approvalTarget.value;
-  if (!target) return;
+const approveApplicant = async (item) => {
+  if (!item?.id) return;
   approvalSaving.value = true;
   try {
-    const res = await fetch(`/api/admin/members/${encodeURIComponent(target.id)}/approve-applicant`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-    });
+    const res = await fetch(
+      `/api/admin/members/${encodeURIComponent(item.id)}/approve-applicant`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
     if (!res.ok) throw new Error("승인 처리에 실패했습니다.");
     approvalSaving.value = false;
-    alert("승인되었습니다.");
-    closeApprovalModal();
+    showAlert("success", "알림", "승인되었습니다.");
     await loadList();
   } catch (e) {
-    alert(e.message);
+    showAlert("error", "알림", e.message ?? "처리에 실패했습니다.");
   } finally {
     approvalSaving.value = false;
   }
 };
 
-const showRejectForm = () => {
-  approvalStep.value = "reject";
-};
-
-const doReject = async () => {
-  const target = approvalTarget.value;
-  if (!target) return;
-  approvalSaving.value = true;
-  try {
-    const res = await fetch(`/api/admin/members/${encodeURIComponent(target.id)}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reject_reason: rejectReason.value || "" }),
-    });
-    if (!res.ok) throw new Error("반려 처리에 실패했습니다.");
-    approvalSaving.value = false;
-    closeApprovalModal();
-    await loadList();
-  } catch (e) {
-    alert(e.message);
-  } finally {
-    approvalSaving.value = false;
-  }
+const rejectApplicant = (item) => {
+  if (!item?.id) return;
+  openReasonModal({
+    context: {
+      mNo: item.id,
+      email: item.email,
+      userName: item.userName,
+      userId: item.userId,
+      kind: "applicant",
+    },
+    title: "가입 요청 반려",
+    message: `${item.userName} (${item.userId}) 지원자의 가입 요청을 반려하시겠습니까?`,
+    reasonPlaceholder: "반려 사유를 입력해 주세요.",
+    onConfirm: async ({ context, reason }) => {
+      if (!context?.mNo) return;
+      approvalSaving.value = true;
+      try {
+        const res = await fetch(
+          `/api/admin/members/${encodeURIComponent(context.mNo)}`,
+          {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reject_reason: reason }),
+          },
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "반려 처리에 실패했습니다.");
+        }
+        showAlert("success", "알림", "반려되었습니다.");
+        await loadList();
+      } catch (e) {
+        showAlert("error", "알림", e.message || "반려 처리에 실패했습니다.");
+      } finally {
+        approvalSaving.value = false;
+      }
+    },
+  });
 };
 
 const deleteSelected = () => {
   const selectedCount = tableData.value.filter((i) => i.selected).length;
   if (!selectedCount) {
-    alert("삭제할 항목을 선택해주세요.");
+    showAlert("info", "알림", "삭제할 항목을 선택해주세요.");
     return;
   }
   if (confirm(`${selectedCount}개의 항목을 삭제하시겠습니까?`)) {
@@ -220,58 +234,62 @@ onMounted(() => loadList());
             <td>{{ item.phone }}</td>
             <td>{{ item.email }}</td>
             <td class="text-center">
-              <span
-                v-if="item.status === '승인요청'"
-                class="badge badge-sm cursor-pointer"
-                :class="statusBadge(item.status)"
-                @click="openApprovalModal(item)"
-              >
-                {{ item.status }}
-              </span>
-              <span v-else class="badge badge-sm" :class="statusBadge(item.status)">
-                {{ item.status }}
-              </span>
+              <template v-if="item.m_auth === 'a0_20'">
+                <span
+                  class="badge badge-sm"
+                  :class="statusBadge('승인됨')"
+                >
+                  승인됨
+                </span>
+              </template>
+              <template v-else>
+                <div class="d-flex justify-content-center gap-1">
+                  <ArgonButton
+                    size="xs"
+                    color="success"
+                    variant="gradient"
+                    :disabled="approvalSaving"
+                    @click="approveApplicant(item)"
+                  >
+                    승인
+                  </ArgonButton>
+                  <ArgonButton
+                    size="xs"
+                    color="danger"
+                    variant="outline"
+                    :disabled="approvalSaving"
+                    @click="rejectApplicant(item)"
+                  >
+                    반려
+                  </ArgonButton>
+                </div>
+              </template>
             </td>
           </tr>
         </template>
       </MainTable>
     </div>
 
-    <!-- 승인/반려 모달 -->
-    <div v-if="approvalModalOpen">
-      <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0, 0, 0, 0.5)">
-        <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content card shadow-lg border-0">
-            <div class="card-header text-center bg-transparent pb-0">
-              <h6 class="font-weight-bolder text-dark">사용승인여부</h6>
-            </div>
-            <div class="card-body p-4">
-              <template v-if="approvalStep === 'choice'">
-                <p class="text-sm text-muted mb-3">
-                  {{ approvalTarget?.userName }} ({{ approvalTarget?.userId }}) 지원자에 대해 승인 또는 반려를 선택하세요.
-                </p>
-                <div class="d-flex justify-content-center gap-2 flex-wrap">
-                  <ArgonButton size="sm" color="success" variant="gradient" :disabled="approvalSaving" @click="doApprove">승인</ArgonButton>
-                  <ArgonButton size="sm" color="danger" variant="gradient" :disabled="approvalSaving" @click="showRejectForm">반려</ArgonButton>
-                  <ArgonButton size="sm" color="secondary" variant="gradient" :disabled="approvalSaving" @click="closeApprovalModal">취소</ArgonButton>
-                </div>
-              </template>
-              <template v-else>
-                <label class="form-label text-sm">반려사유 (선택, 향후 이메일 발송 예정)</label>
-                <textarea v-model="rejectReason" class="form-control form-control-sm mb-3" rows="4" placeholder="반려 사유를 입력하세요" />
-                <div class="d-flex justify-content-center gap-2 flex-wrap">
-                  <ArgonButton size="sm" color="danger" variant="gradient" :disabled="approvalSaving" @click="doReject">
-                    {{ approvalSaving ? "처리 중..." : "반려 제출" }}
-                  </ArgonButton>
-                  <ArgonButton size="sm" color="secondary" variant="gradient" :disabled="approvalSaving" @click="approvalStep = 'choice'">뒤로</ArgonButton>
-                </div>
-              </template>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 사유 입력 모달 (반려용) -->
+    <ConfirmModal
+      :show="reasonModal.show"
+      :title="reasonModal.title"
+      :message="reasonModal.message"
+      :show-reason="reasonModal.showReason"
+      :reason-placeholder="reasonModal.reasonPlaceholder"
+      :reason-label="reasonModal.reasonLabel"
+      @close="closeReasonModal"
+      @confirm="onReasonConfirm"
+    />
   </div>
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>
 
 <style scoped>

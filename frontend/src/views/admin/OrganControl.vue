@@ -4,6 +4,12 @@ import { usePagination } from "@/composables/usePagination";
 import MainTable from "@/views/components/MainTable.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
+import AlertModal from "@/views/modal/AlertModal.vue";
+
+const alertModal = ref({ show: false, type: "success", title: "알림", message: "" });
+function showAlert(type, title, message) {
+  alertModal.value = { show: true, type, title: title ?? "알림", message: message ?? "" };
+}
 
 // ====== 수정 모달 ======
 const isEditModalOpen = ref(false);
@@ -66,7 +72,7 @@ const {
 const deleteSelected = () => {
   const selectedCount = tableData.value.filter((i) => i.selected).length;
   if (!selectedCount) {
-    alert("삭제할 항목을 선택해주세요.");
+    showAlert("info", "알림", "삭제할 항목을 선택해주세요.");
     return;
   }
   if (confirm(`${selectedCount}개의 항목을 삭제하시겠습니까?`)) {
@@ -357,4 +363,12 @@ const statusBadge = (status) => ({
       </div>
     </div>
   </div>
+
+  <AlertModal
+    :show="alertModal.show"
+    :type="alertModal.type"
+    :title="alertModal.title"
+    :message="alertModal.message"
+    @close="alertModal.show = false"
+  />
 </template>

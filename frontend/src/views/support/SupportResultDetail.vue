@@ -19,7 +19,9 @@ import ArgonInput from "@/components/ArgonInput.vue";
 const authStore = useAuthStore();
 /** 기관관리자(a0_40)일 때만 true. 승인/보완/반려는 기관관리자만 노출(일반 이용자/기관담당자/시스템관리자 제외) */
 const canManageResult = computed(() => authStore.user?.m_auth === "a0_40");
-/** 지원자(a0_20)면 결과 수정/보완이력/승인요청 등 전부 비활성화(조회만 허용) */
+/** 기관담당자(a0_30) 여부 — 보완이력 노출용 */
+const isManagerRole = computed(() => authStore.user?.m_auth === "a0_30");
+/** 지원자(a0_20)면 결과 수정/승인요청 등 전부 비활성화(조회만 허용) */
 const isApplicant = computed(() => authStore.user?.m_auth === "a0_20");
 
 // ========== props / emit ==========
@@ -72,6 +74,8 @@ const filesForResult = ref([]);
 const fileNames = ref("");
 /** 수정 중 삭제 표시한 file_code 배열. 수정완료 시 부모가 DELETE /api/upload/file/:fileCode 호출 */
 const deletedFileCodes = ref([]);
+/** 수정 모드 진입 시점의 첨부파일 개수 (이력용, 비동기 로딩 보정) */
+const initialAttachmentCountWhenEdit = ref(0);
 
 const isViewMode = () => !isEditing.value;
 const isInputMode = () => isEditing.value && !(contentLocal.value || "").trim();
@@ -93,10 +97,6 @@ function onEditFileChange(e) {
     return;
   }
   editFiles.value = files;
-}
-/** 숨겨진 파일 input을 프로그래매틱으로 클릭해 파일 선택 다이얼로그 오픈 */
-function openEditFileDialog() {
-  if (editFileInput.value) editFileInput.value.click();
 }
 
 /**
@@ -135,6 +135,9 @@ async function loadResultFiles() {
     const data = await res.json().catch(() => ({}));
     const list = Array.isArray(data?.data) ? data.data : [];
     filesForResult.value = list;
+    if (isEditing.value) {
+      initialAttachmentCountWhenEdit.value = list.length;
+    }
     recomputeFileNames();
   } catch (e) {
     console.error("결과 첨부파일 조회 중 에러", e);
@@ -190,6 +193,7 @@ function fileExt(file) {
 /** 수정 모드로 전환하고 로컬·원본 스냅샷 저장 후 edit 이벤트 발생 */
 function startEdit() {
   isEditing.value = true;
+  initialAttachmentCountWhenEdit.value = filesForResult.value.length;
   const title = props.result_title || "";
   const content = props.result_content || "";
   titleLocal.value = title;
@@ -232,7 +236,7 @@ function onEditComplete() {
     editFiles.value.length > 0 || deletedFileCodes.value.length > 0;
   if (title === origTitle && content === origContent && !hasFileChanges) {
     emit("alert", {
-      type: "error",
+      type: "info",
       message: "변경된 내용이 없습니다.",
     });
     isEditing.value = false;
@@ -240,12 +244,17 @@ function onEditComplete() {
     contentLocal.value = props.result_content || "";
     return;
   }
+  const beforeCount = Math.max(
+    initialAttachmentCountWhenEdit.value,
+    filesForResult.value.length + deletedFileCodes.value.length,
+  );
   emit("edit-complete", {
     resultCode: props.result_code,
     title,
     content,
     deleteFileCodes: deletedFileCodes.value.slice(),
     newFiles: editFiles.value,
+    existingFileCount: beforeCount,
   });
   isEditing.value = false;
   editFiles.value = [];
@@ -378,21 +387,11 @@ watch(
             <input
               ref="editFileInput"
               type="file"
-              class="d-none"
+              class="form-control form-control-sm"
               multiple
               @change="onEditFileChange"
             />
-            <ArgonButton
-              type="button"
-              size="sm"
-              variant="outline"
-              color="secondary"
-              class="text-start w-100 bg-white mb-1"
-              @click="openEditFileDialog"
-            >
-              <span v-if="editFiles.length">{{ editFiles.map((f) => f.name).join(", ") }}</span>
-              <span v-else class="text-muted">파일을 선택하세요</span>
-            </ArgonButton>
+            <small class="text-muted">파일 1개당 10MB를 초과할 수 없습니다.</small>
             <div
               v-if="filesForResult.length"
               class="mt-1 d-flex flex-wrap gap-1"
@@ -444,7 +443,7 @@ watch(
       >
         <div class="d-flex gap-2">
           <ArgonButton
-            v-if="isViewMode() && !isApplicant"
+            v-if="isViewMode()"
             type="button"
             size="sm"
             color="success"
@@ -453,7 +452,7 @@ watch(
             수정이력
           </ArgonButton>
           <ArgonButton
-            v-if="isViewMode() && has_supple && !isApplicant"
+            v-if="isViewMode() && has_supple && (isManagerRole || canManageResult)"
             type="button"
             size="sm"
             variant="outline"

@@ -38,12 +38,21 @@ const rowDisplayNo = (indexInPage) =>
   totalRows.value - ((page.value - 1) * pageSize + indexInPage);
 
 watch(() => props.list.length, () => { page.value = 1; });
-watch(() => props.show, (visible) => { if (!visible) page.value = 1; });
+watch(() => props.show, (visible) => {
+  if (!visible) {
+    page.value = 1;
+    expandedSet.value = new Set();
+  }
+});
 
+/** 한 번에 하나만 열림: 다른 행 클릭 시 기존은 닫고 클릭한 행만 열기, 같은 행 클릭 시 닫기 */
 function toggleRow(key) {
-  const s = new Set(expandedSet.value);
-  if (s.has(key)) s.delete(key);
-  else s.add(key);
+  let s = new Set(expandedSet.value);
+  if (s.has(key)) {
+    s.delete(key);
+  } else {
+    s = new Set([key]);
+  }
   expandedSet.value = s;
 }
 

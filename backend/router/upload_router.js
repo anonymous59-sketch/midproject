@@ -87,7 +87,17 @@ router.post("/file-content", async (req, res) => {
       return res.json({ retCode: "Fail", retMsg: "file_category 필요" });
     }
 
-    const origName = req.file.originalname || "";
+    // 한글 등 UTF-8 파일명: 클라이언트가 file_name_utf8(Base64)로 보내면 복원, 아니면 originalname 사용
+    let origName = "";
+    if (req.body && typeof req.body.file_name_utf8 === "string" && req.body.file_name_utf8) {
+      try {
+        origName = Buffer.from(req.body.file_name_utf8, "base64").toString("utf8");
+      } catch {
+        origName = req.file.originalname || "";
+      }
+    } else {
+      origName = req.file.originalname || "";
+    }
     const dotIdx = origName.lastIndexOf(".");
     const nameWithoutExt = dotIdx > 0 ? origName.slice(0, dotIdx) : origName;
     const ext = dotIdx > 0 ? origName.slice(dotIdx + 1).toLowerCase() : "";

@@ -87,12 +87,7 @@ const isApplicant = computed(() => userAuth.value === "a0_20");
 const isManager = computed(() => userAuth.value === "a0_30");
 const { planData, resultData, infoData } = storeToRefs(supportStore);
 
-const {
-  historyModal,
-  openHistoryModalByTarget,
-  closeHistoryModal,
-  insertHistory,
-} = useHistory();
+const { historyModal, closeHistoryModal, insertHistory } = useHistory();
 const planLoading = ref(false);
 const resultLoading = ref(false);
 const selectedPlanCode = ref(null); // 결과조회 클릭 시 어떤 계획의 결과인지 기억
@@ -128,7 +123,11 @@ const { reasonModal, openReasonModal, closeReasonModal, onReasonConfirm } =
 function getRankApiBase() {
   try {
     if (typeof window !== "undefined" && window.location?.origin) {
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.origin))
+      if (
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(
+          window.location.origin,
+        )
+      )
         return "http://localhost:3000";
     }
   } catch {
@@ -205,12 +204,26 @@ function closeAlertModal() {
   alertModal.value.show = false;
 }
 
+/** 한글 파일명을 UTF-8 기준 Base64로 인코딩 (서버에서 UTF-8로 복원용) */
+function encodeFileNameUtf8(fileName) {
+  try {
+    return btoa(
+      new TextEncoder()
+        .encode(fileName)
+        .reduce((data, byte) => data + String.fromCharCode(byte), ""),
+    );
+  } catch {
+    return btoa(unescape(encodeURIComponent(fileName || "")));
+  }
+}
+
 async function uploadFilesToServer(files, filePath, categoryPk, uploadMem) {
   for (const f of files) {
     const formData = new FormData();
     formData.append("file", f);
     formData.append("file_path", filePath);
     formData.append("file_category", categoryPk);
+    formData.append("file_name_utf8", encodeFileNameUtf8(f.name || ""));
     if (uploadMem) formData.append("upload_mem", uploadMem);
     try {
       await fetch("/api/upload/file-content", {
@@ -241,7 +254,7 @@ async function loadPlanTab() {
   await supportStore.supportPlanDetail(code);
   planLoading.value = false;
   if (planData.value.length === 0) {
-    showAlert("info", "알림", "등록된 지원계획이 없습니다.");
+    showAlert("error", "알림", "등록된 지원계획이 없습니다.");
     if (isManager.value) {
       planCreateConfirm.value = true;
     }
@@ -257,7 +270,7 @@ async function loadResultForPlan(planCode) {
   resultLoading.value = false;
   const hasResult = resultData.value.length > 0;
   if (!hasResult) {
-    showAlert("info", "알림", "등록된 지원결과가 없습니다.");
+    showAlert("error", "알림", "등록된 지원결과가 없습니다.");
     if (isManager.value) {
       resultCreateConfirm.value = true;
     }
@@ -449,12 +462,39 @@ async function onPlanEditComplete(payload) {
       },
     ];
     const changed = planFields.filter((f) => f.bv !== f.av);
-    if (changed.length > 0) {
+    const planHasAttachmentChanges =
+      (payload.deleteFileCodes && payload.deleteFileCodes.length > 0) ||
+      (payload.newFiles && payload.newFiles.length > 0);
+    const beforeCount = Math.max(0, Number(payload.existingFileCount) || 0);
+    const delCount = Number(payload.deleteFileCodes?.length) || 0;
+    const addCount = Number(payload.newFiles?.length) || 0;
+    const afterCount = Math.max(0, beforeCount - delCount + addCount);
+    const beforeAttachValue = beforeCount === 0 ? "없음" : `${beforeCount}건`;
+    const afterAttachValue = afterCount === 0 ? "없음" : `${afterCount}건`;
+    if (changed.length > 0 || planHasAttachmentChanges) {
+      let beforeFields =
+        changed.length > 0
+          ? changed.map((f) => ({ field: f.field, value: f.bv }))
+          : [];
+      let afterFields =
+        changed.length > 0
+          ? changed.map((f) => ({ field: f.field, value: f.av }))
+          : [];
+      if (planHasAttachmentChanges) {
+        beforeFields = [
+          ...beforeFields,
+          { field: "첨부", value: beforeAttachValue },
+        ];
+        afterFields = [
+          ...afterFields,
+          { field: "첨부", value: afterAttachValue },
+        ];
+      }
       insertHistory(code, "j0_20", {
         updTarget: payload.planCode,
         updMember: authStore.user?.m_no ?? "",
-        beforeFields: changed.map((f) => ({ field: f.field, value: f.bv })),
-        afterFields: changed.map((f) => ({ field: f.field, value: f.av })),
+        beforeFields,
+        afterFields,
       });
     }
     const codesToDelete = Array.isArray(payload.deleteFileCodes)
@@ -488,6 +528,25 @@ async function onPlanEditComplete(payload) {
     showAlert("error", "알림", res.retMsg ?? "수정 중 오류가 발생했습니다.");
   }
 }
+
+/** 지원계획 연장: 모달에서 선택한 종료일로 계획의 end_time만 갱신 */
+async function onPlanExtend(planCode, newEndDate) {
+  const plan = (planData.value ?? []).find((p) => p.plan_code === planCode);
+  if (!plan) return;
+  const res = await supportStore.updatePlan(planCode, {
+    plan_goal: plan.plan_goal ?? "",
+    plan_content: plan.plan_content ?? "",
+    start_date: plan.start_time ?? null,
+    end_date: newEndDate ?? null,
+  });
+  if (res?.retCode === "Success" || res === null) {
+    await loadPlanTab();
+    showAlert("success", "알림", "종료일이 연장되었습니다.");
+  } else if (res != null) {
+    showAlert("error", "알림", res.retMsg ?? "연장 처리에 실패했습니다.");
+  }
+}
+
 // ─── 임시저장 (지원계획 j0_20 - 상세 편집용) ───────────────────────────────
 let _planTempPayloadOverride = null;
 
@@ -525,6 +584,9 @@ function onResultCreateConfirmYes() {
   if (!showAddResultForm.value) {
     toggleAddResultForm();
   }
+  // 지원계획에서 결과조회 시 0건이어서 등록 유도 ConfirmModal에서
+  // '예/확인'을 누르면 지원결과 탭으로 이동하도록 처리
+  leftTab.value = "result";
 }
 function openResultCancelModal(context, resultCode = null) {
   resultCancelModal.value = { show: true, context, resultCode };
@@ -692,12 +754,39 @@ async function onResultEditComplete(payload) {
       },
     ];
     const changed = resultFields.filter((f) => f.bv !== f.av);
-    if (changed.length > 0) {
+    const resultHasAttachmentChanges =
+      (payload.deleteFileCodes && payload.deleteFileCodes.length > 0) ||
+      (payload.newFiles && payload.newFiles.length > 0);
+    const beforeCount = Math.max(0, Number(payload.existingFileCount) || 0);
+    const delCount = Number(payload.deleteFileCodes?.length) || 0;
+    const addCount = Number(payload.newFiles?.length) || 0;
+    const afterCount = Math.max(0, beforeCount - delCount + addCount);
+    const beforeAttachValue = beforeCount === 0 ? "없음" : `${beforeCount}건`;
+    const afterAttachValue = afterCount === 0 ? "없음" : `${afterCount}건`;
+    if (changed.length > 0 || resultHasAttachmentChanges) {
+      let beforeFields =
+        changed.length > 0
+          ? changed.map((f) => ({ field: f.field, value: f.bv }))
+          : [];
+      let afterFields =
+        changed.length > 0
+          ? changed.map((f) => ({ field: f.field, value: f.av }))
+          : [];
+      if (resultHasAttachmentChanges) {
+        beforeFields = [
+          ...beforeFields,
+          { field: "첨부", value: beforeAttachValue },
+        ];
+        afterFields = [
+          ...afterFields,
+          { field: "첨부", value: afterAttachValue },
+        ];
+      }
       insertHistory(code, "j0_30", {
         updTarget: payload.resultCode,
         updMember: authStore.user?.m_no ?? "",
-        beforeFields: changed.map((f) => ({ field: f.field, value: f.bv })),
-        afterFields: changed.map((f) => ({ field: f.field, value: f.av })),
+        beforeFields,
+        afterFields,
       });
     }
     const codesToDelete = Array.isArray(payload.deleteFileCodes)
@@ -759,21 +848,216 @@ function onTempSaveFromDetailResult(payload) {
   });
 }
 
-// ─── 수정이력 모달 (plan_code / result_code 기준, 해당 PK의 upd_target 이력만) ───
+// ─── 수정이력 모달 ─────────────────────────────────────────────────────────────
+// 계획/결과는 보완(e0_80) 재신청 시 INSERT로 새 PK가 생기므로,
+// "해당 카드(plan_code/result_code)가 속한 보완 체인" 전체의 이력을 모으기 위해
+// prev_plan_code / prev_result_code 체인에 속한 PK마다 /api/history/target/:pk 를 조회해 합친다.
 async function openPlanHistory(planCode) {
   if (!planCode?.trim()) return;
-  await openHistoryModalByTarget(planCode, "j0_20", "지원계획 수정이력");
-  if (!historyModal.value.list || historyModal.value.list.length === 0) {
-    showAlert("info", "알림", "수정 이력이 존재하지 않습니다.");
+
+  const chainCodes = [];
+  const seen = new Set();
+  const planMap = new Map((planData.value ?? []).map((p) => [p.plan_code, p]));
+  let cur = planCode;
+  while (cur && !seen.has(cur)) {
+    chainCodes.push(cur);
+    seen.add(cur);
+    const prev = planMap.get(cur)?.prev_plan_code;
+    cur = prev || null;
+  }
+
+  historyModal.value = {
+    show: false,
+    title: "지원계획 수정이력",
+    list: [],
+    loading: true,
+  };
+
+  try {
+    const allLists = await Promise.all(
+      chainCodes.map(async (code) => {
+        try {
+          const res = await fetch(
+            `/api/history/target/${encodeURIComponent(
+              code,
+            )}?category_name=j0_20`,
+          );
+          if (!res.ok) return [];
+          const data = await res.json();
+          return Array.isArray(data) ? data : [];
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    const merged = [];
+    const seenHistory = new Set();
+    for (const list of allLists) {
+      for (const h of list) {
+        const key =
+          h.history_no != null
+            ? `id:${h.history_no}`
+            : `t:${h.upd_target ?? ""}-${h.upd_date ?? ""}`;
+        if (seenHistory.has(key)) continue;
+        seenHistory.add(key);
+        merged.push(h);
+      }
+    }
+
+    if (merged.length === 0) {
+      historyModal.value.loading = false;
+      historyModal.value.show = false;
+      showAlert(
+        "info",
+        "알림",
+        "해당 지원계획에 대한 수정 이력이 존재하지 않습니다.",
+      );
+      return;
+    }
+
+    merged.sort((a, b) => {
+      const da = new Date(a.upd_date || 0).getTime();
+      const db = new Date(b.upd_date || 0).getTime();
+      return db - da;
+    });
+
+    historyModal.value.list = merged;
+    historyModal.value.loading = false;
+    historyModal.value.show = true;
+  } catch {
+    historyModal.value.loading = false;
+    historyModal.value.show = false;
+    showAlert("error", "알림", "수정이력 조회 중 오류가 발생했습니다.");
   }
 }
+
 async function openResultHistory(resultCode) {
   if (!resultCode?.trim()) return;
-  await openHistoryModalByTarget(resultCode, "j0_30", "지원결과 수정이력");
-  if (!historyModal.value.list || historyModal.value.list.length === 0) {
-    showAlert("info", "알림", "수정 이력이 존재하지 않습니다.");
+
+  const chainCodes = [];
+  const seen = new Set();
+  const resultMap = new Map(
+    (resultData.value ?? []).map((r) => [r.result_code, r]),
+  );
+  let cur = resultCode;
+  while (cur && !seen.has(cur)) {
+    chainCodes.push(cur);
+    seen.add(cur);
+    const prev = resultMap.get(cur)?.prev_result_code;
+    cur = prev || null;
+  }
+
+  historyModal.value = {
+    show: false,
+    title: "지원결과 수정이력",
+    list: [],
+    loading: true,
+  };
+
+  try {
+    const allLists = await Promise.all(
+      chainCodes.map(async (code) => {
+        try {
+          const res = await fetch(
+            `/api/history/target/${encodeURIComponent(
+              code,
+            )}?category_name=j0_30`,
+          );
+          if (!res.ok) return [];
+          const data = await res.json();
+          return Array.isArray(data) ? data : [];
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    const merged = [];
+    const seenHistory = new Set();
+    for (const list of allLists) {
+      for (const h of list) {
+        const key =
+          h.history_no != null
+            ? `id:${h.history_no}`
+            : `t:${h.upd_target ?? ""}-${h.upd_date ?? ""}`;
+        if (seenHistory.has(key)) continue;
+        seenHistory.add(key);
+        merged.push(h);
+      }
+    }
+
+    if (merged.length === 0) {
+      historyModal.value.loading = false;
+      historyModal.value.show = false;
+      showAlert(
+        "info",
+        "알림",
+        "해당 지원결과에 대한 수정 이력이 존재하지 않습니다.",
+      );
+      return;
+    }
+
+    merged.sort((a, b) => {
+      const da = new Date(a.upd_date || 0).getTime();
+      const db = new Date(b.upd_date || 0).getTime();
+      return db - da;
+    });
+
+    historyModal.value.list = merged;
+    historyModal.value.loading = false;
+    historyModal.value.show = true;
+  } catch {
+    historyModal.value.loading = false;
+    historyModal.value.show = false;
+    showAlert("error", "알림", "수정이력 조회 중 오류가 발생했습니다.");
   }
 }
+
+/** 상담 수정이력: csl_code 1건 기준으로 j0_10 조회 (지원계획/지원결과와 동일한 HistoryModal 사용) */
+async function openCounselHistory(cslCode) {
+  if (!cslCode?.trim()) return;
+  historyModal.value = {
+    show: false,
+    title: "상담 수정이력",
+    list: [],
+    loading: true,
+  };
+  try {
+    const res = await fetch(
+      `/api/history/target/${encodeURIComponent(cslCode)}?category_name=j0_10&_t=${Date.now()}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) {
+      throw new Error("조회 실패");
+    }
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : [];
+    if (list.length === 0) {
+      historyModal.value.loading = false;
+      historyModal.value.show = false;
+      showAlert(
+        "info",
+        "알림",
+        "해당 상담에 대한 수정 이력이 존재하지 않습니다.",
+      );
+      return;
+    }
+    const sorted = [...list].sort((a, b) => {
+      const da = new Date(a.upd_date || 0).getTime();
+      const db = new Date(b.upd_date || 0).getTime();
+      return db - da;
+    });
+    historyModal.value.list = sorted;
+    historyModal.value.loading = false;
+    historyModal.value.show = true;
+  } catch {
+    historyModal.value.loading = false;
+    historyModal.value.show = false;
+    showAlert("error", "알림", "수정이력 조회 중 오류가 발생했습니다.");
+  }
+}
+
 function clearCancelRequestResult() {
   cancelRequestResultCode.value = null;
 }
@@ -950,6 +1234,36 @@ async function onOpenSuppleHistory() {
   }
 }
 
+// 탭 전환 시 데이터 로드 및 노출 제어 관련 computed / watch
+// 기관담당자용: 신청접수(접수/반려) 및 탭 노출 제어
+const hasCounsel = computed(() => counselList.value.length > 0);
+const reqYn = computed(() => support.value?.req_yn || "");
+const rankApproved = computed(() => rankData.value?.s_rank_res === "e0_10");
+
+// 상태별 탭 노출 규칙 (sup_code 기준 req_yn / 우선순위 판정)
+// - req_yn = e0_00: 지원신청서 + 신청접수, 나머지 비노출
+// - req_yn = e0_10: 지원신청서 + 우선순위 (우선순위 미승인)
+// - req_yn = e0_10 && 우선순위 s_rank_res = e0_10: 지원신청서 + 우선순위 + 지원계획
+const showReceiptTab = computed(
+  () => isManager.value && hasCounsel.value && reqYn.value === "e0_00",
+);
+const showRankTab = computed(
+  () => !isApplicant.value && reqYn.value === "e0_10",
+);
+const showPlanTab = computed(
+  () => reqYn.value === "e0_10" && rankApproved.value,
+);
+const showResultTab = computed(
+  () =>
+    reqYn.value === "e0_10" &&
+    rankApproved.value &&
+    // 결정(승인/보완/반려) 처리 직후 재조회 과정에서 resultData가 잠깐 0이 되더라도
+    // 결과 탭이 사라지며 "빈 화면"처럼 보이지 않게 현재 탭이면 유지한다.
+    (leftTab.value === "result" ||
+      selectedPlanCode.value ||
+      resultData.value.length > 0),
+);
+
 // 탭 전환 시 데이터 로드
 watch(leftTab, (tab) => {
   if (tab === "rank" && !rankData.value) loadRankTab();
@@ -966,6 +1280,13 @@ watch(leftTab, (tab) => {
         resultLoading.value = false;
       });
     }
+  }
+});
+
+// 우선순위 탭 노출이 불가능해지면(예: req_yn !== e0_10) 우선순위 탭에서 자동 이탈
+watch(showRankTab, (visible) => {
+  if (!visible && leftTab.value === "rank") {
+    leftTab.value = "application";
   }
 });
 
@@ -998,7 +1319,7 @@ async function loadSurveyAnswers() {
     );
     if (!res.ok) throw new Error("조사지 답변 조회 실패");
     const data = await res.json();
-    const rawItems = Array.isArray(data) ? data : (data?.items ?? []);
+    const rawItems = Array.isArray(data) ? data : data?.items ?? [];
     surveyName.value = data?.surveyName ?? "";
     surveyAnswers.value = rawItems.map((r) => ({
       a_code: r.a_code ?? "",
@@ -1162,6 +1483,12 @@ function toggleRightPanel() {
 
 // 상담등록 폼: 제목, 상담일, 내용, 첨부파일
 const showForm = ref(false);
+/** 수정 모드일 때 기존 상담 csl_code (저장 시 PUT 호출) */
+const editingCounselCode = ref(null);
+/** 수정 모드일 때 비교/복원을 위한 기존 상담 내용 스냅샷 */
+const editingCounselOriginal = ref(null);
+/** 수정 모드에서 다시 readonly 로 돌아갈 때 사용할 상세보기 대상 */
+const editingCounselDetail = ref(null);
 const counselForm = ref({
   csl_title: "",
   counselDate: "",
@@ -1170,13 +1497,75 @@ const counselForm = ref({
 });
 const counselFormSaving = ref(false);
 const counselFormFiles = ref(null); // 첨부파일 (UI만, DB 저장은 추후)
+const counselRightPanelRef = ref(null);
+/** 임시저장 불러오기 시 적용 대상: 'add' = 상담추가 폼, 'detail' = 상담 상세 수정 폼 */
+const counselTempSource = ref("add");
 function setCounselFiles(files) {
   counselFormFiles.value = files;
 }
 
-const openAddForm = () => {
-  showForm.value = true;
-  closeDetail();
+/** 상담추가: 토글(열기/닫기). 닫을 때 값 초기화 */
+function toggleCounselForm() {
+  showForm.value = !showForm.value;
+  if (!showForm.value) {
+    editingCounselCode.value = null;
+    editingCounselOriginal.value = null;
+    editingCounselDetail.value = null;
+    counselForm.value = {
+      csl_title: "",
+      counselDate: new Date().toISOString().slice(0, 10),
+      csl_content: "",
+      csl_writer: writerList.value.length ? writerList.value[0].m_no : "",
+    };
+    counselFormFiles.value = null;
+  } else {
+    editingCounselCode.value = null;
+    editingCounselOriginal.value = null;
+    editingCounselDetail.value = null;
+    closeDetail();
+    counselForm.value = {
+      csl_title: "",
+      counselDate: new Date().toISOString().slice(0, 10),
+      csl_content: "",
+      csl_writer: writerList.value.length ? writerList.value[0].m_no : "",
+    };
+    counselFormFiles.value = null;
+  }
+}
+
+/** 상담 등록 폼에서 '저장' 클릭 시 호출: ConfirmModal 띄운 뒤 확인 시 INSERT */
+const counselSaveConfirm = ref(false);
+const pendingCounselPayload = ref(null);
+function onCounselSaveRequest(payload) {
+  pendingCounselPayload.value = payload ?? null;
+  counselSaveConfirm.value = true;
+}
+function closeCounselSaveConfirm() {
+  counselSaveConfirm.value = false;
+  pendingCounselPayload.value = null;
+}
+async function onCounselSaveConfirmYes() {
+  const payload = pendingCounselPayload.value;
+  closeCounselSaveConfirm();
+  if (payload && !editingCounselCode.value) {
+    await saveCounsel(payload);
+  }
+}
+
+/** 상담 등록 폼에서 '취소' 클릭 시 호출: ConfirmModal 띄운 뒤 확인 시 닫기 + 초기화 */
+const counselCancelConfirm = ref(false);
+function onCounselCancelRequest() {
+  counselCancelConfirm.value = true;
+}
+function closeCounselCancelConfirm() {
+  counselCancelConfirm.value = false;
+}
+function onCounselCancelConfirmYes() {
+  closeCounselCancelConfirm();
+  showForm.value = false;
+  editingCounselCode.value = null;
+  editingCounselOriginal.value = null;
+  editingCounselDetail.value = null;
   counselForm.value = {
     csl_title: "",
     counselDate: new Date().toISOString().slice(0, 10),
@@ -1184,13 +1573,41 @@ const openAddForm = () => {
     csl_writer: writerList.value.length ? writerList.value[0].m_no : "",
   };
   counselFormFiles.value = null;
-};
+}
 
-const cancelForm = () => {
-  showForm.value = false;
-};
+/** 상담 상세에서 수정 클릭 시 같은 카드에서 편집 모드로 전환(등록 폼으로 넘기지 않음) */
+function onEditCounsel(item) {
+  if (!item) return;
+  showForm.value = false; // 수정 모드일 때는 상담등록 폼 숨김 → 저장/취소 대신 수정완료/취소만 보이게
+  const d = item.csl_date ? new Date(item.csl_date) : null;
+  const counselDate = d
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    : "";
+  editingCounselCode.value = item.csl_code;
+  editingCounselOriginal.value = {
+    csl_title: item.csl_title ?? "",
+    counselDate,
+    csl_content: item.csl_content ?? "",
+    csl_writer: item.csl_writer ?? item.csl_name ?? "",
+  };
+  editingCounselDetail.value = item;
+}
 
-// 임시저장 (상담등록 폼, j0_10 = 상담내역) — 재사용: 지원계획 j0_20, 지원결과 j0_30
+/** 상담 상세 카드에서 수정 취소: readonly 복귀, 등록 폼으로 넘기지 않음 */
+function cancelDetailEdit() {
+  editingCounselCode.value = null;
+  editingCounselOriginal.value = null;
+  editingCounselDetail.value = null;
+}
+
+// 상세 수정 모드일 때는 등록 폼을 절대 보이지 않게
+watch(editingCounselCode, (code) => {
+  if (code) showForm.value = false;
+});
+
+// 임시저장 (상담등록 폼 + 상담 상세 수정, j0_10 = 상담내역)
+let _counselAddTempPayload = null; // 추가 폼에서 클릭 시 자식이 넘긴 payload
+let _counselDetailTempPayload = null; // 상세 수정에서 클릭 시 자식이 넘긴 payload
 const {
   showModal: tempStorageModalVisible,
   tempList: tempStorageList,
@@ -1200,25 +1617,34 @@ const {
   openLoadModal: openTempStorageModal,
   applyItem: applyTempStorageItem,
 } = useTempStorage(() => supCode.value, "j0_10", {
-  getPayload: () => ({
-    save_title: (counselForm.value?.csl_title ?? "").trim(),
-    save_content: JSON.stringify({
-      counselDate: counselForm.value?.counselDate ?? "",
-      csl_content: counselForm.value?.csl_content ?? "",
-      csl_writer: counselForm.value?.csl_writer ?? "",
-    }),
-  }),
+  getPayload: () => {
+    if (_counselDetailTempPayload) return _counselDetailTempPayload;
+    if (_counselAddTempPayload) return _counselAddTempPayload;
+    return {
+      save_title: (counselForm.value?.csl_title ?? "").trim(),
+      save_content: JSON.stringify({
+        counselDate: counselForm.value?.counselDate ?? "",
+        csl_content: counselForm.value?.csl_content ?? "",
+        csl_writer: counselForm.value?.csl_writer ?? "",
+      }),
+    };
+  },
   setPayload: (item) => {
     if (!item) return;
-    counselForm.value.csl_title = item.save_title ?? "";
-    try {
-      const o = JSON.parse(item.save_content || "{}");
-      counselForm.value.counselDate = o.counselDate ?? "";
-      counselForm.value.csl_content = o.csl_content ?? "";
-      counselForm.value.csl_writer = o.csl_writer ?? "";
-    } catch {
-      // save_content가 JSON이 아닐 수 있음
+    if (counselTempSource.value === "detail") {
+      counselRightPanelRef.value?.setDetailFormFromTemp(item);
+    } else {
+      counselForm.value.csl_title = item.save_title ?? "";
+      try {
+        const o = JSON.parse(item.save_content || "{}");
+        counselForm.value.counselDate = o.counselDate ?? "";
+        counselForm.value.csl_content = o.csl_content ?? "";
+        counselForm.value.csl_writer = o.csl_writer ?? "";
+      } catch {
+        // save_content가 JSON이 아닐 수 있음
+      }
     }
+    counselTempSource.value = "add";
   },
   validate: (payload) => {
     if (!(payload.save_title && payload.save_title.trim())) {
@@ -1228,6 +1654,31 @@ const {
   },
   onAlert: showAlert,
 });
+
+/** 상담 추가 폼: 임시저장 불러오기 모달 열기 */
+function openTempStorageModalForAdd() {
+  counselTempSource.value = "add";
+  openTempStorageModal();
+}
+/** 상담 상세 수정: 임시저장 불러오기 모달 열기 */
+function openTempStorageModalForDetail() {
+  counselTempSource.value = "detail";
+  openTempStorageModal();
+}
+/** 상담 추가 폼: 임시저장 실행 (payload는 자식에서 전달) */
+function onTempSaveAdd(payload) {
+  _counselAddTempPayload = payload ?? null;
+  doTempSave().finally(() => {
+    _counselAddTempPayload = null;
+  });
+}
+/** 상담 상세 수정: 임시저장 실행 (payload는 자식에서 전달) */
+function onTempSaveDetail(payload) {
+  _counselDetailTempPayload = payload;
+  doTempSave().finally(() => {
+    _counselDetailTempPayload = null;
+  });
+}
 
 async function saveCounsel(payload) {
   const data =
@@ -1249,63 +1700,185 @@ async function saveCounsel(payload) {
     showAlert("error", "알림", "지원번호가 없습니다.");
     return;
   }
+  const body = {
+    csl_title: data.csl_title.trim(),
+    csl_date: data.counselDate,
+    csl_content: data.csl_content || "",
+    csl_writer: data.csl_writer || undefined,
+    csl_name: data.csl_writer || undefined,
+  };
+  const isEdit = !!editingCounselCode.value;
+
+  // 수정 모드인 경우, 변경 여부를 먼저 비교 (텍스트 필드 + 첨부파일 추가/삭제)
+  let changedFields = null;
+  const hasAttachmentChanges =
+    (data.deleteFileCodes && data.deleteFileCodes.length > 0) ||
+    (data.newFiles && data.newFiles.length > 0);
+  if (isEdit && editingCounselOriginal.value) {
+    const before = editingCounselOriginal.value;
+    const fields = [
+      {
+        field: "제목",
+        bv: before.csl_title ?? "",
+        av: body.csl_title ?? "",
+      },
+      {
+        field: "상담일",
+        bv: before.counselDate ?? "",
+        av: body.csl_date ?? "",
+      },
+      {
+        field: "상담내용",
+        bv: before.csl_content ?? "",
+        av: body.csl_content ?? "",
+      },
+      {
+        field: "상담진행자",
+        bv: before.csl_writer ?? "",
+        av: body.csl_writer ?? "",
+      },
+    ];
+    const changed = fields.filter(
+      (f) => String(f.bv ?? "") !== String(f.av ?? ""),
+    );
+    if (changed.length === 0 && !hasAttachmentChanges) {
+      // 텍스트·첨부 모두 변경 없으면 알림 후 readonly 복귀
+      showAlert("info", "알림", "수정된 내용이 없습니다.");
+      editingCounselCode.value = null;
+      editingCounselOriginal.value = null;
+      editingCounselDetail.value = null;
+      return;
+    }
+    changedFields = changed;
+  }
+
+  const url = isEdit
+    ? `/api/apply/support/${encodeURIComponent(
+        code,
+      )}/counsels/${encodeURIComponent(editingCounselCode.value)}`
+    : `/api/apply/support/${encodeURIComponent(code)}/counsels`;
   counselFormSaving.value = true;
   try {
-    const res = await fetch(
-      `/api/apply/support/${encodeURIComponent(code)}/counsels`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          csl_title: data.csl_title.trim(),
-          csl_date: data.counselDate,
-          csl_content: data.csl_content || "",
-          csl_writer: data.csl_writer || undefined,
-          csl_name: data.csl_writer || undefined,
-        }),
-      },
-    );
+    const res = await fetch(url, {
+      method: isEdit ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || "저장 실패");
     }
+    const shouldInsertHistory =
+      isEdit &&
+      (hasAttachmentChanges || (changedFields && changedFields.length > 0));
+    if (shouldInsertHistory) {
+      const cslCode = editingCounselCode.value;
+      const updMember = String(authStore.user?.m_no ?? "");
+      let contentStr = "";
+      let updContentStr = "";
+      if (changedFields && changedFields.length > 0) {
+        const beforeFields = changedFields.map((f) => ({
+          field: f.field,
+          value: f.bv,
+        }));
+        const afterFields = changedFields.map((f) => ({
+          field: f.field,
+          value: f.av,
+        }));
+        contentStr = JSON.stringify(beforeFields);
+        updContentStr = JSON.stringify(afterFields);
+      }
+      if (hasAttachmentChanges) {
+        const beforeCount = Math.max(0, Number(data.existingFileCount) || 0);
+        const delCount = Number(data.deleteFileCodes?.length) || 0;
+        const addCount = Number(data.newFiles?.length) || 0;
+        const afterCount = Math.max(0, beforeCount - delCount + addCount);
+        const beforeAttachValue =
+          beforeCount === 0 ? "없음" : `${beforeCount}건`;
+        const afterAttachValue = afterCount === 0 ? "없음" : `${afterCount}건`;
+        const attachBeforeRow = { field: "첨부", value: beforeAttachValue };
+        const attachAfterRow = { field: "첨부", value: afterAttachValue };
+        if (contentStr || updContentStr) {
+          const beforeArr = contentStr ? JSON.parse(contentStr) : [];
+          const afterArr = updContentStr ? JSON.parse(updContentStr) : [];
+          if (Array.isArray(beforeArr)) beforeArr.push(attachBeforeRow);
+          if (Array.isArray(afterArr)) afterArr.push(attachAfterRow);
+          contentStr = JSON.stringify(beforeArr);
+          updContentStr = JSON.stringify(afterArr);
+        } else {
+          contentStr = JSON.stringify([attachBeforeRow]);
+          updContentStr = JSON.stringify([attachAfterRow]);
+        }
+      }
+      if (!contentStr && !updContentStr) {
+        contentStr = "수정";
+        updContentStr = "수정";
+      }
+      try {
+        const histRes = await fetch(
+          `/api/history/support/${encodeURIComponent(code)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              category_name: "j0_10",
+              his_category: cslCode,
+              upd_member: updMember,
+              upd_target: cslCode,
+              content: contentStr,
+              upd_content: updContentStr,
+            }),
+          },
+        );
+        if (!histRes.ok) {
+          const errBody = await histRes.json().catch(() => ({}));
+          console.warn("[상담 수정이력 INSERT 실패]", histRes.status, errBody);
+        }
+      } catch (e) {
+        console.warn("[상담 수정이력 INSERT 실패]", e);
+      }
+    }
+    const keptCslCode = editingCounselCode.value;
+    if (isEdit && keptCslCode) {
+      const codesToDelete = Array.isArray(data.deleteFileCodes)
+        ? data.deleteFileCodes
+        : [];
+      for (const fileCode of codesToDelete) {
+        try {
+          await fetch(`/api/upload/file/${encodeURIComponent(fileCode)}`, {
+            method: "DELETE",
+          });
+        } catch (e) {
+          console.warn("[상담 첨부파일 삭제 실패]", fileCode, e);
+        }
+      }
+      const newFiles = Array.isArray(data.newFiles) ? data.newFiles : [];
+      if (newFiles.length > 0) {
+        await uploadFilesToServer(
+          newFiles,
+          "counsel",
+          keptCslCode,
+          authStore.user?.m_no ?? null,
+        );
+      }
+    }
     showForm.value = false;
+    editingCounselCode.value = null;
+    editingCounselOriginal.value = null;
+    editingCounselDetail.value = null;
     await loadCounsels();
+    if (isEdit && keptCslCode) {
+      const updated = counselList.value?.find(
+        (c) => c.csl_code === keptCslCode,
+      );
+      if (updated) selectedCounselDetail.value = updated;
+    }
   } catch (e) {
     showAlert("error", "알림", e.message || "저장에 실패했습니다.");
   } finally {
     counselFormSaving.value = false;
   }
 }
-
-// 기관담당자용: 신청접수(접수/반려) 및 탭 노출 제어
-const hasCounsel = computed(() => counselList.value.length > 0);
-const reqYn = computed(() => support.value?.req_yn || "");
-const rankApproved = computed(() => rankData.value?.s_rank_res === "e0_10");
-
-// 상태별 탭 노출 규칙 (sup_code 기준 req_yn / 우선순위 판정)
-// - req_yn = e0_00: 지원신청서 + 신청접수, 나머지 비노출
-// - req_yn = e0_10: 지원신청서 + 우선순위 (우선순위 미승인)
-// - req_yn = e0_10 && 우선순위 s_rank_res = e0_10: 지원신청서 + 우선순위 + 지원계획
-const showReceiptTab = computed(
-  () => isManager.value && hasCounsel.value && reqYn.value === "e0_00",
-);
-const showRankTab = computed(
-  () => !isApplicant.value && reqYn.value === "e0_10",
-);
-const showPlanTab = computed(
-  () => reqYn.value === "e0_10" && rankApproved.value,
-);
-const showResultTab = computed(
-  () =>
-    reqYn.value === "e0_10" &&
-    rankApproved.value &&
-    // 결정(승인/보완/반려) 처리 직후 재조회 과정에서 resultData가 잠깐 0이 되더라도
-    // 결과 탭이 사라지며 "빈 화면"처럼 보이지 않게 현재 탭이면 유지한다.
-    (leftTab.value === "result" ||
-      selectedPlanCode.value ||
-      resultData.value.length > 0),
-);
 
 async function refreshResultTabAfterDecision() {
   if (leftTab.value !== "result") return;
@@ -1333,8 +1906,10 @@ async function updateReqYn(decision) {
         ? "신청이 접수되었습니다."
         : "신청이 반려되었습니다.";
     showAlert("success", "알림", label);
-    // 신청접수 탭에서 처리 완료 후에는 우선순위 탭으로 이동
-    leftTab.value = "rank";
+    // 신청접수 탭에서 처리 완료 후 탭 이동
+    // - 승인(e0_10) 시: 우선순위 탭으로 이동
+    // - 반려(e0_99) 시: 지원신청서 탭으로 이동
+    leftTab.value = decision === "e0_10" ? "rank" : "application";
   } catch (e) {
     showAlert(
       "error",
@@ -1371,7 +1946,9 @@ function onReceiptReject() {
           />
 
           <!-- 탭: 지원신청서 | 신청접수 | 우선순위 | 지원계획 | 지원결과 (스타일·정렬 통일) -->
-          <div class="counsel-tab-bar d-flex flex-wrap align-items-center gap-2 mb-3">
+          <div
+            class="counsel-tab-bar d-flex flex-wrap align-items-center gap-2 mb-3"
+          >
             <button
               type="button"
               class="counsel-tab-btn rounded px-3 py-1 text-decoration-none border-0"
@@ -1472,9 +2049,15 @@ function onReceiptReject() {
                 @reject="onReceiptReject"
               />
               <!-- 우선순위: 탭 선택 시 RankDetail 직접 표시 -->
-              <div v-if="leftTab === 'rank'">
-                <div class="counsel-section-header d-flex align-items-center justify-content-between mb-3">
-                  <h6 class="counsel-section-title text-sm text-uppercase text-muted mb-0">우선순위</h6>
+              <div v-if="leftTab === 'rank' && showRankTab">
+                <div
+                  class="counsel-section-header d-flex align-items-center justify-content-between mb-3"
+                >
+                  <h6
+                    class="counsel-section-title text-sm text-uppercase text-muted mb-0"
+                  >
+                    우선순위
+                  </h6>
                   <ArgonButton
                     type="button"
                     size="sm"
@@ -1485,7 +2068,9 @@ function onReceiptReject() {
                     새로고침
                   </ArgonButton>
                 </div>
-                <p v-if="rankLoading" class="text-muted text-sm mb-0">로딩 중...</p>
+                <p v-if="rankLoading" class="text-muted text-sm mb-0">
+                  로딩 중...
+                </p>
                 <p v-else-if="!rankData" class="text-muted text-sm mb-0">
                   우선순위 정보가 없습니다.
                 </p>
@@ -1506,7 +2091,11 @@ function onReceiptReject() {
                   @reject="
                     () =>
                       openReasonModal({
-                        context: { type: 'rank', decision: 'e0_99', reqCode: rankData?.req_code },
+                        context: {
+                          type: 'rank',
+                          decision: 'e0_99',
+                          reqCode: rankData?.req_code,
+                        },
                         title: '반려 사유',
                         message: '우선순위 반려 사유를 입력해 주세요.',
                         reasonPlaceholder: '반려 사유를 입력해 주세요.',
@@ -1516,7 +2105,11 @@ function onReceiptReject() {
                   @supple="
                     () =>
                       openReasonModal({
-                        context: { type: 'rank', decision: 'e0_80', reqCode: rankData?.req_code },
+                        context: {
+                          type: 'rank',
+                          decision: 'e0_80',
+                          reqCode: rankData?.req_code,
+                        },
                         title: '보완 사유',
                         message: '우선순위 보완 사유를 입력해 주세요.',
                         reasonPlaceholder: '보완 사유를 입력해 주세요.',
@@ -1567,6 +2160,11 @@ function onReceiptReject() {
                   :cancel-request="cancelRequestPlanCode"
                   :has_supple="
                     !!(plan.plan_tf === 'e0_80' || plan.prev_plan_code)
+                  "
+                  :result-count-for-plan="
+                    selectedPlanCode === plan.plan_code
+                      ? resultData.length
+                      : undefined
                   "
                   @result="loadResultForPlan"
                   @open-supple-history="openPlanSuppleHistory(plan.plan_code)"
@@ -1654,6 +2252,7 @@ function onReceiptReject() {
                     (planCode) => openPlanCancelModal('edit', planCode)
                   "
                   @cancel-done="clearCancelRequestPlan"
+                  @extend="onPlanExtend"
                   @end="
                     (pc) => supportStore.endPlan(pc).then(() => loadPlanTab())
                   "
@@ -1820,6 +2419,7 @@ function onReceiptReject() {
         <!-- ─── 우측: 상담내역 ─── -->
         <CounselRightPanel
           v-if="showRightPanel"
+          ref="counselRightPanelRef"
           class="col-lg-7"
           :read-only="isApplicant"
           :counsel-list="counselList"
@@ -1836,13 +2436,20 @@ function onReceiptReject() {
           :temp-save-loading="tempSaveLoading"
           :temp-storage-list-loading="tempStorageListLoading"
           :selected-counsel-detail="selectedCounselDetail"
-          @open-add-form="openAddForm"
+          :editing-counsel-code="editingCounselCode"
+          @toggle-add-form="toggleCounselForm"
           @close-detail="closeDetail"
           @open-detail="openDetail"
-          @cancel-form="cancelForm"
+          @open-counsel-history="openCounselHistory"
+          @edit-counsel="onEditCounsel"
+          @cancel-detail-edit="cancelDetailEdit"
+          @request-save-counsel="onCounselSaveRequest"
+          @request-cancel-form="onCounselCancelRequest"
           @save-counsel="(payload) => saveCounsel(payload)"
-          @temp-save="doTempSave"
-          @open-temp-load="openTempStorageModal"
+          @temp-save="onTempSaveAdd"
+          @open-temp-load="openTempStorageModalForAdd"
+          @open-temp-load-detail="openTempStorageModalForDetail"
+          @temp-save-detail="onTempSaveDetail"
           @set-counsel-files="setCounselFiles"
         />
       </div>
@@ -1901,6 +2508,21 @@ function onReceiptReject() {
       message="등록된 지원결과가 없습니다. 새 지원결과를 등록하시겠습니까?"
       @close="resultCreateConfirm = false"
       @confirm="onResultCreateConfirmYes"
+    />
+    <!-- 상담 등록: 저장/취소 확인 -->
+    <ConfirmModal
+      :show="counselSaveConfirm"
+      title="상담 저장"
+      message="상담 내용을 저장하시겠습니까?"
+      @close="closeCounselSaveConfirm"
+      @confirm="onCounselSaveConfirmYes"
+    />
+    <ConfirmModal
+      :show="counselCancelConfirm"
+      title="상담 등록 취소"
+      message="작성 중인 내용이 삭제됩니다. 취소하시겠습니까?"
+      @close="closeCounselCancelConfirm"
+      @confirm="onCounselCancelConfirmYes"
     />
     <!-- 보완/반려 사유 입력 (우선순위·지원계획·지원결과) -->
     <ConfirmModal
