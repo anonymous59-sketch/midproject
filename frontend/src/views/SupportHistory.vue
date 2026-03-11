@@ -159,10 +159,11 @@ onMounted(() => {
           <div v-else class="row g-3 align-items-center">
             <div class="col-md-3">
               <div class="mb-1 text-muted small">지원대상</div>
+              <div class="mb-1 text-muted small">이름</div>
               <div class="fs-6 fw-semibold">{{ target.mc_nm }}</div>
               <div class="text-muted small">
-                {{ formatDate(target.mc_bd) }} /
-                {{ disabilityLabel(target.mc_type) }}
+                생년월일: {{ formatDate(target.mc_bd) }} /
+                장애 유형: {{ disabilityLabel(target.mc_type) }}
               </div>
             </div>
             <div class="col-md-3">
@@ -173,7 +174,7 @@ onMounted(() => {
               <div class="mb-1 text-muted small">등록일</div>
               <div class="small">{{ formatDate(target.mc_submitdate) }}</div>
             </div>
-            <div class="col-md-3 text-md-end">
+            <div class="col-md-3">
               <div class="mb-1 text-muted small">지원신청 건수</div>
               <div class="fs-6 fw-semibold">{{ supports.length }}건</div>
             </div>
@@ -223,7 +224,7 @@ onMounted(() => {
             <div class="d-flex align-items-center gap-2">
               <select
                 v-model="block.activeTab"
-                class="form-select form-select-sm w-auto"
+                class="form-select form-select-sm w-auto psw-select"
               >
                 <option value="counsel">상담일지</option>
                 <option value="plan">지원계획</option>
@@ -394,5 +395,9 @@ onMounted(() => {
 .psw-entry-content {
   white-space: pre-line;
   font-size: 0.875rem;
+}
+
+.psw-select {
+  padding-right: 2rem;
 }
 </style>
