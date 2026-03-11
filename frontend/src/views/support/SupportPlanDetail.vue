@@ -19,7 +19,9 @@ import ArgonInput from "@/components/ArgonInput.vue";
 const authStore = useAuthStore();
 /** 기관관리자(a0_40)일 때만 true. 승인/보완/반려/연장/종료는 기관관리자만 노출(일반 이용자/기관담당자/시스템관리자 제외) */
 const canManagePlan = computed(() => authStore.user?.m_auth === "a0_40");
-/** 지원자(a0_20)면 계획 수정/이력/승인요청 등 전부 비활성화(조회만 허용, 결과조회는 허용) */
+/** 기관담당자(a0_30) 여부 — 보완이력 노출용 */
+const isManagerRole = computed(() => authStore.user?.m_auth === "a0_30");
+/** 지원자(a0_20)면 계획 수정/승인요청 등 전부 비활성화(조회만 허용, 결과조회는 허용) */
 const isApplicant = computed(() => authStore.user?.m_auth === "a0_20");
 
 // ========== props / emit ==========
@@ -499,7 +501,7 @@ defineExpose({ reloadFiles: loadPlanFiles });
       >
         <div class="d-flex gap-2">
           <ArgonButton
-            v-if="isViewMode() && !isApplicant"
+            v-if="isViewMode()"
             type="button"
             size="sm"
             color="success"
@@ -508,7 +510,7 @@ defineExpose({ reloadFiles: loadPlanFiles });
             수정이력
           </ArgonButton>
           <ArgonButton
-            v-if="isViewMode() && has_supple && !isApplicant"
+            v-if="isViewMode() && has_supple && (isManagerRole || canManagePlan)"
             type="button"
             size="sm"
             variant="outline"

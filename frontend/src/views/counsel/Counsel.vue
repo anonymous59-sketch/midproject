@@ -87,12 +87,7 @@ const isApplicant = computed(() => userAuth.value === "a0_20");
 const isManager = computed(() => userAuth.value === "a0_30");
 const { planData, resultData, infoData } = storeToRefs(supportStore);
 
-const {
-  historyModal,
-  openHistoryModalByTarget,
-  closeHistoryModal,
-  insertHistory,
-} = useHistory();
+const { historyModal, closeHistoryModal, insertHistory } = useHistory();
 const planLoading = ref(false);
 const resultLoading = ref(false);
 const selectedPlanCode = ref(null); // 결과조회 클릭 시 어떤 계획의 결과인지 기억
@@ -766,19 +761,171 @@ function onTempSaveFromDetailResult(payload) {
   });
 }
 
-// ─── 수정이력 모달 (plan_code / result_code 기준, 해당 PK의 upd_target 이력만) ───
+// ─── 수정이력 모달 ─────────────────────────────────────────────────────────────
+// 계획/결과는 보완(e0_80) 재신청 시 INSERT로 새 PK가 생기므로,
+// "해당 카드(plan_code/result_code)가 속한 보완 체인" 전체의 이력을 모으기 위해
+// prev_plan_code / prev_result_code 체인에 속한 PK마다 /api/history/target/:pk 를 조회해 합친다.
 async function openPlanHistory(planCode) {
   if (!planCode?.trim()) return;
-  await openHistoryModalByTarget(planCode, "j0_20", "지원계획 수정이력");
-  if (!historyModal.value.list || historyModal.value.list.length === 0) {
-    showAlert("info", "알림", "수정 이력이 존재하지 않습니다.");
+
+  const chainCodes = [];
+  const seen = new Set();
+  const planMap = new Map(
+    (planData.value ?? []).map((p) => [p.plan_code, p]),
+  );
+  let cur = planCode;
+  while (cur && !seen.has(cur)) {
+    chainCodes.push(cur);
+    seen.add(cur);
+    const prev = planMap.get(cur)?.prev_plan_code;
+    cur = prev || null;
+  }
+
+  historyModal.value = {
+    show: false,
+    title: "지원계획 수정이력",
+    list: [],
+    loading: true,
+  };
+
+  try {
+    const allLists = await Promise.all(
+      chainCodes.map(async (code) => {
+        try {
+          const res = await fetch(
+            `/api/history/target/${encodeURIComponent(
+              code,
+            )}?category_name=j0_20`,
+          );
+          if (!res.ok) return [];
+          const data = await res.json();
+          return Array.isArray(data) ? data : [];
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    const merged = [];
+    const seenHistory = new Set();
+    for (const list of allLists) {
+      for (const h of list) {
+        const key =
+          h.history_no != null
+            ? `id:${h.history_no}`
+            : `t:${h.upd_target ?? ""}-${h.upd_date ?? ""}`;
+        if (seenHistory.has(key)) continue;
+        seenHistory.add(key);
+        merged.push(h);
+      }
+    }
+
+    if (merged.length === 0) {
+      historyModal.value.loading = false;
+      historyModal.value.show = false;
+      showAlert(
+        "info",
+        "알림",
+        "해당 지원계획에 대한 수정 이력이 존재하지 않습니다.",
+      );
+      return;
+    }
+
+    merged.sort((a, b) => {
+      const da = new Date(a.upd_date || 0).getTime();
+      const db = new Date(b.upd_date || 0).getTime();
+      return da - db;
+    });
+
+    historyModal.value.list = merged;
+    historyModal.value.loading = false;
+    historyModal.value.show = true;
+  } catch {
+    historyModal.value.loading = false;
+    historyModal.value.show = false;
+    showAlert("error", "알림", "수정이력 조회 중 오류가 발생했습니다.");
   }
 }
+
 async function openResultHistory(resultCode) {
   if (!resultCode?.trim()) return;
-  await openHistoryModalByTarget(resultCode, "j0_30", "지원결과 수정이력");
-  if (!historyModal.value.list || historyModal.value.list.length === 0) {
-    showAlert("info", "알림", "수정 이력이 존재하지 않습니다.");
+
+  const chainCodes = [];
+  const seen = new Set();
+  const resultMap = new Map(
+    (resultData.value ?? []).map((r) => [r.result_code, r]),
+  );
+  let cur = resultCode;
+  while (cur && !seen.has(cur)) {
+    chainCodes.push(cur);
+    seen.add(cur);
+    const prev = resultMap.get(cur)?.prev_result_code;
+    cur = prev || null;
+  }
+
+  historyModal.value = {
+    show: false,
+    title: "지원결과 수정이력",
+    list: [],
+    loading: true,
+  };
+
+  try {
+    const allLists = await Promise.all(
+      chainCodes.map(async (code) => {
+        try {
+          const res = await fetch(
+            `/api/history/target/${encodeURIComponent(
+              code,
+            )}?category_name=j0_30`,
+          );
+          if (!res.ok) return [];
+          const data = await res.json();
+          return Array.isArray(data) ? data : [];
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    const merged = [];
+    const seenHistory = new Set();
+    for (const list of allLists) {
+      for (const h of list) {
+        const key =
+          h.history_no != null
+            ? `id:${h.history_no}`
+            : `t:${h.upd_target ?? ""}-${h.upd_date ?? ""}`;
+        if (seenHistory.has(key)) continue;
+        seenHistory.add(key);
+        merged.push(h);
+      }
+    }
+
+    if (merged.length === 0) {
+      historyModal.value.loading = false;
+      historyModal.value.show = false;
+      showAlert(
+        "info",
+        "알림",
+        "해당 지원결과에 대한 수정 이력이 존재하지 않습니다.",
+      );
+      return;
+    }
+
+    merged.sort((a, b) => {
+      const da = new Date(a.upd_date || 0).getTime();
+      const db = new Date(b.upd_date || 0).getTime();
+      return da - db;
+    });
+
+    historyModal.value.list = merged;
+    historyModal.value.loading = false;
+    historyModal.value.show = true;
+  } catch {
+    historyModal.value.loading = false;
+    historyModal.value.show = false;
+    showAlert("error", "알림", "수정이력 조회 중 오류가 발생했습니다.");
   }
 }
 function clearCancelRequestResult() {
