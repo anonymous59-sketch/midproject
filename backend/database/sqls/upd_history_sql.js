@@ -37,7 +37,7 @@ exports.selectUpdHistoryByTarget = `
   FROM upd_history h
   LEFT JOIN member m ON m.m_no = h.upd_member
   WHERE h.his_category = ? AND h.category_name = ?
-  ORDER BY h.upd_date DESC
+  ORDER BY h.upd_date ASC
 `;
 
 // 수정이력 목록 조회 — upd_target(PK: plan_code / result_code) 기준, 해당 건의 수정이력만
@@ -56,5 +56,5 @@ exports.selectUpdHistoryByUpdTarget = `
   FROM upd_history h
   LEFT JOIN member m ON m.m_no = h.upd_member
   WHERE h.upd_target = ? AND h.category_name = ?
-  ORDER BY h.upd_date DESC
+  ORDER BY h.upd_date ASC
 `;

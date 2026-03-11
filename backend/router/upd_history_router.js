@@ -26,9 +26,11 @@ router.get("/support/:supCode", async (req, res) => {
   }
 });
 
-// 수정이력 목록 조회 — upd_target(PK) 기준. plan_code → j0_20, result_code → j0_30
+// 수정이력 목록 조회 — upd_target(PK) 기준. plan_code → j0_20, result_code → j0_30, 상담 → j0_10
 router.get("/target/:targetPk", async (req, res) => {
   try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     const { targetPk } = req.params;
     const categoryName = req.query.category_name || "j0_20";
     const data = await updHistoryService.getUpdHistoryByUpdTarget(targetPk, categoryName);

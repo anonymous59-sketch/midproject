@@ -81,22 +81,23 @@ export function useHistory() {
   async function insertHistory(supCode, categoryName, { updTarget, updMember, beforeFields, afterFields }) {
     if (!supCode?.trim()) return;
     const isPlanOrResult = categoryName === "j0_20" || categoryName === "j0_30";
-    const hisCategory = isPlanOrResult && updTarget ? updTarget : supCode;
-    try {
-      await fetch(`/api/history/support/${encodeURIComponent(supCode)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category_name: categoryName,
-          his_category: hisCategory,
-          upd_member: updMember ?? "",
-          upd_target: updTarget ?? "",
-          content: JSON.stringify(Array.isArray(beforeFields) ? beforeFields : []),
-          upd_content: JSON.stringify(Array.isArray(afterFields) ? afterFields : []),
-        }),
-      });
-    } catch (e) {
-      console.warn("[useHistory] 수정이력 INSERT 실패:", e);
+    const isCounsel = categoryName === "j0_10";
+    const hisCategory = isPlanOrResult && updTarget ? updTarget : isCounsel && updTarget ? updTarget : supCode;
+    const res = await fetch(`/api/history/support/${encodeURIComponent(supCode)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category_name: categoryName,
+        his_category: hisCategory,
+        upd_member: updMember ?? "",
+        upd_target: updTarget ?? "",
+        content: JSON.stringify(Array.isArray(beforeFields) ? beforeFields : []),
+        upd_content: JSON.stringify(Array.isArray(afterFields) ? afterFields : []),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || err.error || "수정이력 저장 실패");
     }
   }
 

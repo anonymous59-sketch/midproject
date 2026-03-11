@@ -380,6 +380,13 @@ exports.insertCounsel = `
   VALUES (?, ?, ?, ?, NOW(), ?, ?, ?)
 `;
 
+// 상담 1건 수정 (csl_code 기준)
+exports.updateCounsel = `
+  UPDATE counsel
+  SET csl_title = ?, csl_date = ?, csl_content = ?, csl_writer = ?
+  WHERE csl_code = ?
+`;
+
 // ✅ 기관관리자 마이페이지: organ 1건 조회 (organ_no)
 exports.selectOrganByOrganNo = `
   SELECT organ_no, organ_name, organ_address, organ_mail, organ_tel, start_time, end_time, org_status
