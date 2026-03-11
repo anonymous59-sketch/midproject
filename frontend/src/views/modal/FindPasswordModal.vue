@@ -60,14 +60,18 @@ watch(
       pwErrorMessage.value = "";
       hasSentOnce.value = false;
       stopTimer();
+      countdown.value = 0;
+      localStorage.removeItem("verifi_end_findpw");
     } else {
-      restoreTimer(() => {
-        authMessage.value = "인증시간이 만료되었습니다. 다시 요청해주세요.";
-        isVerified.value = false;
-        axios
-          .post("/api/verifi/expire", { email: email.value, purpose: "i0_30" })
-          .catch(() => {});
-      });
+      if (hasSentOnce.value) {
+        restoreTimer(() => {
+          authMessage.value = "인증시간이 만료되었습니다. 다시 요청해주세요.";
+          isVerified.value = false;
+          axios
+            .post("/api/verifi/expire", { email: email.value, purpose: "i0_30" })
+            .catch(() => {});
+        });
+      }
     }
   },
 );
