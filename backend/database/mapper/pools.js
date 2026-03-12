@@ -1,5 +1,6 @@
 // MariaDB에 접속할 모듈
-require("dotenv").config({ path: "./dbConfig.env" });
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "dbConfig.env") });
 const mariadb = require("mariadb");
 // ConnectionPool 생성
 const connectionPool = mariadb.createPool({
