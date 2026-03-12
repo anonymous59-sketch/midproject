@@ -132,7 +132,7 @@ router.post("/file-content", async (req, res) => {
   }
 });
 
-// 카테고리별 파일 목록 조회
+// 카테고리별 파일 목록 조회. categoryPk = 상세보기 누른 그 항목의 PK → file 테이블 WHERE file_category = ?
 router.get("/files/:categoryPk", async (req, res) => {
   const { categoryPk } = req.params;
   try {

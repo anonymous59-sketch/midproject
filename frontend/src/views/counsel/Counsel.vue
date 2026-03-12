@@ -1757,6 +1757,9 @@ async function saveCounsel(payload) {
         code,
       )}/counsels/${encodeURIComponent(editingCounselCode.value)}`
     : `/api/apply/support/${encodeURIComponent(code)}/counsels`;
+  const filesForNewCounsel = !isEdit
+    ? Array.from(counselFormFiles.value || []).filter((f) => f instanceof File)
+    : [];
   counselFormSaving.value = true;
   try {
     const res = await fetch(url, {
@@ -1767,6 +1770,28 @@ async function saveCounsel(payload) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || "저장 실패");
+    }
+
+    // 신규 상담 등록 시 첨부파일 업로드
+    if (!isEdit) {
+      if (filesForNewCounsel.length > 0) {
+        let newCslCode = null;
+        try {
+          const json = await res.json().catch(() => ({}));
+          newCslCode = json?.csl_code ?? null;
+        } catch {
+          newCslCode = null;
+        }
+        if (newCslCode) {
+          await uploadFilesToServer(
+            filesForNewCounsel,
+            "counsel",
+            newCslCode,
+            authStore.user?.m_no ?? null,
+          );
+        }
+      }
+      counselFormFiles.value = null;
     }
     const shouldInsertHistory =
       isEdit &&
