@@ -34,6 +34,8 @@ app.get("/", function (req, res, next) {
 
 const Router = require("./router/router.js"); // 모든 라우터가 모여있는 파일이 router.js
 app.use("/", Router);
+// 배포 시 프론트가 /api/... 로 요청해도 동일 라우트 매칭 (프록시가 /api 유지하는 경우)
+app.use("/api", Router);
 
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, "./public", "index.html"));
