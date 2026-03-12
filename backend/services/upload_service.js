@@ -98,7 +98,7 @@ const svc = {
     return null;
   },
 
-  // 카테고리별 파일 목록
+  // 카테고리별 파일 목록. file_category = 상세보기 항목 PK(csl_code 등)
   getFilesByCategory: async (fileCategory) => {
     const rows = await query("uploadSelectFilesByCategory", [
       fileCategory,

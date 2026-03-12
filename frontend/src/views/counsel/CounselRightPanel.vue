@@ -87,6 +87,8 @@ const detailEditForm = reactive({
 
 /** 상담(csl_code) 기준 첨부파일 목록. GET /api/upload/files/:csl_code */
 const filesForCounsel = ref([]);
+/** 상담 첨부파일 목록 로딩 중 */
+const filesForCounselLoading = ref(false);
 /** 수정 모드에서 새로 선택한 File 목록. 수정완료 시 부모가 업로드 */
 const detailEditFiles = ref([]);
 /** 수정 모드에서 삭제 표시한 file_code. 수정완료 시 부모가 DELETE */
@@ -99,8 +101,11 @@ async function loadCounselFiles() {
   const cslCode = props.selectedCounselDetail?.csl_code;
   if (!cslCode) {
     filesForCounsel.value = [];
+    filesForCounselLoading.value = false;
     return;
   }
+  filesForCounselLoading.value = true;
+  filesForCounsel.value = [];
   try {
     const res = await fetch(`/api/upload/files/${encodeURIComponent(cslCode)}`);
     const data = await res.json().catch(() => ({}));
@@ -111,6 +116,8 @@ async function loadCounselFiles() {
     }
   } catch (e) {
     filesForCounsel.value = [];
+  } finally {
+    filesForCounselLoading.value = false;
   }
 }
 
@@ -540,11 +547,12 @@ defineExpose({ setDetailFormFromTemp });
               :value="selectedCounselDetail.csl_content"
             />
           </div>
-          <!-- 읽기 전용: 첨부파일 목록 + 전체 ZIP 다운로드 -->
-          <div v-if="(filesForCounsel?.length ?? 0) > 0" class="mb-2">
+          <!-- 읽기 전용: 첨부파일 목록 + 전체 ZIP 다운로드 (항상 영역 표시) -->
+          <div class="mb-2">
             <div class="d-flex justify-content-between align-items-center mb-1">
               <label class="form-label text-xs mb-0">첨부파일</label>
               <ArgonButton
+                v-if="(filesForCounsel?.length ?? 0) > 0"
                 type="button"
                 size="sm"
                 variant="outline"
@@ -554,7 +562,13 @@ defineExpose({ setDetailFormFromTemp });
                 첨부파일 전체 다운로드
               </ArgonButton>
             </div>
-            <div class="d-flex flex-wrap gap-1">
+            <p v-if="filesForCounselLoading" class="text-muted text-sm mb-0">
+              로딩 중...
+            </p>
+            <div
+              v-else-if="(filesForCounsel?.length ?? 0) > 0"
+              class="d-flex flex-wrap gap-1"
+            >
               <button
                 v-for="file in (filesForCounsel ?? [])"
                 :key="file.file_code"
@@ -566,6 +580,7 @@ defineExpose({ setDetailFormFromTemp });
                 {{ formatFileDisplayName(file) }}
               </button>
             </div>
+            <p v-else class="text-muted text-sm mb-0">첨부파일 없음</p>
           </div>
           <div
             class="d-flex align-items-center justify-content-between mt-3 pt-2 border-top"
