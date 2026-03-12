@@ -980,7 +980,7 @@ onBeforeMount(() => {
           <div class="modal-header">
             <h6 class="mb-0">조사지 미리보기</h6>
           </div>
-          <div class="modal-body preview-modal-body pt-3">
+          <div class="modal-body pt-3">
             <div class="mb-3" style="max-width: 420px">
               <label class="form-label text-sm">조사지</label>
               <div class="bg-light border rounded px-3 py-2 text-sm">
@@ -1307,10 +1307,6 @@ onBeforeMount(() => {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-}
-
-.preview-modal-body {
-  overflow-y: auto;
 }
 
 textarea {

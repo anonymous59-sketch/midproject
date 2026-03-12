@@ -82,6 +82,22 @@ function statusLabel(code) {
   if (code === "e0_99") return "반려";
   return code;
 }
+// 상태 문자열(statusLabel) 기준으로 클래스 반환
+function statusClass(code) {
+  const status = statusLabel(code); // 승인, 반려, 검토, 보완
+  switch (status) {
+    case "승인":
+      return "badge bg-success text-white fw-bold";
+    case "반려":
+      return "badge bg-danger text-white fw-bold";
+    case "보완":
+      return "badge bg-warning text-dark fw-bold";
+    case "검토":
+      return "badge bg-light text-dark fw-bold";
+    default:
+      return "badge bg-secondary text-white fw-bold";
+  }
+}
 
 async function loadHistory() {
   if (!supCode.value) {
@@ -146,8 +162,8 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="container-fluid py-4">
-      <h5 class="mb-3">지원대상 이력</h5>
+    <div class="container-fluid">
+      <h5 class="mb-3">지원대상 정보</h5>
 
       <!-- 상단: 지원대상 기본 정보 -->
       <div class="card shadow-sm mb-3">
@@ -159,10 +175,11 @@ onMounted(() => {
           <div v-else class="row g-3 align-items-center">
             <div class="col-md-3">
               <div class="mb-1 text-muted small">지원대상</div>
+              <div class="mb-1 text-muted small">이름</div>
               <div class="fs-6 fw-semibold">{{ target.mc_nm }}</div>
               <div class="text-muted small">
-                {{ formatDate(target.mc_bd) }} /
-                {{ disabilityLabel(target.mc_type) }}
+                생년월일: {{ formatDate(target.mc_bd) }} /
+                장애 유형: {{ disabilityLabel(target.mc_type) }}
               </div>
             </div>
             <div class="col-md-3">
@@ -173,7 +190,7 @@ onMounted(() => {
               <div class="mb-1 text-muted small">등록일</div>
               <div class="small">{{ formatDate(target.mc_submitdate) }}</div>
             </div>
-            <div class="col-md-3 text-md-end">
+            <div class="col-md-3">
               <div class="mb-1 text-muted small">지원신청 건수</div>
               <div class="fs-6 fw-semibold">{{ supports.length }}건</div>
             </div>
@@ -193,7 +210,7 @@ onMounted(() => {
       <div v-else-if="!loading && supports.length === 0" class="text-muted">
         지원 이력이 없습니다.
       </div>
-      <div v-else class="psw-history-scroll">
+      <div v-else style="overflow-y: auto; max-height: 60vh;">
         <div
           v-for="block in supports"
           :key="block.sup_code"
@@ -223,7 +240,7 @@ onMounted(() => {
             <div class="d-flex align-items-center gap-2">
               <select
                 v-model="block.activeTab"
-                class="form-select form-select-sm w-auto"
+                class="form-select form-select-sm w-auto psw-select"
               >
                 <option value="counsel">상담일지</option>
                 <option value="plan">지원계획</option>
@@ -308,7 +325,7 @@ onMounted(() => {
                   </div>
                   <div class="text-muted small mb-1">
                     상태:
-                    <span class="badge bg-light text-dark ms-1">
+                    <span :class="statusClass(plan.plan_tf)">
                       {{ statusLabel(plan.plan_tf) }}
                     </span>
                   </div>
@@ -345,7 +362,7 @@ onMounted(() => {
                   </div>
                   <div class="text-muted small mb-1">
                     계획번호: {{ result.plan_code }}
-                    <span class="badge bg-light text-dark ms-2">
+                    <span :class="statusClass(result.result_tf)" class="ms-2">
                       {{ statusLabel(result.result_tf) }}
                     </span>
                   </div>
@@ -369,10 +386,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.psw-history-scroll {
-  max-height: calc(100vh - 220px);
-  overflow-y: auto;
-}
 
 .psw-block-body {
   background-color: #f9fafb;
@@ -394,5 +407,9 @@ onMounted(() => {
 .psw-entry-content {
   white-space: pre-line;
   font-size: 0.875rem;
+}
+
+.psw-select {
+  padding-right: 2rem;
 }
 </style>

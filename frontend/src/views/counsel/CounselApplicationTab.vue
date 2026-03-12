@@ -85,7 +85,6 @@ const emit = defineEmits(["start-edit", "save", "cancel"]);
 
     <div
       class="survey-questions-scroll border rounded p-3 bg-light counsel-survey-list"
-      style="max-height: 60vh; overflow-y: auto"
     >
       <template v-for="(majorGrp, mIdx) in surveyAnswersGrouped" :key="mIdx">
         <div class="mb-4">

@@ -411,11 +411,9 @@ const searchAddress = () => {
                   :color="userType === '일반회원' ? 'success' : 'secondary'"
                   fullWidth
                   size="lg"
-                  class="rounded-0 py-2 text-nowrap"
+                  class="rounded-0 py-2 d-flex justify-content-center align-items-center text-nowrap"
                   @click="selectUserType('일반회원')"
-                >
-                  일반 회원
-                </ArgonButton>
+                >일반 회원</ArgonButton>
               </div>
               <div class="col-4 px-1">
                 <ArgonButton
@@ -423,11 +421,9 @@ const searchAddress = () => {
                   :color="userType === '기관담당자' ? 'success' : 'secondary'"
                   fullWidth
                   size="lg"
-                  class="rounded-0 py-2 text-nowrap"
+                  class="rounded-0 py-2 d-flex justify-content-center align-items-center text-nowrap"
                   @click="selectUserType('기관담당자')"
-                >
-                  기관 담당자
-                </ArgonButton>
+                >기관 담당자</ArgonButton>
               </div>
               <div class="col-4 px-1">
                 <ArgonButton
@@ -435,11 +431,9 @@ const searchAddress = () => {
                   :color="userType === '기관관리자' ? 'success' : 'secondary'"
                   fullWidth
                   size="lg"
-                  class="rounded-0 py-2 text-nowrap"
+                  class="rounded-0 py-2 d-flex justify-content-center align-items-center text-nowrap"
                   @click="selectUserType('기관관리자')"
-                >
-                  기관 관리자
-                </ArgonButton>
+                >기관 관리자</ArgonButton>
               </div>
               <p class="text-xs font-weight-bold mt-3 mb-0 text-secondary">
                 회원 유형을 선택해주세요
@@ -689,20 +683,6 @@ const searchAddress = () => {
                     {{ item.organ_name }}
                   </option>
                 </select>
-                <!-- 기관 선택 테스트 -->
-                <div v-if="institutions.length > 0" class="mt-3">
-                  <label class="form-label">아래 기관을 선택해주세요</label>
-                  <select v-model="selectedInstitution" class="form-control">
-                    <option value="">기관 선택</option>
-                    <option
-                      v-for="inst in institutions"
-                      :key="inst.inst_id"
-                      :value="inst.inst_id"
-                    >
-                      {{ inst.inst_name }}
-                    </option>
-                  </select>
-                </div>
                 <div class="text-center mt-4">
                   <ArgonButton
                     type="submit"
