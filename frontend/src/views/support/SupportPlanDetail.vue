@@ -98,16 +98,25 @@ const isEditMode = () => isEditing.value && (contentLocal.value || "").trim();
 /** 결과 버튼 노출: applicant는 결과 1건 이상일 때만, 담당/관리자는 승인(e0_10)이면 항상 */
 const showResultButton = computed(
   () =>
-    props.plan_result === "e0_10" &&
-    (isApplicant.value
-      ? props.resultCountForPlan != null && props.resultCountForPlan >= 1
-      : true),
+   {if (props.plan_result !== "e0_10") return false;
+
+  if (isApplicant.value) {
+    // 지원자는 승인된 결과가 있을 때만 버튼 표시
+    return (props.resultCountForPlan ?? 0) >= 1;
+  }
+
+  // 담당자/관리자는 항상 표시
+  return true;}
 );
 /** 결과 버튼 라벨: 결과가 1건 이상이면 '결과조회', 0건이면 '결과추가' (담당/관리자만 0건 시 결과추가) */
 const resultButtonLabel = computed(() =>
-  props.resultCountForPlan != null && props.resultCountForPlan >= 1
-    ? "결과조회"
-    : "결과추가",
+  {
+  if (isApplicant.value) {
+    return "결과조회";
+  }
+
+  return (props.resultCountForPlan ?? 0) >= 1 ? "결과조회" : "결과추가";
+}
 );
 
 // ========== 날짜·편집·완료 함수 ==========

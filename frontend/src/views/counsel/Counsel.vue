@@ -2164,7 +2164,7 @@ function onReceiptReject() {
                   :result-count-for-plan="
                     selectedPlanCode === plan.plan_code
                       ? resultData.length
-                      : undefined
+                      : 0
                   "
                   @result="loadResultForPlan"
                   @open-supple-history="openPlanSuppleHistory(plan.plan_code)"
