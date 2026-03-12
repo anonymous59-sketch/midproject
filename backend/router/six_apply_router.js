@@ -303,8 +303,17 @@ router.post("/support/:supCode/counsels", async (req, res) => {
   }
 });
 
+// 상담 1건 경로에 GET이 오면 405 (프록시가 PUT→GET으로 바꿀 때 원인 확인용)
+router.get("/support/:supCode/counsels/:cslCode", (req, res) => {
+  console.warn("[GET counsels/:cslCode] method not allowed (expected PUT)", req.originalUrl || req.url);
+  res.setHeader("Allow", "PUT");
+  return res.status(405).json({ message: "Method Not Allowed", expected: "PUT" });
+});
+
 // ✅ 상담 1건 수정: PUT /support/:supCode/counsels/:cslCode
 router.put("/support/:supCode/counsels/:cslCode", async (req, res) => {
+  // 배포 서버 404 디버깅: 요청이 여기까지 오면 로그가 찍힘 (메서드·경로 확인용)
+  console.log("[PUT counsels/:cslCode] reached", req.method, req.originalUrl || req.url);
   try {
     const { cslCode } = req.params;
     const payload = req.body || {};
