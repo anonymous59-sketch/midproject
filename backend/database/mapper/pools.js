@@ -1,6 +1,6 @@
 // MariaDB에 접속할 모듈
-const mariadb = require("mariadb");
 require("dotenv").config({ path: "./dbConfig.env" });
+const mariadb = require("mariadb");
 // ConnectionPool 생성
 const connectionPool = mariadb.createPool({
   // DB에 접속하는 정보 app.js랑 같은 경로에 dbConfig.env가 있어야함. git으로 공유가 안되는 파일이니까 없으면 조장, 부조장에게 요청

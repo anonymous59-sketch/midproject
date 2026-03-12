@@ -1768,8 +1768,20 @@ async function saveCounsel(payload) {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || "저장 실패");
+      const text = await res.text();
+      let errMsg = "저장 실패";
+      try {
+        const err = JSON.parse(text);
+        errMsg = err.message || err.retMsg || errMsg;
+      } catch {
+        if (res.status === 404) {
+          errMsg =
+            "요청 경로를 찾을 수 없습니다(404). 배포 서버 백엔드에 app.use('/api', Router) 적용 후 재시작했는지 확인해 주세요.";
+        } else if (text) {
+          errMsg = text.slice(0, 200);
+        }
+      }
+      throw new Error(`[${res.status}] ${errMsg}`);
     }
 
     // 신규 상담 등록 시 첨부파일 업로드
